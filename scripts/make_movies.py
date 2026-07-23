@@ -2,8 +2,8 @@
 """Movies for a KinShock2020 run -> media/<run_id>/ (config-driven, yt + ffmpeg).
 
   * shock_ni.mp4     : ion density line-out n_i/n_e0(z) vs time
-  * shock_phase.mp4  : ambient+piston ion (z, v_z/v_sh) phase space vs time
-                       (v_z > v_sh dotted line = reflected-ion threshold)
+  * shock_phase.mp4  : ambient+piston ion (z, v_z/v_sh) phase-space distribution
+                       vs time (v_z > v_sh dotted line = reflected-ion threshold)
 
 Frames are rendered to $MOVIE_SCRATCH (default the session scratchpad) then
 encoded. Uses the same shock speed the figures use (model value, unless a
@@ -60,24 +60,22 @@ def movie_phase(pfs, cfg, sc, vsh, fps):
     framedir = os.path.join(SCRATCH, cfg["meta"]["run_id"], "phase")
     os.makedirs(framedir, exist_ok=True)
     c = kinshock.units.C
+    # fixed (z, v_z) grid so the distribution — not the axes — is what moves
+    Hd = sc.domain_halfwidth / sc.di0
+    z_edges = np.linspace(-Hd, Hd, 421)
+    v_edges = np.linspace(-2.5, 3.0, 241)
     for i, pf in enumerate(pfs):
         fr = io.load_frame(pf)
         fig, ax = plt.subplots(figsize=(7.4, 4.4))
-        for sp, col, lbl in (("piston_ions", P.C_PISTON, "piston ions"),
-                             ("amb_ions", P.C_AMBIENT, "ambient ions")):
-            z, uz = io.species_phase(fr, sp, sc, mass=sc.mi)
+        sd = {}
+        for sp, key in (("piston_ions", "piston"), ("amb_ions", "ambient")):
+            z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
             if len(z):
-                ax.plot(z / sc.di0, uz * c / vsh, ".", ms=0.5, alpha=0.25,
-                        color=col, rasterized=True, label=lbl)
-        ax.axhline(1.0, color=P.C_REF, ls=":", lw=0.8)
-        ax.set_ylim(-2.0, 2.5)
+                sd[key] = (z / sc.di0, uz * c / vsh, w)
+        P.phase_distribution(ax, sd, z_edges, v_edges, vline=1.0, legend=True)
         ax.set_xlabel(r"$z / d_{i0}$")
         ax.set_ylabel(r"$v_z / v_{sh}$")
         ax.set_title(rf"$t\,\omega_{{ci0}}={fr.time*sc.wci0:.2f}$")
-        leg = ax.legend(frameon=False, fontsize=8, markerscale=15, loc="upper right")
-        for lh in leg.legend_handles:
-            lh.set_alpha(1.0)
-        P.style_axes(ax)
         fig.tight_layout()
         fig.savefig(os.path.join(framedir, f"frame_{i:03d}.png"), dpi=110)
         plt.close(fig)

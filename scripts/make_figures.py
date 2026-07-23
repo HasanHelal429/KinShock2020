@@ -6,7 +6,7 @@ to media/<run_id>/. Implements analyses A–E of REPLICATION_PLAN.md §6:
 
   A. B_perp(z,t) streak plot with piston/shock speed lines  -> shock_streak.png
   A. shock-front trajectory + measured v_sh, M_A, M_ms       -> shock_trajectory.png
-  B. ion (z, u_z) phase space at several times               -> shock_phase.png
+  B. ion (z, u_z) phase-space distribution at several times  -> shock_phase.png
      + density / B_perp line-outs                            -> shock_lineouts.png
   C. seven shock-formation criteria per frame                -> criteria.json (+ stdout)
   D. reflected-ambient-ion fraction G(t), F(z), t*_1, z*_1   -> shock_reflected.png
@@ -144,22 +144,26 @@ def fig_lineouts(frames, cfg, sc, nframes):
 
 def fig_phase(frames, cfg, sc, vsh, nframes):
     idx = _select(frames, nframes)
-    fig, axes = plt.subplots(1, len(idx), figsize=(3.2 * len(idx), 3.6), sharey=True)
+    fig, axes = plt.subplots(1, len(idx), figsize=(3.2 * len(idx), 3.8), sharey=True)
     axes = np.atleast_1d(axes)
     vnorm = vsh if (vsh and np.isfinite(vsh)) else sc.vsh_model
-    for ax, i in zip(axes, idx):
+    # fixed (z, v_z) grid shared by every panel: full domain x reflected/inflow band
+    Hd = sc.domain_halfwidth / sc.di0
+    z_edges = np.linspace(-Hd, Hd, 301)
+    v_edges = np.linspace(-2.5, 3.0, 221)
+    for k, (ax, i) in enumerate(zip(axes, idx)):
         fr = frames[i]
-        for sp, col in (("piston_ions", P.C_PISTON), ("amb_ions", P.C_AMBIENT)):
-            z, uz = io.species_phase(fr, sp, sc, mass=sc.mi)
+        sd = {}
+        for sp, key in (("piston_ions", "piston"), ("amb_ions", "ambient")):
+            z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
             if len(z):
-                ax.plot(z / sc.di0, uz * kinshock.units.C / vnorm, ".", ms=0.4,
-                        alpha=0.25, color=col, rasterized=True)
-        ax.axhline(1.0, color=P.C_REF, ls=":", lw=0.8)  # v_z = v_sh (reflection threshold)
+                sd[key] = (z / sc.di0, uz * kinshock.units.C / vnorm, w)
+        P.phase_distribution(ax, sd, z_edges, v_edges, vline=1.0, legend=(k == 0))
         ax.set_title(rf"$t\,\omega_{{ci0}}={fr.time*sc.wci0:.1f}$", fontsize=9)
         ax.set_xlabel(r"$z / d_{i0}$")
-        P.style_axes(ax)
     axes[0].set_ylabel(r"$v_z / v_{sh}$")
-    fig.suptitle(f"{cfg['meta']['run_id']}: ion phase space (v_z>v_sh = reflected)")
+    fig.suptitle(f"{cfg['meta']['run_id']}: ion phase-space distribution "
+                 r"($v_z>v_{sh}$ = reflected; each species self-normalised)")
     fig.tight_layout()
     return P.savefig(fig, "shock_phase.png", run_id=cfg["meta"]["run_id"])
 

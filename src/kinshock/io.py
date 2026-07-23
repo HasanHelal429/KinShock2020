@@ -111,6 +111,22 @@ def species_phase(frame: Frame, species, scales: Scales, mass=None):
     return z, pz
 
 
+def species_phase_weighted(frame: Frame, species, scales: Scales, mass=None):
+    """Like :func:`species_phase` but also returns the macroparticle weights, so a
+    2D histogram over (z, u_z) is a true phase-space *distribution* f(z, u_z) rather
+    than a raw macroparticle count. Returns (z [m], u_z = p_z/(m c), weight)."""
+    from .units import ME
+    m = mass if mass is not None else (scales.mi if "ion" in species else ME)
+    ad = frame.ds.all_data()
+    try:
+        z = np.asarray(ad[(species, "particle_position_x")])
+        pz = np.asarray(ad[(species, "particle_momentum_z")]) / (m * _C())
+        w = np.asarray(ad[(species, "particle_weight")])
+    except Exception:
+        z, pz, w = np.array([]), np.array([]), np.array([])
+    return z, pz, w
+
+
 def _C():
     from .units import C
     return C
