@@ -192,3 +192,84 @@ gains `test_one_sided_half_domain` (10/10 pass).
 - [ ] Half-domain R1_core (`layout: one_sided`, `±3600`→`0..3600 d_e`) and cross-check the
   shock front / compression / reflected-ion fraction against a full-domain R1_core, confirming
   the near-wall artifact does not reach the shock at physics resolution (dz=0.3 d_e).
+
+
+---
+
+## R1_core half-domain cross-check (2026-07-23) — physics-resolution validation
+
+`runs/R1_core_half`: `layout: one_sided`, wall@z=0, `0..3600 d_e`, dz=0.3 d_e, 12000 cells,
+100 ppc, 125000 steps (~180 min, tmux `wxr1half`). Compared frame-for-frame against the
+complete full-domain `runs/R1_core` on z≥0 (same dt & diagnostic cadence).
+Figure: `media/testing/R1_core_half_crosscheck.png`. Scripts: `tmp/crosscheck_r1core.py`
+(raw) + `tmp/crosscheck_r1core_v2.py` (refined: ambient-only compression measured in a
+[front−400, front−50] d_e window, edge-contaminated frames excluded).
+
+**Boundary caveat.** The +z shock reaches the domain edge (3600 d_e) at t·ω_ci0 ≈ 2.5; the
+last 14/51 frames pile against the absorbing boundary and are excluded from the quantitative
+comparison. Clean window: 37 frames up to t·ω_ci0 = 2.25. (The full run's +z shock hits its
+own +3600 edge at the same time, so this limit is identical for both — not a half-domain defect.)
+
+**Findings on z ≥ 0 (clean window):**
+- **Bulk conservation exact:** total macroparticles half/full = 0.500→0.521, total energy
+  0.499→0.492. The half domain is precisely half the system. ✓
+- **Shock front trajectory:** tracks the full run with a *steady* offset of **−4.7% mean**
+  (half slightly behind), narrowing from −7% early to −2.6% by t·ω_ci0=2.25. Clean-window
+  front-speed ratio **0.97** (half ~3% slower).
+- **Ambient density compression:** full 2.39 vs half 2.45 — **matches to 3%** (shock still
+  steepening through this window; not yet the asymptotic ~4×).
+- **Ambient B_perp compression:** full 3.33 vs half 3.76 — half runs **~13% higher**.
+- **Near-wall B_perp** (z<3 slab): full 17.5 vs half 15.9 — comparable.
+
+**Interpretation.** The −5% front lag + ~13% higher field compression are the R1_core-scale
+signature of the *same* z=0 specular-wall artifact seen in R0: the wall flips only v_z, not the
+gyro-coupled v_y, so the piston is driven marginally differently. Unlike R0 (a pre-shock smoke
+test where the artifact stayed buried in the foil), running to shock formation lets that ~5%
+systematic leak into shock *kinematics*. The reflected-ion fraction G from the raw script showed
+a larger ~15–20% gap, but that comparison used a single boundary-contaminated v_sh as reference
+for both runs and is not reliable; it is not used for the verdict.
+
+**Verdict.** Half-domain reproduces full-domain R1_core shock structure to **~3% (density),
+~5% (front kinematics), ~13% (field compression)** at half the compute. The differences are a
+small but *systematic* (not noise) consequence of the imperfect reflecting wall — acceptable for
+the 2× saving on structural/compression studies, but front-speed-sensitive diagnostics (e.g.
+Mach number, reflected-ion energetics) inherit a ~5% offset that should be quoted with the result.
+
+
+---
+
+## CPU threading benchmark (2026-07-23) — `media/testing/cpu_benchmark.png`
+
+Harness: `$CLAUDE_JOB_DIR/tmp/bench/harness.sh` (600 timed steps, 150 warmup discarded,
+median per-step, min of 2 repeats, taskset-pinned to distinct physical cores, diags off).
+Ran on AMD 7950X **while 16 `flash4` procs (another user) held loadavg 16-24** -> absolute
+numbers are a LOWER BOUND; relative trends hold. Binary: warpx.1d.MPI.OMP (double precision).
+
+**Thread scaling (base config, R1_core_half early-time, 12k cells / 3.3M ptcls):**
+| threads | s/step | speedup | efficiency |
+|--------:|-------:|--------:|-----------:|
+| 1 | 0.2536 | 1.0x | 100% |
+| 2 | 0.1172 | 2.16x | (108%*) |
+| 4 | 0.0635 | 3.99x | 100% |
+| 8 | 0.0347 | **7.31x** | **91%** |
+
+Near-linear to 8 threads — the memory-bandwidth knee I predicted does NOT bite by 8 (it must
+sit between 8 and 16). *T2 slightly super-linear = cache/latency artifact on the T1 anchor.
+
+**Config ladder (all @8 threads) — the surprise:** every proposed optimization was neutral-to-
+negative for this 1D problem. `+max_grid_size=512` 0.0398 (+15%), `+tiling(mfiter=8)` 0.0397,
+`+sort_intervals=25` 0.0388 — all SLOWER than plain 8-thread (0.0347). Partly confounded by
+rising load during the ladder (loadavg 20->24), but no positive signal. **Interpretation:** the
+default 94 small grids (96-128 cells) already keep per-grid current arrays cache-resident;
+enlarging grids trades that cache locality for redistribute savings that don't net out. The 17%
+redistribute cost is apparently cheaper than the cache penalty of big grids. **Theory (fixes
+B/C/D) refuted by measurement — keep the default grid config.**
+
+**Full-run (125k-step) wall-time estimates** (early s/step x growth G=1.36 from the real 4-thr run):
+- 4 threads (current): **180 min** (measured, anchors G)
+- 8 threads: **~99 min** (1.83x) <- the free win, just set `OMP_NUM_THREADS=8`
+- 16 threads: **~55-73 min projected** (2.6-3.0x), UNMEASURED — needs a quiet machine
+
+**Actionable:** run production with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
+for ~1.8x now; do NOT bother with max_grid_size/tiling/sort tweaks. Re-run the sweep to 16/32
+threads when the machine is idle to locate the bandwidth knee and confirm the 16-thread number.
