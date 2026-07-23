@@ -132,3 +132,63 @@ speed/Mach that defines the shock.
 - [ ] Core-tier R1 run → confirm piston-electron θ saturates near θ_e in a large domain
 - [ ] then Full R1 (§7 runtime ~730 core-h) → acceptance criteria (plan §6)
 - [ ] R2 (B₀=0), R3 (n_e0=0) negative controls
+
+---
+
+## 2026-07-23 — One-sided half-domain (exploit z→−z symmetry); validated at R0
+
+**Motivation.** The centered-slab problem is symmetric about z=0 (two counter-propagating
+shocks in ±z; we analyze one). Simulating only the +z half [0, half] with a wall at z=0
+halves cells + particles (REPLICATION_PLAN.md §7, "one-sided ablation"). Implemented as
+**approach (a): a physical foil/reflecting wall at z=0** (specular particles + pec fields),
+valid because z=0 sits inside the dense, driven piston — far from where the shock forms.
+
+**Implementation (config-driven, symmetric layout unchanged/default).**
+- `geometry.layout: one_sided` → domain `[0, half]`, `n_cell` halved (`units.derive` +
+  `deck._n_cell`).
+- `geometry.boundary` now accepts a `{lo, hi}` map of semantic names resolved to WarpX tokens:
+  `reflecting`→(pec, reflecting), `open`→(pec, absorbing), `absorbing`→(silver_mueller,
+  absorbing), `periodic`→(periodic, periodic).
+- z=0 = `reflecting` (symmetry/foil wall); far edge = `open`. **`open` uses pec (not
+  Silver-Mueller) fields**: the projection B-field divergence cleaner (active with any external
+  B) rejects Silver-Mueller, and pmc/neumann would zero the tangential B₀ — pec is the one
+  div-safe choice that preserves B₀. Nothing reaches the far edge within a run, so it is a
+  don't-care beyond being stable. `config.validate` warns on periodic-on-one-face and on
+  `absorbing` with a background field.
+
+**Two bugs found and fixed during R0 validation** (`runs/R0_half`, 1000 cells vs R0's 2000):
+1. **Far-boundary field BC** — first attempt used Silver-Mueller at the far edge → WarpX abort
+   ("div cleaner requires periodic/PEC/PMC/neumann"). Fixed by the `open`→pec mapping above.
+2. **Heater foil width** — the PSC foil heating rate is **H ∝ 1/width**, `width = foil.hi −
+   foil.lo` (`ParticleHeater::makeFoilExpression`). Naively moving `foil.lo` from `−slab` to
+   `0` halved the width → **doubled the heating rate** → the half-domain piston ran **1.7–1.9×
+   over-energized**. Fix: keep `foil.lo = −slab` (and injector, which is per-cell and
+   width-independent) even one-sided, so the rate matches the full domain; the one-sided
+   domain then clips the heated region to [0, slab]. This is the whole reason the foil geometry
+   must NOT be rewritten for the half domain.
+
+**Validation vs full R0 on z ≥ 0** (both at t·ω_pe ≈ 750; `media/testing/R0_half_validation.png`):
+- Loaded state on z≥0: **identical** (deterministic uniform loading; ratio 1.000, relRMS 0).
+- Bulk conserved quantities: total particle **weight 0.499×**, total **energy 0.504×** full
+  (target 0.5). Piston **KE on z≥0**: electrons **1.025×**, ions **0.970×** full's z≥0 half
+  (i.e. matches to 2–3%). [Before the foil fix these were 1.69× / 1.87×.]
+- **B_perp, ambient (z > 65 d_e, where the shock forms):** mean/B₀ = 1.60 (full) vs 1.58
+  (half). The raw RMS difference (1.12) collapses under smoothing (→0.23 at 40 d_e) → it is
+  short-wavelength **PIC shot noise** (independent RNG draws), not a systematic offset.
+- **B_perp, piston/near-wall (z < 65 ≈ 3 slab):** ~15–20% higher in the half domain
+  (peak 11.1 vs 9.8). This is the residual, **localized** cost of approach (a): a specular wall
+  flips only the normal v_z, not the gyro-coupled v_y, so the diamagnetic/E×B current does not
+  vanish exactly at z=0 as it would at a true symmetry plane. It stays buried in the driven
+  piston, far from the ambient shock region.
+- Runtime: **8.8 s vs 15.2 s** (single node, 4 OMP threads).
+
+**Verdict.** Half-domain reproduces full-domain z≥0 physics where it matters (bulk + ambient) at
+~half cost; the near-wall piston field carries a known ~15–20% localized artifact. **Caveat:**
+diagnostics that read field/compression *inside* the piston (z ≲ 3 slab) should be treated with
+care in one-sided runs; shock diagnostics (in the ambient) are unaffected. `tests/test_structures.py`
+gains `test_one_sided_half_domain` (10/10 pass).
+
+### Next (half-domain)
+- [ ] Half-domain R1_core (`layout: one_sided`, `±3600`→`0..3600 d_e`) and cross-check the
+  shock front / compression / reflected-ion fraction against a full-domain R1_core, confirming
+  the near-wall artifact does not reach the shock at physics resolution (dz=0.3 d_e).

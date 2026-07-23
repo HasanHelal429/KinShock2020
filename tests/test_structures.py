@@ -22,6 +22,7 @@ from kinshock import metrics
 
 R1 = os.path.join(ROOT, "runs", "R1")
 R0 = os.path.join(ROOT, "runs", "R0")
+R0_HALF = os.path.join(ROOT, "runs", "R0_half")
 
 
 # --------------------------------------------------------------------------- #
@@ -92,6 +93,36 @@ def test_make_inputs_roundtrip():
         text = deck.render(cfg)
         assert "particle_heater" in text and "target_injector" in text
         assert f"amr.n_cell        = {kinshock.units.derive(cfg).n_cell}" in text
+
+
+def test_one_sided_half_domain():
+    """The one-sided layout (runs/R0_half) must: halve the cell count, put the
+    domain at [0, half] with a reflecting z=0 wall + open far boundary, and KEEP
+    the foil at [-slab, +slab] so the PSC heating rate (H ~ 1/width) matches the
+    full-domain rate — the domain then clips the heated region to [0, slab]. It
+    must also round-trip (deck resolves back to config)."""
+    from kinshock import deck
+    cfg_half = kinshock.load(R0_HALF)
+    cfg_full = kinshock.load(R0)
+    sc_half = kinshock.units.derive(cfg_half)
+    sc_full = kinshock.units.derive(cfg_full)
+    # same physics primaries, but half the cells at the same dz / domain half-width
+    assert cfg_half["geometry"]["domain_halfwidth_de"] == cfg_full["geometry"]["domain_halfwidth_de"]
+    assert sc_half.n_cell == sc_full.n_cell // 2, (sc_half.n_cell, sc_full.n_cell)
+
+    text = deck.render(cfg_half)
+    assert "geometry.prob_lo  =  0." in text
+    assert "boundary.field_lo    = pec" in text          # z=0 symmetry/foil wall
+    assert "boundary.particle_lo = reflecting" in text
+    assert "boundary.particle_hi = absorbing" in text     # open far boundary
+    assert "boundary.field_hi    = pec" in text           # div-cleaner-safe with B0
+    # foil width preserved (NOT clipped to [0, slab]) so the heating rate matches full
+    assert "particle_heater.foil.lo          = -slab" in text
+    assert "target_injector.lo                   = -slab" in text
+    assert deck.verify(cfg_half, os.path.join(R0_HALF, "inputs_kinshock_R0_half")) == []
+
+    # symmetric decks must be unaffected by the layout feature (default = symmetric)
+    assert "geometry.prob_lo  = -half" in deck.render(cfg_full)
 
 
 def test_metrics_eq1_expansion_speed():

@@ -75,6 +75,25 @@ def validate(cfg: dict, scales: units.Scales | None = None,
     if scales.domain_halfwidth < front_full:
         warns.append(f"domain half-width {scales.domain_halfwidth/scales.de:.0f} d_e may be too "
                      f"small: shock reaches ~6 rho_i0 = {front_full/scales.de:.0f} d_e by t*_3")
+
+    # geometry <-> boundary consistency
+    geo = cfg["geometry"]
+    b = geo.get("boundary", "periodic")
+    faces = (b.get("lo", "periodic"), b.get("hi", "periodic")) if isinstance(b, dict) else (b, b)
+    n_periodic = sum(f == "periodic" for f in faces)
+    if n_periodic == 1:
+        warns.append("boundary: exactly one face is 'periodic' — WarpX requires both faces "
+                     "periodic together or neither; set a non-periodic pair (e.g. "
+                     "lo: reflecting, hi: absorbing)")
+    if geo.get("layout", "symmetric") == "one_sided" and faces[0] == "periodic":
+        warns.append("one-sided layout with a periodic z=0 face: the center should be a "
+                     "reflecting (symmetry/foil) wall — set boundary.lo: reflecting")
+    has_bfield = (cfg["field"].get("orientation", "perpendicular") != "none"
+                  and float(cfg["field"].get("vA_over_c", 0) or 0) != 0)
+    if has_bfield and "absorbing" in faces:
+        warns.append("boundary 'absorbing' (Silver-Mueller) is incompatible with the B-field "
+                     "divergence cleaner that runs when a background B is set; use 'open' "
+                     "(pec fields + absorbing particles) instead")
     return warns
 
 

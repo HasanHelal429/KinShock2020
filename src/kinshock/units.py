@@ -185,7 +185,9 @@ def derive(cfg: dict) -> Scales:
     dt_wpe = dt * wpe
     halfwidth_de = float(geo["domain_halfwidth_de"])
     domain_halfwidth = halfwidth_de * de
-    n_cell = int(round(2.0 * halfwidth_de / float(geo["dz_over_de"])))
+    # one-sided [0, half] has half the cells of symmetric [-half, +half] at same dz.
+    _span = 1.0 if geo.get("layout", "symmetric") == "one_sided" else 2.0
+    n_cell = int(round(_span * halfwidth_de / float(geo["dz_over_de"])))
     steps_per_wci0 = wci0_inv / dt
 
     return Scales(

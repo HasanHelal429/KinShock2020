@@ -42,6 +42,58 @@ def _num(x: float) -> str:
     return repr(x).replace("e+", "e")
 
 
+# Semantic boundary name -> (field_bc, particle_bc) WarpX tokens.
+#   periodic   : wrap (both faces must be periodic together)
+#   reflecting : symmetry / foil wall at z=0 — tangential E = 0 (pec) + specular
+#                particles. See REPLICATION_PLAN.md §7 (one-sided ablation): valid
+#                here because z=0 sits inside the dense, driven piston, so the
+#                specular-reflection approximation (flips only the normal v_z, not
+#                the gyro-coupled v_y) is buried in the foil, far from the shock.
+#   open       : far boundary with a background field — particles leave (absorbing)
+#                while fields use pec. pec is required (not silver-mueller) because
+#                the projection B-field divergence cleaner, active whenever an
+#                external B is set, only accepts periodic/pec/pmc/neumann; pmc and
+#                neumann would zero the tangential B0, so pec is the one div-safe
+#                choice that preserves B0. Harmless here: the domain is sized so
+#                nothing reaches the far boundary within the run.
+#   absorbing  : true EM outflow (Silver-Mueller + particles leave). NOT compatible
+#                with the B-field div cleaner, so only for field.orientation != a
+#                background field (e.g. the B0=0 negative control). Use 'open' when
+#                a background B is present.
+_BC_MAP = {
+    "periodic":   ("periodic", "periodic"),
+    "reflecting": ("pec", "reflecting"),
+    "open":       ("pec", "absorbing"),
+    "absorbing":  ("absorbing_silver_mueller", "absorbing"),
+}
+
+
+def _boundaries(geo: dict):
+    """((field_lo, field_hi), (particle_lo, particle_hi)) from ``geo['boundary']``.
+
+    ``boundary`` is either a single semantic name applied to both faces (legacy,
+    e.g. ``periodic``) or a ``{lo, hi}`` mapping (e.g. ``{lo: reflecting, hi:
+    absorbing}`` for a one-sided half-domain). Each name resolves via
+    :data:`_BC_MAP` to its (field, particle) WarpX token pair."""
+    b = geo.get("boundary", "periodic")
+    lo_name, hi_name = (b.get("lo", "periodic"), b.get("hi", "periodic")) \
+        if isinstance(b, dict) else (b, b)
+    try:
+        flo, plo = _BC_MAP[lo_name]
+        fhi, phi = _BC_MAP[hi_name]
+    except KeyError as e:
+        raise ValueError(f"unknown boundary {e.args[0]!r}; "
+                         f"expected one of {sorted(_BC_MAP)}") from None
+    return (flo, fhi), (plo, phi)
+
+
+def _n_cell(geo: dict) -> int:
+    """Number of cells: a one-sided domain [0, half] has half the cells of the
+    symmetric domain [-half, +half] at the same dz."""
+    span = 1.0 if geo.get("layout", "symmetric") == "one_sided" else 2.0
+    return int(round(span * float(geo["domain_halfwidth_de"]) / float(geo["dz_over_de"])))
+
+
 def _init_theta(role: str, kind: str) -> str:
     """my_constants expression for a species' initial thermal u_std^2 (= theta)."""
     if role == "piston":
@@ -73,10 +125,11 @@ def render(cfg: dict) -> str:
     ops, meta = cfg["operators"], cfg.get("meta", {})
     sc = units.derive(cfg)
 
-    n_cell = int(round(2.0 * float(geo["domain_halfwidth_de"]) / float(geo["dz_over_de"])))
+    one_sided = geo.get("layout", "symmetric") == "one_sided"
+    n_cell = _n_cell(geo)
     ppc_piston = int(num["ppc"]["piston"])
     ppc_ambient = int(num["ppc"]["ambient"])
-    bc = geo.get("boundary", "periodic")
+    (field_lo, field_hi), (part_lo, part_hi) = _boundaries(geo)
     bx = "B0" if cfg["field"].get("orientation", "perpendicular") == "perpendicular" else "0."
     plot_int, red_int, field_int = _diag_intervals(cfg)
 
@@ -90,8 +143,10 @@ def render(cfg: dict) -> str:
     a("# regenerate (the config is the single source of truth). Derived scales:")
     a(f"#   d_e={sc.de:.4g} m  d_i0={sc.di0:.4g} m  B0={sc.B0:.4g} T  "
       f"dt*wpe={sc.dt_wpe:.4g}")
+    domain_desc = (f"0..{geo['domain_halfwidth_de']} d_e (one-sided, wall at z=0)"
+                   if one_sided else f"+-{geo['domain_halfwidth_de']} d_e")
     a(f"#   M_A={sc.MA:.3g}  M_ms={sc.Mms:.3g}  n_cell={n_cell}  "
-      f"dz={geo['dz_over_de']} d_e  domain=+-{geo['domain_halfwidth_de']} d_e")
+      f"dz={geo['dz_over_de']} d_e  domain={domain_desc}")
     if meta.get("description"):
         a(f"# {' '.join(str(meta['description']).split())}")
     a("# " + "=" * 74)
@@ -129,13 +184,13 @@ def render(cfg: dict) -> str:
     a(f"amr.n_cell        = {n_cell}")
     a("amr.max_level     = 0")
     a(f"geometry.dims     = {int(geo['dims'])}")
-    a("geometry.prob_lo  = -half")
+    a("geometry.prob_lo  =  0." if one_sided else "geometry.prob_lo  = -half")
     a("geometry.prob_hi  =  half")
     a("")
-    a(f"boundary.field_lo    = {bc}")
-    a(f"boundary.field_hi    = {bc}")
-    a(f"boundary.particle_lo = {bc}")
-    a(f"boundary.particle_hi = {bc}")
+    a(f"boundary.field_lo    = {field_lo}")
+    a(f"boundary.field_hi    = {field_hi}")
+    a(f"boundary.particle_lo = {part_lo}")
+    a(f"boundary.particle_hi = {part_hi}")
     a("")
     a(f"algo.particle_shape = {int(num['particle_shape'])}")
     a("")
@@ -183,6 +238,10 @@ def render(cfg: dict) -> str:
     a(f"particle_heater.intervals = {int(h['intervals'])}")
     a("particle_heater.profile   = foil")
     a("particle_heater.foil.normal      = z")
+    # foil.lo/hi stay [-slab, +slab] even one-sided: the foil WIDTH sets the PSC
+    # heating rate (H ~ 1/width), so keeping the full symmetric width reproduces
+    # the full-domain rate; the one-sided domain then clips the heated region to
+    # [0, slab]. (Using [0, slab] here would halve the width and double the rate.)
     a("particle_heater.foil.lo          = -slab")
     a("particle_heater.foil.hi          =  slab")
     a("particle_heater.foil.spot_radius = 0.")
@@ -305,6 +364,10 @@ def key_params(path: str) -> dict:
     out["dims"] = int(float(d.get("geometry.dims", "1")))
     out["prob_hi"] = _eval(d["geometry.prob_hi"], ns)
     out["prob_lo"] = _eval(d["geometry.prob_lo"], ns)
+    for bkey in ("boundary.field_lo", "boundary.field_hi",
+                 "boundary.particle_lo", "boundary.particle_hi"):
+        if bkey in d:
+            out[bkey] = d[bkey].lower()
     out["heater.intervals"] = int(float(d["particle_heater.intervals"]))
     out["injector.intervals"] = int(float(d["target_injector.intervals"]))
     out["injector.tau"] = _eval(d["target_injector.tau"], ns)
