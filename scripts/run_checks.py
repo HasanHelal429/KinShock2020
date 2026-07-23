@@ -97,11 +97,12 @@ def operator_balance_figure(cfg, sc, run_dir):
     except FileNotFoundError as e:
         print("  (skipping operator-balance figure:", e, ")")
         return None
-    t = EP[:, 0] * sc.wpe
+    # WarpX reduced-diag columns are [0]=step, [1]=time(s), [2]=total, ...
+    t = EP[:, 1] * sc.wpe
     fig, (a_e, a_n) = plt.subplots(2, 1, figsize=(7.6, 6.0), sharex=True)
-    a_e.plot(t, EP[:, 1] / EP[0, 1] if EP[0, 1] else EP[:, 1], color=P.C_PISTON, lw=1.1)
+    a_e.plot(t, EP[:, 2] / EP[0, 2] if EP[0, 2] else EP[:, 2], color=P.C_PISTON, lw=1.1)
     a_e.set_ylabel("total particle energy / E(0)")
-    a_n.plot(PN[:, 0] * sc.wpe, PN[:, 1], color=P.C_AMBIENT, lw=1.1)
+    a_n.plot(PN[:, 1] * sc.wpe, PN[:, 2], color=P.C_AMBIENT, lw=1.1)
     a_n.set_ylabel("total macroparticles")
     a_n.set_xlabel(r"$t\,\omega_{pe}$")
     for ax in (a_e, a_n):
