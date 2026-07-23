@@ -138,28 +138,129 @@ def fig_lineouts(frames, cfg, sc, nframes):
     return P.savefig(fig, "shock_lineouts.png", run_id=cfg["meta"]["run_id"])
 
 
+# phase panels follow the FORWARD (+z) shock: the window is anchored on the tracked
+# front and sized to the feature -- extents scale with the front position so earlier
+# (more compact) times are zoomed tighter -- and clipped to z >= 0. rho_i0 floors keep
+# the earliest panels from collapsing to a degenerate width.
+PHASE_WIN_BACK_FRAC = 0.5       # downstream extent behind the front ~ frac * z_front
+PHASE_WIN_AHEAD_FRAC = 0.20     # upstream (foot) extent ahead of the front
+PHASE_WIN_BACK_MIN_RHO = 0.6    # floors, in rho_i0
+PHASE_WIN_AHEAD_MIN_RHO = 0.05
+# left (v_z/v_sh) axis: NOT centred on 0 -- the forward shock is dominated by positive
+# v_z, so the range is weighted upward to best capture the piston/reflected dynamics.
+PHASE_V_LO, PHASE_V_HI = -1.0, 3.0
+
+
+def _electron_species(cfg):
+    return [n for n, s in cfg["species"].items() if s.get("kind") == "electron"]
+
+
+def _smooth(a, k=7):
+    """Light boxcar smoothing for the overlaid line-outs (beats per-cell shot noise)."""
+    a = np.asarray(a, dtype=float)
+    if a.size < k or k < 2:
+        return a
+    return np.convolve(a, np.ones(k) / k, mode="same")
+
+
+def _select_nonzero(frames, n, sc):
+    """Indices of ``n`` frames evenly spanning the run but EXCLUDING t=0 -- nothing has
+    happened at t=0, so Fig-5-style panels start once the piston is moving."""
+    cand = [i for i, fr in enumerate(frames) if fr.time * sc.wci0 > 1e-6]
+    if not cand:
+        cand = list(range(len(frames)))
+    if len(cand) <= n:
+        return cand
+    return [cand[j] for j in np.linspace(0, len(cand) - 1, n).astype(int)]
+
+
+def _shock_window(fr, cfg, sc):
+    """(z_lo, z_hi, z_front) in d_i0: a window that FOLLOWS the forward (+z) shock front,
+    sized to the feature (extents grow with the front position; rho_i0 floors) and clipped
+    to z >= 0. Falls back to the near-piston region before a front is detectable."""
+    zexcl = cfg["geometry"]["slab_halfwidth_di"] * sc.di
+    zf = metrics.track_front(fr.z_centers, _ion_density(fr, cfg), sc.namb,
+                             threshold=1.5, z_exclude=zexcl, side=+1)
+    rho = sc.rho_i0 / sc.di0
+    zhi = float(np.asarray(fr.z_centers).max()) / sc.di0
+    if np.isfinite(zf):
+        c = zf / sc.di0
+        back = max(PHASE_WIN_BACK_MIN_RHO * rho, PHASE_WIN_BACK_FRAC * c)
+        ahead = max(PHASE_WIN_AHEAD_MIN_RHO * rho, PHASE_WIN_AHEAD_FRAC * c)
+        lo, hi, zfront = c - back, c + ahead, c
+    else:
+        lo, hi, zfront = 0.0, min(zexcl / sc.di0 + rho, zhi), None
+    return max(lo, 0.0), min(hi, zhi), zfront
+
+
 def fig_phase(frames, cfg, sc, vsh, nframes):
-    idx = _select(frames, nframes)
-    fig, axes = plt.subplots(1, len(idx), figsize=(3.2 * len(idx), 3.8), sharey=True)
+    idx = _select_nonzero(frames, nframes, sc)
+    fig, axes = plt.subplots(1, len(idx), figsize=(3.4 * len(idx), 4.0), sharey=True)
     axes = np.atleast_1d(axes)
     vnorm = vsh if (vsh and np.isfinite(vsh)) else sc.vsh_model
-    # fixed (z, v_z) grid shared by every panel: full domain x reflected/inflow band
-    Hd = sc.domain_halfwidth / sc.di0
-    z_edges = np.linspace(-Hd, Hd, 301)
-    v_edges = np.linspace(-2.5, 3.0, 221)
+    v_edges = np.linspace(PHASE_V_LO, PHASE_V_HI, 201)
+    e_species = _electron_species(cfg)
+    ks = max(5, int(round(0.30 * sc.di0 / sc.dz)))   # smooth overlays over ~0.30 d_i0
+
+    wins = {i: _shock_window(frames[i], cfg, sc) for i in idx}
+
+    # Right-axis scale for the overlaid B_x/B0 + n_e/n_e0 profiles: anchor on the
+    # (smoothed) magnetic ramp B_x, O(4-6) at the shock, using panels whose window has
+    # cleared the dense piston. The total electron density (piston ejecta filling the
+    # downstream) then clips at the top, so its jump across the shock stays legible.
+    slab_di0 = (cfg["geometry"]["slab_halfwidth_di"] * sc.di) / sc.di0
+    piston_margin = max(3.0, 4.0 * slab_di0)
+
+    def _win_bmax(i):
+        fr = frames[i]
+        lo, hi, _ = wins[i]
+        zc = np.asarray(fr.z_centers) / sc.di0
+        w = (zc >= lo) & (zc <= hi)
+        return float(np.nanmax(_smooth((fr.Bx / sc.B0)[w], ks))) if w.any() else 0.0
+
+    clean = [i for i in idx if wins[i][0] > piston_margin]
+    pool = clean if clean else list(idx)
+    prof_max = float(np.clip(1.3 * max(_win_bmax(i) for i in pool), 4.0, 14.0))
+    # align the profile baseline (value 0) with the phase-space v_z = 0 line
+    f0 = (0.0 - PHASE_V_LO) / (PHASE_V_HI - PHASE_V_LO)
+    r_lo = -f0 / (1.0 - f0) * prof_max
+
     for k, (ax, i) in enumerate(zip(axes, idx)):
         fr = frames[i]
+        lo, hi, zfront = wins[i]
+        z_edges = np.linspace(lo, hi, 241)
         sd = {}
         for sp, key in (("piston_ions", "piston"), ("amb_ions", "ambient")):
             z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
             if len(z):
                 sd[key] = (z / sc.di0, uz * kinshock.units.C / vnorm, w)
         P.phase_distribution(ax, sd, z_edges, v_edges, vline=1.0, legend=(k == 0))
+
+        # overlay B_x/B0 and n_e/n_e0 line-outs on a twin axis (Schaeffer 2020 Fig. 5),
+        # semi-transparent + baseline aligned to v_z=0 so they guide without dominating
+        zc = np.asarray(fr.z_centers) / sc.di0
+        m = (zc >= lo) & (zc <= hi)
+        ne = io.species_density(fr, e_species)
+        ax2 = ax.twinx()
+        ax2.plot(zc[m], _smooth((fr.Bx / sc.B0)[m], ks), color="#eaeaff", lw=1.1,
+                 alpha=0.6, label=r"$B_x/B_0$")
+        ax2.plot(zc[m], _smooth(np.where(ne > 0, ne / sc.namb, 0.0)[m], ks),
+                 color="#7CFC5A", lw=1.1, alpha=0.6, label=r"$n_e/n_{e0}$")
+        ax2.set_ylim(r_lo, prof_max)
+        ax2.set_yticks(np.arange(0, prof_max + 0.1, 2.0))
+        if zfront is not None:
+            ax.axvline(zfront, color="w", ls="-", lw=0.6, alpha=0.35)
+        if k == len(idx) - 1:
+            ax2.set_ylabel(r"$B_x/B_0,\ \ n_e/n_{e0}$")
+            ax2.legend(loc="upper right", fontsize=7, framealpha=0.35,
+                       facecolor=P.PHASE_BG, labelcolor="w", edgecolor="none")
+        else:
+            ax2.set_yticklabels([])
         ax.set_title(rf"$t\,\omega_{{ci0}}={fr.time*sc.wci0:.1f}$", fontsize=9)
         ax.set_xlabel(r"$z / d_{i0}$")
     axes[0].set_ylabel(r"$v_z / v_{sh}$")
-    fig.suptitle(f"{cfg['meta']['run_id']}: ion phase-space distribution "
-                 r"($v_z>v_{sh}$ = reflected; each species self-normalised)")
+    fig.suptitle(f"{cfg['meta']['run_id']}: ion phase space following the shock "
+                 r"($v_z>v_{sh}$ = reflected; $B_x$, $n_e$ overlaid)")
     fig.tight_layout()
     return P.savefig(fig, "shock_phase.png", run_id=cfg["meta"]["run_id"])
 
