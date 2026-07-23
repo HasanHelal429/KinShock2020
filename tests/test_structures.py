@@ -2,12 +2,11 @@
 """Structure tests for KinShock2020 — verify the code is correct independently of
 any WarpX run. Runnable directly (``python tests/test_structures.py``) or under
 pytest. Quenches concerns about: config loading, the units derivation reproducing
-Schaeffer 2020 Table I, the config↔deck round-trip (make_config), and the metrics.
+Schaeffer 2020 Table I, config->deck generation (make_inputs), and the metrics.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import math
 import os
 import sys
@@ -78,17 +77,21 @@ def test_R0_matches_R1_physics():
     assert abs(s0.MA - s1.MA) < 1e-9 and abs(s0.B0 - s1.B0) < 1e-30
 
 
-def test_make_config_roundtrip():
-    """Parsing the deck and rebuilding the config must match the authored config."""
-    mc = _load_script("make_config", os.path.join(ROOT, "scripts", "make_config.py"))
-    for run, deck in ((R1, "inputs_kinshock_R1"), (R0, "inputs_kinshock_R0")):
-        d = mc.parse_inputs(os.path.join(run, deck))
-        d["__path__"] = os.path.join(run, "config.yaml")
-        consts = mc.resolve_constants(d)
-        gen = mc.build_config(d, consts)
-        ref = kinshock.load(run)
-        warns = mc.diff_configs(gen, ref)
-        assert warns == [], f"{run}: round-trip mismatch: {warns}"
+def test_make_inputs_roundtrip():
+    """config -> deck generation: the deck rendered from config must (a) resolve
+    back to the config primaries and (b) be physically equivalent to the committed
+    hand-written deck (same resolved constants + scalar settings)."""
+    from kinshock import deck
+    for run, name in ((R1, "inputs_kinshock_R1"), (R0, "inputs_kinshock_R0")):
+        cfg = kinshock.load(run)
+        # render must produce a parseable deck that resolves back to the config
+        # (deck.verify renders internally and diffs against the committed deck).
+        warns = deck.verify(cfg, os.path.join(run, name))
+        assert warns == [], f"{run}: generated deck differs from committed deck: {warns}"
+        # sanity: the generated deck contains the expected primaries
+        text = deck.render(cfg)
+        assert "particle_heater" in text and "target_injector" in text
+        assert f"amr.n_cell        = {kinshock.units.derive(cfg).n_cell}" in text
 
 
 def test_metrics_eq1_expansion_speed():
@@ -139,13 +142,6 @@ def test_metrics_criteria_shape():
 
 
 # --------------------------------------------------------------------------- #
-def _load_script(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
 def _run_all():
     tests = [v for k, v in sorted(globals().items())
              if k.startswith("test_") and callable(v)]

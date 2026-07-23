@@ -61,6 +61,10 @@ operators:
     intervals: 20
     tau_over_wpe_inv: 40.0
 
+diagnostics:
+  plotfile_intervals: 2500       # Full plotfiles (fields + raw particles) -> ~50 frames
+  reduced_intervals: 500         # EP/PN reduced diags (energy balance, particle count)
+
 species:
   piston_electrons: {kind: electron, role: piston}
   piston_ions:      {kind: ion, role: piston, charge_state: 1}

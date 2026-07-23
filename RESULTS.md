@@ -16,8 +16,10 @@ env (yt 4.4.2, numpy, matplotlib, PyYAML).
   primaries: **M_A = 13.95** (target 14), **M_ms = 12.74** (target 13), C_s,ab/c = 0.0303,
   v_sh/c = 0.1395, dt·ω_pe = 0.225, n_cell = 50000, d_i0/d_e = 100, ρ_i0/d_e ≈ 1040.
 - `validate(R1)` clean; R0 shares every physics primary with R1.
-- **`make_config.py` round-trip**: parsing both decks and rebuilding the config matches the
-  authored `config.yaml` exactly (the "config = what was simulated" guarantee).
+- **`make_inputs.py` deck generation**: the deck rendered from each config resolves back to
+  the config primaries and is physically equivalent to the committed hand-written deck for R1
+  and R0 (same resolved `my_constants` + scalar settings). Post-run, `make_inputs.py --verify`
+  confirms `warpx_used_inputs` matches the config (the "config = what was simulated" guarantee).
 - metrics: Eq. 1 expansion speed, Eq. 2 RH ratio (→ ~3.9, strong-shock ~4×), reflected
   fraction G, front tracking, and the 7-criteria evaluator all correct.
 
@@ -118,8 +120,8 @@ pick the θ_heat giving θ_actual ≈ 0.09 (C_s,ab = 0.030 c). Then set that in 
 speed/Mach that defines the shock.
 
 ### Verdict
-- **Code structure: verified** (tests 9/9; deck runs clean; config round-trips; pipeline
-  produces every planned artifact).
+- **Code structure: verified** (tests 9/9; deck runs clean; deck generated from config +
+  verified against `warpx_used_inputs`; pipeline produces every planned artifact).
 - **`foil.n0`: resolved** (= n0, matches PSC-validated deck).
 - **Heater calibration: understood** — 1D uniform heating saturates at ~2.4 θ_heat (vs 0.77×
   for the 2D localized spot); recalibrate θ_heat so θ_actual ≈ 0.09 before the faithful M_A=14 run.

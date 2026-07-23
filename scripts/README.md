@@ -1,9 +1,15 @@
-# `scripts/` — analysis & bring-up drivers
+# `scripts/` — deck generation, bring-up & analysis drivers
 
 Command-line entry points for the KinShock2020 replication of Schaeffer 2020.
 Each script is config-driven: it reads `runs/<RUN_ID>/config.yaml`, derives all
-physical scales through `kinshock.units`, and writes outputs under
-`media/<run_id>/` (or `media/testing/` for bring-up checks).
+physical scales through `kinshock.units`, and either generates the WarpX deck or
+writes outputs under `media/<run_id>/` (or `media/testing/` for bring-up checks).
+
+**`config.yaml` is the single source of truth.** You author the intuitive
+primaries there (densities as fractions of n0, temperatures as θ = kT/m_e c²,
+lengths in d_e/d_i, speeds as fractions of c); `make_inputs.py` generates the
+WarpX input deck from it. The deck is a build artifact — never hand-edit it; edit
+`config.yaml` and regenerate.
 
 All scripts are run from the repository root:
 
@@ -11,62 +17,69 @@ All scripts are run from the repository root:
 python scripts/<script>.py [run_dir] [options]
 ```
 
-The `run_dir` positional argument defaults to `runs/R1` for every script except
-`make_config.py`, where it is required.
+The `run_dir` positional argument defaults to `runs/R1` for every script.
 
 | Script | Purpose | Reads | Writes |
 |---|---|---|---|
-| `make_config.py` | Regenerate/verify `config.yaml` from the deck WarpX actually ran | `warpx_used_inputs` | `config.generated.yaml` or `config.yaml` |
+| `make_inputs.py` | Generate the WarpX input deck from the config | `config.yaml` | `inputs_kinshock_<id>` |
 | `run_checks.py` | Bring-up / progress checks (works before any sim output exists) | `config.yaml`, plotfiles, reduced diags | `media/testing/*.png` |
 | `make_figures.py` | Reproduce the paper's shock diagnostics (analyses A–D) | `config.yaml`, plotfiles | `media/<run_id>/*.png`, `criteria.json` |
 | `make_movies.py` | Animated density + phase-space movies | `config.yaml`, plotfiles | `media/<run_id>/*.mp4` |
 
-Typical workflow for a finished run:
+Typical workflow for a run:
 
 ```bash
-python scripts/make_config.py runs/R1 --write   # lock config to what was simulated
-python scripts/run_checks.py    runs/R1         # sanity: scales vs Table I, conservation
-python scripts/make_figures.py  runs/R1         # A–D diagnostics + criteria table
-python scripts/make_movies.py   runs/R1         # optional animations
+python scripts/make_inputs.py  runs/R1          # config.yaml -> inputs_kinshock_R1
+# ... run WarpX on the generated deck ...
+python scripts/make_inputs.py  runs/R1 --verify # confirm warpx_used_inputs == config
+python scripts/run_checks.py   runs/R1          # sanity: scales vs Table I, conservation
+python scripts/make_figures.py runs/R1          # A–D diagnostics + criteria table
+python scripts/make_movies.py  runs/R1          # optional animations
 ```
 
 ---
 
-## `make_config.py`
+## `make_inputs.py`
 
-Regenerate / verify a run's `config.yaml` from the WarpX inputs it actually ran.
+Generate a WarpX input deck from a run's `config.yaml` — the forward direction of
+the config↔deck relationship (REPLICATION_PLAN.md §6.0a).
 
-WarpX writes `warpx_used_inputs` (the fully-resolved input deck) into each run
-directory. This script parses it, resolves the `my_constants` expressions
-numerically, maps them to the KinShock2020 config primaries, and either writes
-`config.generated.yaml` or overwrites `config.yaml`. It always diffs against the
-existing `config.yaml` so the config provably matches what was simulated
-(REPLICATION_PLAN.md §6.0a).
+`config.yaml` holds only the primary, physically-intuitive parameters;
+`kinshock.deck.render` maps them onto a WarpX deck whose `my_constants` are
+written *symbolically* (`nt = 2.5*n0`, `slab = 2.0*di`,
+`B0 = vA*sqrt(mu0*namb*Mi)`) so the deck stays readable and WarpX still records
+the fully-resolved values in `warpx_used_inputs`. After writing, the script
+self-checks that the deck resolves back to the config primaries.
 
 **Positional argument**
 
-| Argument | Required | Description |
-|---|---|---|
-| `run_dir` | yes | Run directory containing `warpx_used_inputs` and `config.yaml`. |
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `run_dir` | no | `runs/R1` | Run directory containing `config.yaml`. The deck is written to `<run_dir>/<meta.deck>` (default `inputs_kinshock_<run_id>`). |
 
 **Options**
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `--inputs <path>` | path | `<run_dir>/warpx_used_inputs` | Parse this inputs file instead of the run's `warpx_used_inputs`. |
-| `--write` | flag | off | Overwrite `config.yaml` in place. If omitted, writes `config.generated.yaml` and leaves `config.yaml` untouched. |
+| `-o, --output <path>` | path | `<run_dir>/<meta.deck>` | Write the deck to an explicit path. |
+| `--stdout` | flag | off | Print the deck to stdout instead of writing it. |
+| `--check` | flag | off | Render and diff against the existing deck (parse + resolve both, compare), without writing. Reports `OK (physically equivalent)` or lists differences. |
+| `--verify` | flag | off | **Post-run:** parse `warpx_used_inputs` and confirm the numbers WarpX actually used match the config. Reports `OK (WarpX ran exactly this config)` or lists mismatches. Exits non-zero on mismatch. |
+
+The comparison is numeric (resolves every expression), so it is immune to
+formatting, comments, or whether a value was written as `20.*de` or `2.0*di`. It
+value-checks only `my_constants` present in both decks (WarpX prunes unused ones
+from `warpx_used_inputs`) plus the scalar settings (`max_step`, `n_cell`, `cfl`,
+`tau`, per-species ppc, diagnostic intervals, …).
 
 **Examples**
 
 ```bash
-python scripts/make_config.py runs/R1                # verify + write config.generated.yaml
-python scripts/make_config.py runs/R1 --write        # overwrite config.yaml
-python scripts/make_config.py runs/R1 --inputs deck  # parse an arbitrary deck instead
+python scripts/make_inputs.py runs/R1_core            # write the deck (+ self-check)
+python scripts/make_inputs.py runs/R1_core --stdout   # preview without writing
+python scripts/make_inputs.py runs/R1_core --check    # is the existing deck still in sync?
+python scripts/make_inputs.py runs/R1_core --verify   # after a run: did WarpX run this config?
 ```
-
-Verification prints `OK` when the config primaries (n0, mass ratio, `vA_over_c`,
-`max_step`, grid resolution, heater θ, densities, …) match the simulated deck
-within a `1e-3` relative tolerance, or lists each mismatch.
 
 ---
 

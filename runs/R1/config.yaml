@@ -84,6 +84,10 @@ operators:
     intervals: 20
     tau_over_wpe_inv: 40.0      # tau = 40 / omega_pe (PSC flatfoil value)
 
+diagnostics:
+  plotfile_intervals: 5000       # Full plotfiles (fields + raw particles) -> ~50 frames
+  reduced_intervals: 500         # EP/PN reduced diags (energy balance, particle count)
+
 # --- species map (names must match the deck and the diagnostics) ---
 species:
   piston_electrons: {kind: electron, role: piston}

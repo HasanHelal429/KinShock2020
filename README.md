@@ -24,22 +24,26 @@ The paper PDF is **not** included (copyrighted); get it from
 
 ## Layout
 ```
-src/kinshock/     reusable analysis library (config, units, io, metrics, plotting)
-scripts/          thin drivers: make_config, run_checks, make_figures, make_movies
-runs/RXX/         per-run config.yaml (single source of truth) + WarpX deck (inputs_*)
-tests/            structure tests (config/units/round-trip/metrics), no WarpX needed
+src/kinshock/     reusable analysis library (config, units, deck, io, metrics, plotting)
+scripts/          thin drivers: make_inputs, run_checks, make_figures, make_movies
+runs/RXX/         per-run config.yaml (single source of truth) + generated WarpX deck (inputs_*)
+tests/            structure tests (config/units/deck-generation/metrics), no WarpX needed
 media/            figures & movies (testing/ = bring-up, RXX/ = per-run results)
 ```
 Simulation output (`runs/*/diags/`) and run logs are git-ignored — regenerate by running the
 decks. Per-run parameters live in `runs/RXX/config.yaml`; **no physical constants are
 hard-coded in the scripts** — `src/kinshock/units.py` derives all scales from the config
-primaries, and `scripts/make_config.py` can regenerate/verify a config from a run's
-`warpx_used_inputs`.
+primaries, and `scripts/make_inputs.py` generates the WarpX deck from the config (and, with
+`--verify`, confirms `warpx_used_inputs` matches the config after a run).
 
 ## Design principle
-Each run's `config.yaml` is the single source of truth. `units.py` derives every physical /
-normalized scale (ω_pe, d_e, d_i, ω_ci0, ρ_i0, C_s,ab, v_A, M_A, M_ms, …) from it, and the
-driver scripts read the config rather than embedding constants.
+Each run's `config.yaml` is the single source of truth: you author the intuitive primaries
+(densities/n0, θ = kT/m_e c², lengths in d_e/d_i, speeds/c) and everything downstream is
+derived from them. `make_inputs.py` (via `kinshock.deck`) **generates the WarpX input deck**
+from the config, and `units.py` derives every physical / normalized scale (ω_pe, d_e, d_i,
+ω_ci0, ρ_i0, C_s,ab, v_A, M_A, M_ms, …). The deck is a build artifact — never hand-edit it;
+edit `config.yaml` and regenerate. All WarpX-deck details can therefore be ignored while
+reasoning about a run.
 
 ## Running
 Requires a WarpX build with the `ParticleHeater` + `TargetInjector` modules, and a Python
@@ -50,11 +54,12 @@ env with `yt`, `numpy`, `matplotlib`, `pyyaml`.
 python tests/test_structures.py
 
 # a run (example: R0 smoke)
+python scripts/make_inputs.py runs/R0            # config.yaml -> runs/R0/inputs_kinshock_R0
 cd runs/R0
 MPICH_GPU_SUPPORT_ENABLED=0 mpirun -np <N> <warpx.1d> inputs_kinshock_R0
 
-# verify the config matches what actually ran, then analyze
-python scripts/make_config.py runs/R0            # verify vs warpx_used_inputs
+# verify what actually ran matches the config, then analyze
+python scripts/make_inputs.py runs/R0 --verify   # warpx_used_inputs == config?
 python scripts/run_checks.py  runs/R0            # bring-up / progress figures -> media/testing
 python scripts/make_figures.py runs/R0           # shock diagnostics -> media/R0
 python scripts/make_movies.py  runs/R0           # movies -> media/R0

@@ -171,9 +171,12 @@ drift hazard. Instead:
 - `src/kinshock/metrics.py` — speed model (Eqs. 1–2), the 7 criteria, reflected-ion F/G,
   t\*/z\* extraction, compression ratios.
 - `src/kinshock/plotting.py` — shared styling + figure/movie (ffmpeg) helpers, media paths.
-- `scripts/run_checks.py`, `scripts/make_figures.py`, `scripts/make_movies.py`,
-  `scripts/make_config.py` — thin drivers that take a run id / config path, call `src`
-  helpers, and write to `media/`. No physical constants are written in the scripts.
+- `src/kinshock/deck.py` — generate a WarpX input deck from a config (`render`), and parse/
+  resolve a deck back to numbers for post-run verification (`verify`).
+- `scripts/make_inputs.py`, `scripts/run_checks.py`, `scripts/make_figures.py`,
+  `scripts/make_movies.py` — thin drivers that take a run id / config path, call `src`
+  helpers, and generate the deck or write to `media/`. No physical constants are written in
+  the scripts.
 
 **6.0a Per-run config files (single source of truth).** Each run carries a config file
 (`KinShock2020/runs/RXX/config.yaml`, matching your OSIRIS `run.yaml` convention) holding the
@@ -184,10 +187,13 @@ run's **primary** parameters and metadata — nothing derived is hand-entered:
   `dt` and `max_step` as run.
 `units.py` derives everything else from these and can echo a `derived:` block back for
 reference; `config.py` validates the config against the Table I targets (M_A≈14, β₀≈0.2, …) and
-warns on mismatch. **`scripts/make_config.py` generates the config by parsing the WarpX
-`warpx_used_inputs` file** each run writes, so the config provably matches what was simulated
-(no manual transcription). Every figure caption records the `run_id` and key parameters pulled
-from the config, so plots in `media/` are self-describing.
+warns on mismatch. **The config is authored by hand and `scripts/make_inputs.py` generates the
+WarpX deck from it** (`kinshock.deck.render`), so the deck is a build artifact that never needs
+hand-editing — all WarpX-deck details can be ignored while reasoning about a run. After a run,
+`make_inputs.py --verify` parses the WarpX `warpx_used_inputs` file and confirms it matches the
+config, so what was simulated provably equals the config (no manual transcription). Every figure
+caption records the `run_id` and key parameters pulled from the config, so plots in `media/` are
+self-describing.
 
 **All figures and movies — including bring-up/testing figures — are written to
 `KinShock2020/media/`** (create `media/testing/` for progress artifacts and `media/RXX/` per
@@ -297,21 +303,22 @@ dependency: the WarpX executable built in `warpx-cda/build`):
 KinShock2020/
 ├── OVERVIEW.md, REPLICATION_PLAN.md, schaeffer2020.pdf, RESULTS.md
 ├── src/kinshock/            # reusable library (§6): config, units, io, metrics, plotting
-├── scripts/                 # thin drivers (§6): run_checks, make_config, make_figures, make_movies
+├── scripts/                 # thin drivers (§6): make_inputs, run_checks, make_figures, make_movies
 ├── runs/
 │   └── RXX/
-│       ├── inputs_kinshock_RXX   # the deck (§2–§3); R1 baseline, others as diffs
-│       ├── config.yaml           # per-run source of truth (§6.0a)
+│       ├── config.yaml           # per-run source of truth (§6.0a); authored by hand
+│       ├── inputs_kinshock_RXX   # deck (§2–§3), GENERATED from config.yaml by make_inputs.py
 │       └── diags*/               # WarpX output, written alongside the deck
 └── media/
     ├── testing/             # §6.0 bring-up / progress artifacts
     └── RXX/                 # per-run final figures & movies
 ```
 
-- Decks (`inputs_kinshock_RXX`): §2–§3. R1 baseline; R2–R8 as documented diffs.
-- `config.yaml` per run: authored minimally, then regenerated/verified by
-  `scripts/make_config.py` from `warpx_used_inputs` after the run (§6.0a) — the single source
-  of truth every script reads; **no physical constants are hard-coded in `src/` or `scripts/`.**
+- `config.yaml` per run: authored by hand — the single source of truth every script reads;
+  **no physical constants are hard-coded in `src/` or `scripts/`.**
+- Decks (`inputs_kinshock_RXX`): §2–§3, **generated from `config.yaml` by
+  `scripts/make_inputs.py`** (R1 baseline; R2–R8 are config diffs). Verified against
+  `warpx_used_inputs` after the run with `make_inputs.py --verify` (§6.0a).
 - `src/kinshock/` + `scripts/`: the new, standalone code of §6 (designed after, but not
   importing, the `warpx-cda` scripts).
 - `RESULTS.md`: status/validation log (mirroring `run_shock_1d/SHOCK_PLAN.md §8`).
@@ -326,8 +333,9 @@ tiers, a short Core-tier or R0 run locally for bring-up).
 - [ ] Scaffold `KinShock2020/{src/kinshock,scripts,runs,media/testing}/`
 - [ ] `src/kinshock/{config,units}.py` + a first `runs/R1/config.yaml`; unit test that
       `units.py` reproduces Table I targets (M_A≈14, M_ms≈13, β₀≈0.2) from the config primaries
-- [ ] R0 smoke test — deck loads, heater+injector active, no NaN, dt·ω_pe sane;
-      `scripts/make_config.py` regenerates `config.yaml` from `warpx_used_inputs`
+- [ ] R0 smoke test — `scripts/make_inputs.py` generates the deck from `config.yaml`; deck
+      loads, heater+injector active, no NaN, dt·ω_pe sane; `make_inputs.py --verify` confirms
+      `warpx_used_inputs` matches the config
 - [ ] `scripts/run_checks.py` + R1 Core-tier short run — loaded-state sanity figures to
       `media/testing/`; confirm C_s,ab, v_A, M_A, β₀ (read from config) match Table I
 - [ ] `src/kinshock/{io,metrics,plotting}.py` + analyses A–F wired into `scripts/make_figures.py`
