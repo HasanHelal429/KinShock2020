@@ -1,0 +1,108 @@
+# Cross-check: 1D analog of the validated 2D flatfoil case
+# (warpx-cda/heating_operator/run_flatfoil_compare, cross-validated vs PSC).
+# SAME heater parameters (theta=0.04, slab |z|<10 d_e, target 2.5 n0, background
+# 0.002 n0, foil.n0=n0, tau=40/wpe, intervals 20). ONLY difference: 1D with
+# spot_radius=0 (transversely uniform) instead of 2D with a Gaussian spot.
+# Question: does our 1D heater saturate the heated electrons at ~0.77*theta
+# (the validated 2D value, theta_thermal ~ 0.031) or overshoot (as R0 did)?
+# This isolates dimensionality from the foil.n0 choice.
+
+my_constants.n0    = 1.e18
+my_constants.Mi    = 100.*m_e
+my_constants.wpe   = sqrt(n0*q_e^2/(epsilon0*m_e))
+my_constants.de    = clight/wpe
+my_constants.slab  = 10.*de       # flatfoil slab half-width (1 d_i)
+my_constants.half  = 200.*de
+
+max_step      = 3000               # t*wpe ~ 1125, well past flatfoil saturation (~360)
+warpx.cfl     = 0.75
+warpx.verbose = 0
+
+amr.n_cell        = 800            # dz = 0.5 d_e
+amr.max_level     = 0
+geometry.dims     = 1
+geometry.prob_lo  = -half
+geometry.prob_hi  =  half
+boundary.field_lo    = periodic
+boundary.field_hi    = periodic
+boundary.particle_lo = periodic
+boundary.particle_hi = periodic
+algo.particle_shape = 2
+
+particles.species_names = electrons ions bg_electrons bg_ions
+
+electrons.species_type = electron
+electrons.injection_style = "NUniformPerCell"
+electrons.num_particles_per_cell_each_dim = 100
+electrons.profile = parse_density_function
+electrons.density_function(x,y,z) = "2.5*n0*(abs(z)<slab)"
+electrons.density_min = 1.
+electrons.momentum_distribution_type = maxwellian
+electrons.maxwellian_u_std_distribution_type = "constant"
+electrons.ux_std = sqrt(0.001)
+electrons.uy_std = sqrt(0.001)
+electrons.uz_std = sqrt(0.001)
+
+ions.charge = q_e
+ions.mass   = Mi
+ions.injection_style = "NUniformPerCell"
+ions.num_particles_per_cell_each_dim = 100
+ions.profile = parse_density_function
+ions.density_function(x,y,z) = "2.5*n0*(abs(z)<slab)"
+ions.density_min = 1.
+ions.momentum_distribution_type = maxwellian
+ions.maxwellian_u_std_distribution_type = "constant"
+ions.ux_std = sqrt(1.e-5)
+ions.uy_std = sqrt(1.e-5)
+ions.uz_std = sqrt(1.e-5)
+
+bg_electrons.species_type = electron
+bg_electrons.injection_style = "NUniformPerCell"
+bg_electrons.num_particles_per_cell_each_dim = 100
+bg_electrons.profile = constant
+bg_electrons.density = 0.002*n0
+bg_electrons.momentum_distribution_type = maxwellian
+bg_electrons.maxwellian_u_std_distribution_type = "constant"
+bg_electrons.ux_std = sqrt(0.001)
+bg_electrons.uy_std = sqrt(0.001)
+bg_electrons.uz_std = sqrt(0.001)
+
+bg_ions.charge = q_e
+bg_ions.mass   = Mi
+bg_ions.injection_style = "NUniformPerCell"
+bg_ions.num_particles_per_cell_each_dim = 100
+bg_ions.profile = constant
+bg_ions.density = 0.002*n0
+bg_ions.momentum_distribution_type = maxwellian
+bg_ions.maxwellian_u_std_distribution_type = "constant"
+bg_ions.ux_std = sqrt(1.e-5)
+bg_ions.uy_std = sqrt(1.e-5)
+bg_ions.uz_std = sqrt(1.e-5)
+
+# heater matches flatfoil exactly except spot_radius=0 (1D uniform)
+particle_heater.species   = electrons
+particle_heater.intervals = 20
+particle_heater.profile   = foil
+particle_heater.foil.normal      = z
+particle_heater.foil.lo          = -slab
+particle_heater.foil.hi          =  slab
+particle_heater.foil.spot_radius = 0.
+particle_heater.foil.n0          = n0
+particle_heater.foil.mass_ratio  = 100.
+particle_heater.electrons.theta  = 0.04
+
+target_injector.species              = electrons
+target_injector.neutralizing_species = ions
+target_injector.intervals            = 20
+target_injector.tau                  = 40./wpe
+target_injector.lo                   = -slab
+target_injector.hi                   =  slab
+target_injector.density              = 2.5*n0
+target_injector.reference_density    = n0
+target_injector.ppc_reference        = 100
+target_injector.electrons.u_std = sqrt(0.001)
+target_injector.ions.u_std      = sqrt(1.e-5)
+
+diagnostics.diags_names = diag1
+diag1.intervals = 300
+diag1.diag_type = Full

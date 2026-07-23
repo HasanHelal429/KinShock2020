@@ -1,0 +1,232 @@
+[
+  {
+    "t_wci0": 0.00750000000764562,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 317.00000000005343,
+      "B_compression": 4.7632338199227595,
+      "ramp_scale_over_di0": 0.011237360364076564,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.012019230781483394
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.015000000015291375,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 326.00000000005593,
+      "B_compression": 9.645805001453793,
+      "ramp_scale_over_di0": 0.013057069153042802,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.026442307719263435
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.02250000002293713,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 333.00000000006,
+      "B_compression": 10.165188556975057,
+      "ramp_scale_over_di0": 0.011811243689493708,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.03461538465067214
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.03000000003058251,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 336.00000000006,
+      "B_compression": 10.787272596986353,
+      "ramp_scale_over_di0": 0.011259146206500809,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.03942307696326552
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.03750000003822789,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 342.00000000006247,
+      "B_compression": 12.1374508697421,
+      "ramp_scale_over_di0": 0.012652178338425708,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.043269230813340206
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.045000000045873276,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 385.0000000000764,
+      "B_compression": 11.001619435771545,
+      "ramp_scale_over_di0": 0.016049279078663735,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.06730769237630696
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.05250000005351866,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 356.00000000007054,
+      "B_compression": 10.73773092732909,
+      "ramp_scale_over_di0": 0.014287755515307775,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.06394230775749163
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.060000000061164044,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 404.0000000000781,
+      "B_compression": 14.331219275502946,
+      "ramp_scale_over_di0": 0.01823977217101393,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.06682692314504764
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.06750000006880942,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 339.0000000000673,
+      "B_compression": 16.05572666702006,
+      "ramp_scale_over_di0": 0.017962605146956672,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.19519230789129022
+    },
+    "is_precursor": false,
+    "is_shock": false
+  },
+  {
+    "t_wci0": 0.07500000007645481,
+    "flags": {
+      "1_super_magnetosonic": true,
+      "2_collisionless": true,
+      "3_density_compression": true,
+      "4_field_compression": true,
+      "5_steep_ramp": true,
+      "6_reflected_ions": false,
+      "7_piston_separation": false
+    },
+    "values": {
+      "M_ms_front": 28.29899880443454,
+      "lambda_ii_over_di0": 350.0,
+      "n_compression": 320.0000000000679,
+      "B_compression": 15.964915050981636,
+      "ramp_scale_over_di0": 0.014123770021990213,
+      "reflected_fraction_G": 0.0,
+      "piston_separation_over_rho_i0": 0.11538461550224054
+    },
+    "is_precursor": false,
+    "is_shock": false
+  }
+]

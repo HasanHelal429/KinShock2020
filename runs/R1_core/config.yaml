@@ -1,0 +1,80 @@
+# R1_core — Core-tier R1. Full R1 physics (Schaeffer 2020 Table I) at Table I
+# resolution (dz=0.3 d_e) on a moderate domain (+-3600 d_e), run to ~2.8 wci0^-1.
+# Purpose: (1) confirm piston-electron temperature saturates near theta_e=0.092 in
+# a large domain (the open item from R0), and (2) capture the first real shock-
+# formation signatures (t*_1 ~1, t*_2 ~2.5 wci0^-1). Physics primaries identical
+# to runs/R1/config.yaml; only domain / resolution / steps differ.
+
+meta:
+  run_id: R1_core
+  tier: Core
+  description: >
+    Core-tier R1: full R1 physics on a moderate domain (+-3600 d_e, 24000 cells,
+    125000 steps ~ 2.8 wci0^-1). Bridges R0 (smoke) and R1 (Full).
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I"
+  deck: inputs_kinshock_R1_core
+  warpx_build: "warpx-cda/build/bin/warpx.1d (prebuilt, heater+injector modules)"
+  generated_from: "Authored from R1 with a Core-tier domain."
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.092
+    theta_e_init: 0.001
+    theta_i_init: 1.0e-5
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: perpendicular
+  vA_over_c: 0.01
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 3600.0    # Core tier (front reaches ~2.5 rho_i0 ~ 2600 d_e by t*_2)
+  dz_over_de: 0.3                # Table I resolution
+  boundary: periodic
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 125000               # ~2.8 wci0^-1 (covers t*_1 ~1, t*_2 ~2.5)
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

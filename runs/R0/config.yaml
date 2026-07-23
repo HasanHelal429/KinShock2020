@@ -1,0 +1,79 @@
+# R0 — smoke test. Identical PHYSICS primaries to R1 (Schaeffer 2020 Table I),
+# but a tiny/fast grid: verify structure only (deck loads, heater + injector
+# active, no NaN, dt*wpe sane, analysis pipeline runs). Not a physics run.
+# See runs/R1/config.yaml for the parameter rationale.
+
+meta:
+  run_id: R0
+  tier: Smoke
+  description: >
+    Smoke test of the R1 setup on a tiny grid (domain +-500 d_e, 2000 cells,
+    2000 steps). Verifies the deck + heater/injector + analysis pipeline before
+    committing to Core/Full-tier runs.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020)"
+  deck: inputs_kinshock_R0
+  warpx_build: "warpx-cda/build/bin/warpx.1d (prebuilt, heater+injector modules)"
+  generated_from: "Authored from R1 with a smoke-sized grid."
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.092
+    theta_e_init: 0.001
+    theta_i_init: 1.0e-5
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: perpendicular
+  vA_over_c: 0.01
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 500.0     # smoke (vs 7500 Full)
+  dz_over_de: 0.5                # coarse (vs 0.3) — smoke only
+  boundary: periodic
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 2000                 # ~0.075 wci0^-1: piston just begins to expand
+  ppc:
+    piston: 50
+    ambient: 50
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

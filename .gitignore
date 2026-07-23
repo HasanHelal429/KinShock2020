@@ -1,0 +1,25 @@
+# --- WarpX simulation output (large, machine-specific, regenerable from the decks) ---
+runs/**/diags/
+runs/**/diags_movies/
+runs/**/diags_movie/
+
+# --- run logs (large with verbose=1; findings are recorded in RESULTS.md) ---
+*.log
+
+# --- generated / transient ---
+runs/**/config.generated.yaml
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# --- the paper PDF: copyrighted (AIP / DOE accepted manuscript), not for redistribution ---
+# Get it from doi:10.1063/1.5123229 or OSTI 1643946. See README.
+schaeffer2020.pdf
+
+# --- OS / editor cruft ---
+.DS_Store
+*.swp
+
+# AMReX backtrace dumps
+Backtrace.*
