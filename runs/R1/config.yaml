@@ -87,6 +87,8 @@ operators:
 diagnostics:
   plotfile_intervals: 5000       # Full plotfiles (fields + raw particles) -> ~50 frames
   reduced_intervals: 500         # EP/PN reduced diags (energy balance, particle count)
+  field_intervals: 250           # field-only diag (E,B,j,rho) -> ~1000 frames, high-
+                                 # cadence streaks; ~5.6 GB (vs the much larger particle dump)
 
 # --- species map (names must match the deck and the diagnostics) ---
 species:

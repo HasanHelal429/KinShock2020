@@ -53,6 +53,20 @@ def plotfiles(run_dir, subdirs=("diags_movies", "diags")):
     raise FileNotFoundError(f"no plotfiles under {run_dir}/{{{','.join(subdirs)}}}")
 
 
+def field_plotfiles(run_dir):
+    """High-cadence field-only plotfiles (``diag_fields*``) if the run wrote them,
+    else fall back to the Full ``diag1`` plotfiles. Lets field diagnostics (e.g. the
+    B_perp streak) use the dense field series when available without breaking runs
+    that predate the field-only diagnostic."""
+    d = os.path.join(run_dir, "diags")
+    if os.path.isdir(d):
+        pfs = sorted(os.path.join(d, p) for p in os.listdir(d)
+                     if p.startswith("diag_fields"))
+        if pfs:
+            return pfs
+    return plotfiles(run_dir)
+
+
 def load_frame(path) -> Frame:
     """Load one plotfile into a :class:`Frame` (1D covering grid along z)."""
     yt = _yt()

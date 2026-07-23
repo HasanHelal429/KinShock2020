@@ -5,6 +5,7 @@ Config-driven (all scales from runs/RXX/config.yaml via kinshock.units); writes
 to media/<run_id>/. Implements analyses A–E of REPLICATION_PLAN.md §6:
 
   A. B_perp(z,t) streak plot with piston/shock speed lines  -> shock_streak.png
+     (uses the high-cadence field-only diag_fields series when present, else diag1)
   A. shock-front trajectory + measured v_sh, M_A, M_ms       -> shock_trajectory.png
   B. ion (z, u_z) phase-space distribution at several times  -> shock_phase.png
      + density / B_perp line-outs                            -> shock_lineouts.png
@@ -48,14 +49,9 @@ def _ion_density(frame, cfg):
     return io.species_density(frame, cfg["ion_species"])
 
 
-def load_series(run_dir, cfg, sc):
-    """Load every frame's time, z-grid, B_perp, and total ion density (cached in memory)."""
-    pfs = io.plotfiles(run_dir)
-    frames = []
-    for pf in pfs:
-        fr = io.load_frame(pf)
-        frames.append(fr)
-    return frames
+def load_series(pfs):
+    """Load a list of plotfile paths into Frames (fields + time; particles lazy)."""
+    return [io.load_frame(pf) for pf in pfs]
 
 
 # --- A: streak + trajectory ---
@@ -256,11 +252,22 @@ def main():
     print(f"{cfg['meta']['run_id']}: d_e={sc.de:.3e} m  d_i0={sc.di0:.3e} m  "
           f"B0={sc.B0:.3e} T  rho_i0={sc.rho_i0/sc.de:.0f} d_e")
 
-    frames = load_series(args.run_dir, cfg, sc)
-    print(f"{len(frames)} frames, t*wci0 in [{frames[0].time*sc.wci0:.2f}, "
+    # particle frames (diag1): phase space, density, criteria, trajectory
+    particle_pfs = io.plotfiles(args.run_dir)
+    frames = load_series(particle_pfs)
+    print(f"{len(frames)} particle frames, t*wci0 in [{frames[0].time*sc.wci0:.2f}, "
           f"{frames[-1].time*sc.wci0:.2f}]")
 
-    fig_streak(frames, cfg, sc)
+    # field frames (diag_fields if present, else the same diag1 frames): streak
+    field_pfs = io.field_plotfiles(args.run_dir)
+    if field_pfs == particle_pfs:
+        field_frames = frames
+    else:
+        field_frames = load_series(field_pfs)
+        print(f"{len(field_frames)} field-only frames for the streak "
+              f"({len(field_frames)/max(len(frames),1):.0f}x the particle cadence)")
+
+    fig_streak(field_frames, cfg, sc)
     vsh, _ = fig_trajectory(frames, cfg, sc)
     fig_lineouts(frames, cfg, sc, args.nframes)
     fig_phase(frames, cfg, sc, vsh, args.nframes)

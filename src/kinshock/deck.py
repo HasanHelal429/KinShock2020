@@ -50,13 +50,20 @@ def _init_theta(role: str, kind: str) -> str:
     return "theta0" if kind == "electron" else "theta0/mass_ratio"
 
 
-def _diag_intervals(cfg: dict) -> tuple[int, int]:
-    """(plotfile_intervals, reduced_intervals) from config, with sane defaults."""
+def _diag_intervals(cfg: dict):
+    """(plotfile_intervals, reduced_intervals, field_intervals) from config.
+
+    ``field_intervals`` is opt-in: if the config's diagnostics block sets it, the
+    deck gains a second, field-only diagnostic (no particles) at that high cadence
+    for streaks / field structure; if absent it is ``None`` and only the single
+    fields+particles ``diag1`` is written (unchanged legacy behaviour)."""
     d = cfg.get("diagnostics", {}) or {}
     max_step = int(cfg["numerics"]["max_step"])
     plot = int(d.get("plotfile_intervals", max(1, round(max_step / 50))))
     red = int(d.get("reduced_intervals", max(1, round(max_step / 250))))
-    return plot, red
+    field = d.get("field_intervals")
+    field = int(field) if field else None
+    return plot, red, field
 
 
 def render(cfg: dict) -> str:
@@ -71,7 +78,7 @@ def render(cfg: dict) -> str:
     ppc_ambient = int(num["ppc"]["ambient"])
     bc = geo.get("boundary", "periodic")
     bx = "B0" if cfg["field"].get("orientation", "perpendicular") == "perpendicular" else "0."
-    plot_int, red_int = _diag_intervals(cfg)
+    plot_int, red_int, field_int = _diag_intervals(cfg)
 
     L = []  # lines
     a = L.append
@@ -211,11 +218,25 @@ def render(cfg: dict) -> str:
     a("PN.type      = ParticleNumber")
     a(f"PN.intervals = {red_int}")
     a("")
+    diags = ["diag1"] + (["diag_fields"] if field_int else [])
     nframes = int(cfg["numerics"]["max_step"]) // plot_int if plot_int else 0
-    a(f"# Full plotfiles: fields + raw particles for (z,uz) phase space (~{nframes} frames).")
-    a("diagnostics.diags_names = diag1")
+    a(f"# diag1: fields + raw particles for (z,uz) phase space (~{nframes} frames).")
+    a(f"diagnostics.diags_names = {' '.join(diags)}")
     a(f"diag1.intervals = {plot_int}")
     a("diag1.diag_type = Full")
+    if field_int:
+        # field-only (write_species = 0) at high cadence: streaks + field structure.
+        # Particles are the expensive part; fields are ~1-2 MB/frame, so this is cheap.
+        field_vars = ["Ex", "Ey", "Ez", "Bx", "By", "Bz", "jx", "jy", "jz", "rho"]
+        field_vars += [f"rho_{sp}" for sp in species]      # per-species charge density
+        nff = int(cfg["numerics"]["max_step"]) // field_int
+        a("")
+        a(f"# diag_fields: field-only, high cadence (~{nff} frames) for streaks / field")
+        a("# structure. No particles (write_species = 0); full grid resolution.")
+        a(f"diag_fields.intervals     = {field_int}")
+        a("diag_fields.diag_type     = Full")
+        a("diag_fields.write_species = 0")
+        a(f"diag_fields.fields_to_plot = {' '.join(field_vars)}")
     a("")
     return "\n".join(L)
 
@@ -291,10 +312,12 @@ def key_params(path: str) -> dict:
         k = f"{sp}.num_particles_per_cell_each_dim"
         if k in d:
             out[f"ppc:{sp}"] = int(float(d[k]))
-    for diag in ("EP", "PN", "diag1"):
+    for diag in ("EP", "PN", "diag1", "diag_fields"):
         k = f"{diag}.intervals"
         if k in d:
             out[k] = int(float(d[k]))
+    if "diag_fields.write_species" in d:
+        out["diag_fields.write_species"] = int(float(d["diag_fields.write_species"]))
     return out
 
 

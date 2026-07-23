@@ -72,6 +72,17 @@ value-checks only `my_constants` present in both decks (WarpX prunes unused ones
 from `warpx_used_inputs`) plus the scalar settings (`max_step`, `n_cell`, `cfl`,
 `tau`, per-species ppc, diagnostic intervals, …).
 
+**Diagnostics (config `diagnostics:` block).** `plotfile_intervals` and
+`reduced_intervals` set the cadence of the `Full` plotfiles (`diag1`: fields +
+particles, for phase space) and the `EP`/`PN` reduced diags. Optionally,
+`field_intervals` adds a second, **field-only** diagnostic (`diag_fields`,
+`write_species = 0`) at that high cadence — full grid resolution, all of
+`Ex Ey Ez Bx By Bz jx jy jz rho` plus per-species `rho`. Fields are ~1–2 MB/frame
+(a few % of a particle frame), so this buys high-fidelity streaks / field
+structure cheaply. Omit `field_intervals` to keep the single-diagnostic deck.
+`make_figures.py` uses the dense `diag_fields` series for the B_perp streak when
+present and falls back to `diag1` otherwise.
+
 **Examples**
 
 ```bash

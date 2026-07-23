@@ -139,7 +139,14 @@ EP.intervals = 500
 PN.type      = ParticleNumber
 PN.intervals = 500
 
-# Full plotfiles: fields + raw particles for (z,uz) phase space (~50 frames).
-diagnostics.diags_names = diag1
+# diag1: fields + raw particles for (z,uz) phase space (~50 frames).
+diagnostics.diags_names = diag1 diag_fields
 diag1.intervals = 5000
 diag1.diag_type = Full
+
+# diag_fields: field-only, high cadence (~1000 frames) for streaks / field
+# structure. No particles (write_species = 0); full grid resolution.
+diag_fields.intervals     = 250
+diag_fields.diag_type     = Full
+diag_fields.write_species = 0
+diag_fields.fields_to_plot = Ex Ey Ez Bx By Bz jx jy jz rho rho_piston_electrons rho_piston_ions rho_amb_electrons rho_amb_ions
