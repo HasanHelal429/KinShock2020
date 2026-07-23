@@ -25,6 +25,7 @@ The `run_dir` positional argument defaults to `runs/R1` for every script.
 | `run_checks.py` | Bring-up / progress checks (works before any sim output exists) | `config.yaml`, plotfiles, reduced diags | `media/testing/*.png` |
 | `make_figures.py` | Reproduce the paper's shock diagnostics (analyses A–D) | `config.yaml`, plotfiles | `media/<run_id>/*.png`, `criteria.json` |
 | `make_movies.py` | Animated density + phase-space movies | `config.yaml`, plotfiles | `media/<run_id>/*.mp4` |
+| `run_progress_logger.py` | Sidecar: real wall-clock progress/ETA log at %-checkpoints | `run.log`, input deck | `<run_dir>/progress.log` |
 
 Typical workflow for a run:
 
@@ -195,3 +196,33 @@ measured one is passed with `--vsh-c`.
 ```bash
 python scripts/make_movies.py runs/R1 --fps 8 --vsh-c 0.14
 ```
+
+
+---
+
+## `run_progress_logger.py`
+
+A sidecar that watches a run's `run.log` and appends a checkpoint line to
+`<run_dir>/progress.log` every N percent of `max_step`. It records **real
+(wall-clock) elapsed time and ETA**, the WarpX compute rate, a **contention
+factor** (wall-rate ÷ compute-rate — >1 when the machine is shared), and the
+system load, so compute cost is trackable after the fact and runs can be paced
+without babysitting. `--total` is auto-detected from `warpx_used_inputs` / the
+deck (last `max_step` wins, matching ParmParse), so appended overrides are honored.
+
+Launch it right after starting WarpX (it waits for `run.log` to appear):
+
+```bash
+OMP_NUM_THREADS=8 warpx.1d inputs > runs/R1_core/run.log 2>&1 &
+python scripts/run_progress_logger.py runs/R1_core &          # every 10%, 30s poll
+python scripts/run_progress_logger.py runs/R1_core --every-pct 5 --poll 20
+```
+
+Example `progress.log` line:
+
+```
+2026-07-23T17:02:31 | 25000/125000 (20.0%) | 0h13m | 0.0331 s/step(wall) | 0.0299 s/step(warpx) | ETA ~55m | x1.11 | load 18.4
+```
+
+The `x1.11` means wall time ran 11% over pure compute due to sharing the node —
+a direct readout of the contention cost the CPU benchmark quantified.
