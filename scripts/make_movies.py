@@ -62,7 +62,7 @@ def movie_phase(pfs, cfg, sc, vsh, fps):
     c = kinshock.units.C
     # fixed (z, v_z) grid so the distribution — not the axes — is what moves
     Hd = sc.domain_halfwidth / sc.di0
-    z_edges = np.linspace(-Hd, Hd, 421)
+    z_edges = np.linspace(0, Hd, 421)
     v_edges = np.linspace(-2.5, 3.0, 241)
     for i, pf in enumerate(pfs):
         fr = io.load_frame(pf)

@@ -58,7 +58,7 @@ def load_series(pfs):
 def fig_streak(frames, cfg, sc):
     t = np.array([fr.time for fr in frames]) * sc.wci0
     zc = np.asarray(frames[0].z_centers) / sc.di0
-    B = np.array([fr.Bperp / sc.B0 for fr in frames])  # (nt, nz)
+    B = np.array([fr.Bx / sc.B0 for fr in frames])  # (nt, nz)
     fig, ax = plt.subplots(figsize=(7.8, 5.2))
     pc = ax.pcolormesh(t, zc, B.T, shading="auto", cmap="viridis",
                        vmin=0, vmax=max(2.0, np.nanpercentile(B, 99)))
@@ -276,8 +276,10 @@ def fig_reflected(frames, cfg, sc, vsh):
     t, G = np.array(t), np.array(G)
     tstar, i1 = metrics.onset_time_from_G(t, G)
 
-    fig, (a_g, a_f) = plt.subplots(2, 1, figsize=(7.2, 6.2))
-    a_g.plot(t * sc.wci0, G, "o-", color=P.C_AMBIENT, ms=3, lw=1.0)
+    dG = np.gradient(G)
+
+    fig, ((a_g, a_f), (a_dg, a_df)) = plt.subplots(2, 2, figsize=(12.4, 6.2))
+    a_g.plot(t * sc.wci0, G, color=P.C_AMBIENT, ms=3, lw=1.0)
     if i1 >= 0:
         a_g.axvline(tstar * sc.wci0, color=P.C_PISTON, ls="--",
                     label=rf"$t^*_1={tstar*sc.wci0:.2f}\,\omega_{{ci0}}^{{-1}}$ (target ~1)")
@@ -286,22 +288,43 @@ def fig_reflected(frames, cfg, sc, vsh):
     a_g.set_ylabel(r"$G=N_{a,refl}/N_{a,tot}$")
     P.style_axes(a_g)
 
+    a_dg.plot(t * sc.wci0, dG, color=P.C_AMBIENT, ms=3, lw=1.0)
+    if i1 >= 0:
+        a_dg.axvline(tstar * sc.wci0, color=P.C_PISTON, ls="--",
+                    label=rf"$t^*_1={tstar*sc.wci0:.2f}\,\omega_{{ci0}}^{{-1}}$ (target ~1)")
+        a_dg.legend(frameon=False, fontsize=9)
+    a_dg.set_xlabel(r"$t\,\omega_{ci0}$")
+    a_dg.set_ylabel(r"$dG/dt$")
+    P.style_axes(a_dg)
+
     if i1 >= 0:
         fr = frames[i1]
         z, uz = io.species_phase(fr, "amb_ions", sc, mass=sc.mi)
         edges = np.asarray(fr.z_edges)
         F, centers = metrics.reflected_profile_F(z * 1.0, uz * kinshock.units.C, vnorm, edges)
+        for _ in range(6):
+            F = _smooth(F, k=50)
         zc = centers / sc.rho_i0
         zstar, _ = metrics.onset_location_from_F(zc, F)
+        dF = np.gradient(F)
         a_f.plot(zc, F, color=P.C_AMBIENT, lw=1.0)
         a_f.axvline(zstar, color=P.C_PISTON, ls="--",
                     label=rf"$z^*_1={zstar:.1f}\,\rho_{{i0}}$ (target ~1)")
         a_f.legend(frameon=False, fontsize=9)
-        a_f.set_xlim(0, max(6.0, np.nanmax(zc[F > 0]) if (F > 0).any() else 6.0))
+        a_f.set_xlim(0, max(2.0, np.nanmax(zc[F > 0]) if (F > 0).any() else 2.0))
+        a_df.plot(zc, dF, color=P.C_AMBIENT, lw=1.0)
+        a_df.axvline(zstar, color=P.C_PISTON, ls="--",
+                    label=rf"$z^*_1={zstar:.1f}\,\rho_{{i0}}$ (target ~1)")
+        a_df.legend(frameon=False, fontsize=9)
+        a_df.set_xlim(0, max(2.0, np.nanmax(zc[F > 0]) if (F > 0).any() else 2.0))
     a_f.set_xlabel(r"$z / \rho_{i0}$")
     a_f.set_ylabel(r"$F(z,t^*_1)$")
+    a_df.set_xlabel(r"$z / \rho_{i0}$")
+    a_df.set_ylabel(r"$dF/dt$")
     P.style_axes(a_f)
     P.stamp(a_g, cfg, sc)
+    P.style_axes(a_df)
+    P.stamp(a_dg, cfg, sc)
     fig.suptitle(f"{cfg['meta']['run_id']}: reflected ambient ions & onset")
     fig.tight_layout()
     P.savefig(fig, "shock_reflected.png", run_id=cfg["meta"]["run_id"])
