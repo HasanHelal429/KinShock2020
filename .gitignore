@@ -3,6 +3,9 @@ runs/**/diags/
 runs/**/diags_movies/
 runs/**/diags_movie/
 
+# --- any media ---
+media/
+
 # --- run logs (large with verbose=1; findings are recorded in RESULTS.md) ---
 *.log
 
