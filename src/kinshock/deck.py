@@ -44,11 +44,15 @@ def _num(x: float) -> str:
 
 # Semantic boundary name -> (field_bc, particle_bc) WarpX tokens.
 #   periodic   : wrap (both faces must be periodic together)
-#   reflecting : symmetry / foil wall at z=0 — tangential E = 0 (pec) + specular
-#                particles. See REPLICATION_PLAN.md §7 (one-sided ablation): valid
-#                here because z=0 sits inside the dense, driven piston, so the
-#                specular-reflection approximation (flips only the normal v_z, not
-#                the gyro-coupled v_y) is buried in the foil, far from the shock.
+#   reflecting : foil wall at z=0 — tangential E = 0 (pec) + specular particles.
+#                See REPLICATION_PLAN.md §7 (one-sided ablation): the specular
+#                approximation flips only the normal v_z, not the gyro-coupled v_y,
+#                so it carries a ~5% near-wall artifact (RESULTS.md 2026-07-23).
+#   symmetry   : the CORRECT one-sided perpendicular-shock wall — pec fields +
+#                a pi-rotation reflection about the B0 axis (flips v_z AND the
+#                transverse v_perp, preserves v_parallel), the exact discrete
+#                symmetry of the two-sided problem. Emits the fork-only input
+#                boundary.reflect_symmetry_axis. Use in place of 'reflecting'.
 #   open       : far boundary with a background field — particles leave (absorbing)
 #                while fields use pec. pec is required (not silver-mueller) because
 #                the projection B-field divergence cleaner, active whenever an
@@ -63,18 +67,25 @@ def _num(x: float) -> str:
 _BC_MAP = {
     "periodic":   ("periodic", "periodic"),
     "reflecting": ("pec", "reflecting"),
+    "symmetry":   ("pec", "reflecting"),   # + boundary.reflect_symmetry_axis (see _boundaries)
     "open":       ("pec", "absorbing"),
     "absorbing":  ("absorbing_silver_mueller", "absorbing"),
 }
 
+# Boundary names that use the rotational (pi-rotation about B0) reflection.
+_SYMMETRY_BCS = {"symmetry"}
 
-def _boundaries(geo: dict):
-    """((field_lo, field_hi), (particle_lo, particle_hi)) from ``geo['boundary']``.
+
+def _boundaries(geo: dict, field_axis: str = "x"):
+    """((field_lo, field_hi), (particle_lo, particle_hi), symmetry_axis) from
+    ``geo['boundary']``.
 
     ``boundary`` is either a single semantic name applied to both faces (legacy,
-    e.g. ``periodic``) or a ``{lo, hi}`` mapping (e.g. ``{lo: reflecting, hi:
-    absorbing}`` for a one-sided half-domain). Each name resolves via
-    :data:`_BC_MAP` to its (field, particle) WarpX token pair."""
+    e.g. ``periodic``) or a ``{lo, hi}`` mapping (e.g. ``{lo: symmetry, hi:
+    open}`` for a one-sided half-domain). Each name resolves via :data:`_BC_MAP`
+    to its (field, particle) WarpX token pair. ``symmetry_axis`` is ``field_axis``
+    (the B0 direction) if either face is a rotational-``symmetry`` boundary, else
+    ``None`` — it drives the ``boundary.reflect_symmetry_axis`` input line."""
     b = geo.get("boundary", "periodic")
     lo_name, hi_name = (b.get("lo", "periodic"), b.get("hi", "periodic")) \
         if isinstance(b, dict) else (b, b)
@@ -84,7 +95,8 @@ def _boundaries(geo: dict):
     except KeyError as e:
         raise ValueError(f"unknown boundary {e.args[0]!r}; "
                          f"expected one of {sorted(_BC_MAP)}") from None
-    return (flo, fhi), (plo, phi)
+    sym_axis = field_axis if ({lo_name, hi_name} & _SYMMETRY_BCS) else None
+    return (flo, fhi), (plo, phi), sym_axis
 
 
 def _n_cell(geo: dict) -> int:
@@ -129,8 +141,9 @@ def render(cfg: dict) -> str:
     n_cell = _n_cell(geo)
     ppc_piston = int(num["ppc"]["piston"])
     ppc_ambient = int(num["ppc"]["ambient"])
-    (field_lo, field_hi), (part_lo, part_hi) = _boundaries(geo)
     bx = "B0" if cfg["field"].get("orientation", "perpendicular") == "perpendicular" else "0."
+    # B0 lies along x in the perpendicular geometry -> that is the rotational-symmetry axis.
+    (field_lo, field_hi), (part_lo, part_hi), sym_axis = _boundaries(geo, field_axis="x")
     plot_int, red_int, field_int = _diag_intervals(cfg)
 
     L = []  # lines
@@ -191,6 +204,11 @@ def render(cfg: dict) -> str:
     a(f"boundary.field_hi    = {field_hi}")
     a(f"boundary.particle_lo = {part_lo}")
     a(f"boundary.particle_hi = {part_hi}")
+    if sym_axis:
+        # Rotational reflection: reflecting bounces do a pi-rotation about the B0
+        # axis (flip v_z + transverse v_perp, keep v_parallel) -- the exact one-sided
+        # perpendicular-shock symmetry. Fork-only input (warpx-cda).
+        a(f"boundary.reflect_symmetry_axis = {sym_axis}")
     a("")
     a(f"algo.particle_shape = {int(num['particle_shape'])}")
     a("")

@@ -11,7 +11,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 317.00000000005343,
       "B_compression": 4.7632338199227595,
@@ -34,7 +34,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 326.00000000005593,
       "B_compression": 9.645805001453793,
@@ -57,7 +57,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 333.00000000006,
       "B_compression": 10.165188556975057,
@@ -80,7 +80,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 336.00000000006,
       "B_compression": 10.787272596986353,
@@ -103,7 +103,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 342.00000000006247,
       "B_compression": 12.1374508697421,
@@ -126,7 +126,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 385.0000000000764,
       "B_compression": 11.001619435771545,
@@ -149,7 +149,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 356.00000000007054,
       "B_compression": 10.73773092732909,
@@ -172,7 +172,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 404.0000000000781,
       "B_compression": 14.331219275502946,
@@ -195,7 +195,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 339.0000000000673,
       "B_compression": 16.05572666702006,
@@ -218,7 +218,7 @@
       "7_piston_separation": false
     },
     "values": {
-      "M_ms_front": 28.29899880443454,
+      "M_ms_front": 17.390652246713266,
       "lambda_ii_over_di0": 350.0,
       "n_compression": 320.0000000000679,
       "B_compression": 15.964915050981636,

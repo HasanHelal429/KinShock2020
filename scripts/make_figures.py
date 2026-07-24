@@ -91,7 +91,12 @@ def fig_trajectory(frames, cfg, sc):
         print("  shock front not detected; skipping trajectory")
         return None, np.nan
     ts, zs = np.array(ts), np.array(zs)
-    vsh = metrics.speed_from_trajectory(ts, zs)
+    # Propagating speed from the domain-aware clean window (front < 0.94*edge): the
+    # shock decelerates/stalls at the absorbing boundary, and including those frames
+    # under-reported v_sh and desynchronised the reflected-ion threshold from the
+    # crosscheck. Both diagnostics now share this identical window.
+    z_edge = cfg["geometry"]["domain_halfwidth_de"] * sc.de
+    vsh = metrics.speed_from_trajectory(ts, zs, z_edge=z_edge, use_second_half=False)
     MA, Mms = vsh / sc.vA, vsh / np.sqrt(sc.vA ** 2 + sc.Cs0 ** 2)
     fig, ax = plt.subplots(figsize=(6.6, 4.8))
     ax.plot(ts * sc.wci0, zs / sc.di0, "o-", color=P.C_PISTON, ms=3, lw=1.0)

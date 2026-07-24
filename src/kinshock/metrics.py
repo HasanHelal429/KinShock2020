@@ -78,16 +78,43 @@ def track_front(zc, n, upstream_density, threshold=1.5, z_exclude=None, side=+1)
     return float(zc[mask].max() if side > 0 else zc[mask].min())
 
 
-def speed_from_trajectory(t, z, use_second_half=True):
-    """Linear-fit speed dz/dt (units follow inputs). Fits the second half by default
-    (after the formation transient)."""
+def speed_from_trajectory(t, z, use_second_half=True, z_edge=None,
+                          edge_frac=0.94, plateau_frac=0.97):
+    """Linear-fit shock speed dz/dt (units follow inputs), measuring the
+    *propagating* speed by excluding edge-contaminated frames.
+
+    Once the front nears the (absorbing) domain boundary it decelerates and then
+    plateaus, and those frames drag a linear fit low — this is why a naive
+    second-half fit under-reported v_sh (~0.10 c) vs the clean value (~0.15 c)
+    and made the reflected-ion threshold inconsistent between diagnostics.
+
+    * If ``z_edge`` is given (the domain edge, same units as ``z``), keep only
+      frames with ``|z| < edge_frac * z_edge`` — the domain-aware clean window.
+      **Preferred for cross-run comparison** (identical criterion for every run).
+    * Else fall back to a domain-agnostic plateau cut: keep frames up to the first
+      time ``|z|`` reaches ``plateau_frac`` of its own maximum excursion.
+      (``plateau_frac=None`` disables the cut — legacy behaviour.)
+
+    With ``use_second_half`` (default) the fit then uses the second half of the
+    surviving window, skipping the formation transient.
+    """
     t = np.asarray(t, dtype=float)
     z = np.asarray(z, dtype=float)
     good = np.isfinite(t) & np.isfinite(z)
     t, z = t[good], z[good]
     if t.size < 2:
         return np.nan
-    if use_second_half:
+    if z_edge is not None and z_edge > 0:
+        keep = np.abs(z) < edge_frac * abs(z_edge)
+        if keep.sum() >= 2:
+            t, z = t[keep], z[keep]
+    elif plateau_frac is not None:
+        zmax = np.nanmax(np.abs(z))
+        if zmax > 0:
+            reached = np.where(np.abs(z) >= plateau_frac * zmax)[0]
+            i_end = int(reached[0]) if reached.size else t.size - 1
+            t, z = t[:max(i_end, 1) + 1], z[:max(i_end, 1) + 1]
+    if use_second_half and t.size >= 4:
         h = t.size // 2
         t, z = t[h:], z[h:]
     return float(np.polyfit(t, z, 1)[0])
@@ -118,13 +145,32 @@ def reflected_profile_F(z_ambient, uz_ambient, vsh, edges):
     return counts.astype(float) / ntot, centers
 
 
-def onset_time_from_G(t, G):
-    """t*_1: time of maximum dG/dt (onset of shock formation). Returns (t_star, index)."""
+def onset_time_from_G(t, G, prominence_frac=0.5, smooth=3):
+    """t*_1: onset of shock formation = time of the **first prominent** dG/dt peak.
+
+    The paper defines t*_1 as the time of maximum dG/dt. But G(t) here is often
+    bimodal (a first reflection onset near t*_1 ~ 1, then a second, sometimes
+    steeper, rise as the shock strengthens). A bare global ``argmax(dG/dt)`` then
+    latches onto whichever rise happens to be steeper and **flips between runs**,
+    which desynchronised this diagnostic from the crosscheck. We instead return the
+    first local dG/dt maximum that reaches ``prominence_frac`` of the global max —
+    the physical formation onset — which is stable across runs. ``smooth`` is a
+    boxcar width applied to G before differencing. Returns (t_star, index).
+    """
     t = np.asarray(t, dtype=float)
     G = np.asarray(G, dtype=float)
     if t.size < 3:
         return np.nan, -1
-    dG = np.gradient(G, t)
+    Gs = np.convolve(G, np.ones(smooth) / smooth, mode="same") if (smooth > 1 and G.size >= smooth) else G
+    dG = np.gradient(Gs, t)
+    dmax = np.nanmax(dG)
+    if not np.isfinite(dmax) or dmax <= 0:
+        i = int(np.nanargmax(dG))
+        return float(t[i]), i
+    thresh = prominence_frac * dmax
+    for i in range(1, dG.size - 1):
+        if dG[i] >= thresh and dG[i] >= dG[i - 1] and dG[i] >= dG[i + 1]:
+            return float(t[i]), i
     i = int(np.nanargmax(dG))
     return float(t[i]), i
 

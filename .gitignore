@@ -29,3 +29,6 @@ schaeffer2020.pdf
 
 # AMReX backtrace dumps
 Backtrace.*
+
+# --- job scratch (regen logs, ad-hoc; keepers live in scripts/) ---
+tmp/
