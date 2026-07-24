@@ -3,6 +3,9 @@ runs/**/diags/
 runs/**/diags_movies/
 runs/**/diags_movie/
 
+# --- studies scratch (WarpX variant runs, regenerable from the runner) ---
+studies/**/scratch/
+
 # --- any media ---
 media/
 

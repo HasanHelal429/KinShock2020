@@ -26,6 +26,7 @@ The `run_dir` positional argument defaults to `runs/R1` for every script.
 | `make_figures.py` | Reproduce the paper's shock diagnostics (analyses A–D) | `config.yaml`, plotfiles | `media/<run_id>/*.png`, `criteria.json` |
 | `make_movies.py` | Animated density + phase-space movies | `config.yaml`, plotfiles | `media/<run_id>/*.mp4` |
 | `run_progress_logger.py` | Sidecar: real wall-clock progress/ETA log at %-checkpoints | `run.log`, input deck | `<run_dir>/progress.log` |
+| `bfield_diagnostic.py` | B-field fluctuation: physical vs numerical (spectra, polarization, particle-response) | `config.yaml`, plotfiles | `media/<run_id>/bfield_diagnostic.png` |
 
 Typical workflow for a run:
 

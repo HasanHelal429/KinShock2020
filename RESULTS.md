@@ -273,3 +273,67 @@ B/C/D) refuted by measurement — keep the default grid config.**
 **Actionable:** run production with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
 for ~1.8x now; do NOT bother with max_grid_size/tiling/sort tweaks. Re-run the sweep to 16/32
 threads when the machine is idle to locate the bandwidth knee and confirm the 16-thread number.
+
+
+---
+
+## B-field oscillations: numerical artifact (finite-grid instability), NOT physical (2026-07-23)
+
+Question: are the B_perp oscillations a physical whistler precursor or a setup artifact?
+Verdict: **artifact — the finite-grid (aliasing) heating instability from an under-resolved
+Debye length.** Diagnostic figure: `media/testing/bfield_oscillation_diag.png`.
+
+**Root cause (quantified):** lambda_D = v_the/wpe = 0.045 d_e = **0.15 cells**, but dz = 0.30 d_e,
+so **dz/lambda_D = 6.7 (ambient), 9.5 (piston)**. The momentum-conserving PIC finite-grid
+instability threshold is dz/lambda_D ~ pi = 3.1 -> we are **2-3x over threshold**. Under-resolved
+Debye length aliases particle-grid coupling into grid-scale EM noise that grows in time.
+
+**Evidence it is numerical, not a whistler precursor:**
+1. **Not statistical ppc noise:** far-upstream RMS(B) is 0.005 B0 early (t*wci=0.11, true 100-ppc
+   floor) and grows ~200x to ~1.1 B0 as the shock's hot/streaming particles arrive. Sampling
+   noise is constant; this grows.
+2. **Not a coherent wave:** corr(Bx,By) = -0.01 (foot), -0.06 (ambient); hodograms are isotropic
+   random blobs. A whistler is elliptically polarized and would trace ellipses.
+3. **Blue spectrum, filter-truncated:** power rises toward small scales and is cut off at the
+   bilinear-filter/Nyquist scale (0.6-1.2 d_e), with NO peak at any physical scale. Real
+   waves/instabilities peak at their physical wavelength and decline toward the grid.
+4. **Worst where dz/lambda_D is largest:** piston/downstream +/-10 B0 vs ambient +/-2-4 B0.
+5. **Mean field correct:** <Bx>=1.001 B0, <By>=0.004 -> initialization fine; the hash is added on top.
+
+**Scale content (pristine upstream dBx):** ~50% of variance at lambda<5 d_e, ~80% at lambda<10 d_e,
+peak in the 2-5 d_e band (grid noise left behind after the 1-pass filter removes lambda<2 d_e).
+Only ~20% at lambda>10 d_e (where any real precursor would live).
+
+**Impact:** LARGE-scale shock physics is unaffected (compression, front trajectory, reflected
+fraction all matched the paper -- those live at >>10 d_e). The artifact pollutes small-scale B
+fluctuation/wave diagnostics and adds spurious grid heating (watch electron-T and EP energy).
+
+**Fixes (cheapest first):**
+1. **More current-filter passes** (`warpx.filter_npass = 4-8`, or bilinear+compensation) -- damps
+   grid-scale noise hard; ~free. First thing to try.
+2. **Cubic particle shape** (`algo.particle_shape = 3`, from 2) -- raises the instability threshold; modest cost.
+3. **More ppc** -- lowers the seed (delays growth) but does not cure the instability.
+4. **Resolve Debye:** dz <~ pi*lambda_D ~ 0.14 d_e (from 0.30) -- definitive cure but ~4x cost
+   (2x cells x 2x smaller dt via CFL).
+5. Energy-conserving / nodal / Galilean-PSATD solver -- no grid heating, larger change.
+
+**Confirmation test (recommended):** short run baseline vs +filter_npass=4 vs finer dz; if
+upstream dB collapses under filtering/finer grid -> confirms numerical. (Not yet run.)
+
+
+### B-field verdict — REVISION (2026-07-23, later): more nuanced than "all numerical"
+
+The confirmation runs (`studies/bfield_convergence/`) corrected the verdict above:
+- **Near-shock / foot turbulence is PHYSICAL.** Where reflected ions live (within
+  ~0.3 rho_i of the front), the B spectrum is invariant to filter_npass, particle_shape,
+  AND resolving the Debye length (dz 0.30->0.15) — i.e. *converged*, not numerical. This is
+  real reflected-ion-driven foot turbulence, as expected for a supercritical perp shock.
+- **Far-upstream fluctuation is a separate component, strongly suspected numerical.** Beyond
+  ~0.3 rho_i the ambient ions AND electrons sit at the t=0 thermal floor (x1.00-1.05) while
+  dBx~1.1 B0 and flat to the domain edge — a dB/B~1 field that scatters neither species is
+  not a self-consistent plasma wave. Decisive long-run test (t*wci~0.56, filt8 + finer_dz vs
+  baseline) is IN PROGRESS; final verdict + `media/testing/bfield_convergence.png` to follow.
+- So the earlier flat "finite-grid instability" verdict is **too strong**: the oscillations are
+  a MIX — physical foot turbulence + a (likely numerical) far-upstream grid component. The
+  under-resolved Debye length (dz/lambda_D~7) remains a legitimate grid-heating concern but is
+  NOT the source of the near-shock turbulence. Use `scripts/bfield_diagnostic.py` per run.
