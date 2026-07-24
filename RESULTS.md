@@ -337,3 +337,34 @@ The confirmation runs (`studies/bfield_convergence/`) corrected the verdict abov
   a MIX — physical foot turbulence + a (likely numerical) far-upstream grid component. The
   under-resolved Debye length (dz/lambda_D~7) remains a legitimate grid-heating concern but is
   NOT the source of the near-shock turbulence. Use `scripts/bfield_diagnostic.py` per run.
+
+
+### B-field verdict — FINAL (2026-07-23): mixed, quantified (`media/testing/bfield_convergence.png`)
+
+Decisive long-run test done (`studies/bfield_convergence/`, t*wci~0.56): baseline dz0.3 vs
++filter_npass=8 vs +resolve-Debye dz0.15, far-upstream cold zone (front+600..+1400, ~0.6-1.3 rho_i).
+
+| variant | far-upstream RMS(dBx)/B0 | vs baseline | foot RMS | ion u/floor | e- u/floor |
+|---|---|---|---|---|---|
+| baseline dz0.3       | 0.721 | --   | 0.768 | 1.00 | 1.01 |
+| +filter_npass=8      | 0.498 | -31% | 0.722 | 1.00 | 1.01 |
+| +resolve Debye dz0.15| 0.540 | -25% | 0.709 | 1.00 | 1.00 |
+
+**The oscillations are a MIX of physical and numerical:**
+1. **Near-shock foot turbulence (within ~0.3 rho_i, reflected ions present): PHYSICAL.** Foot RMS
+   moves only -6..-8% across all knobs -> converged. Real reflected-ion-driven shock turbulence.
+2. **Far-upstream small-scale (lambda <~ 2-3 d_e) hash: NUMERICAL.** filter_npass=8 drops the
+   far-upstream spectral power by orders of magnitude below ~2 d_e and RMS by 31%; this is the
+   grid noise enabled by the under-resolved Debye length (dz/lambda_D~7). It does not scatter the
+   plasma (ions & electrons pinned at the t=0 thermal floor, x1.00-1.01) -> not self-consistent.
+3. **Residual far-upstream component (lambda >~ 3 d_e, ~0.5 B0): unresolved by these tests.**
+   Survives filtering and a 2x Debye refinement (which only reached dz/lambda_D=3.3, still above
+   the ~pi threshold) AND does not couple to the plasma. Not a strongly-coupled physical wave;
+   distinguishing weak-precursor vs longer-wavelength numerical mode needs dz <~ 0.14 d_e and/or
+   higher ppc (future convergence sweep).
+
+**Practical guidance.** The shock structure and foot turbulence (the science) are trustworthy.
+The upstream "noise" is substantially a grid artifact: raise `warpx.filter_npass_each_dir` (4-8)
+to cut it ~30% at ~no physics cost, or resolve the Debye length (dz <~ 0.14 d_e) for a clean
+upstream. Use `scripts/bfield_diagnostic.py` per run to check. This SUPERSEDES the earlier flat
+"finite-grid instability" verdict (too strong: it ignored the physical foot turbulence).

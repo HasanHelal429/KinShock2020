@@ -59,8 +59,8 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics
   — near-linear to 8 cores (~1.8× vs 4), memory-bandwidth-bound beyond. `max_grid_size`,
   tiling, and `sort_intervals` were **benchmarked as neutral-to-negative** here — don't bother.
 - **Physics caveat.** dz/λ_D ≈ 7 (Debye under-resolved) → grid heating. Near-shock foot
-  turbulence is physical; small-scale far-upstream B fluctuations are (being confirmed as)
-  numerical. See `studies/bfield_convergence/` and the RESULTS B-field entry.
+  turbulence is physical (converged); far-upstream small-scale (lambda<~2-3 d_e) hash is
+  numerical grid noise (filter_npass=8 cuts it 31%). See `studies/bfield_convergence/` + RESULTS.
 - **Env.** conda env at `/opt/anaconda3/envs/physics`; WarpX binary
   `/home/hhelal/warpx-cda/build/bin/warpx.1d` (OMP/CPU, double precision).
 
