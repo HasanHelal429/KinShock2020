@@ -7,8 +7,9 @@ to media/<run_id>/. Implements analyses A–E of REPLICATION_PLAN.md §6:
   A. B_perp(z,t) streak plot with piston/shock speed lines  -> shock_streak.png
      (uses the high-cadence field-only diag_fields series when present, else diag1)
   A. shock-front trajectory + measured v_sh, M_A, M_ms       -> shock_trajectory.png
-  B. ion (z, u_z) phase-space distribution at several times  -> shock_phase.png
+  B. ion (z, u_z) phase-space distribution at several times  -> shock_phase.png (Fig. 5)
      + density / B_perp line-outs                            -> shock_lineouts.png
+     + species-resolved 3-row phase space (amb/piston/e-)    -> shock_fig7.png (Fig. 7)
   C. seven shock-formation criteria per frame                -> criteria.json (+ stdout)
   D. reflected-ambient-ion fraction G(t), F(z), t*_1, z*_1   -> shock_reflected.png
 
@@ -54,6 +55,54 @@ def load_series(pfs):
     return [io.load_frame(pf) for pf in pfs]
 
 
+# --- the single source of truth for the shock speed + front trajectory ---
+class _Shock:
+    """v_sh and z_front(frame) for the whole figure suite. Wraps the by-eye fit
+    (runs/<ID>/shock_fit.yaml via scripts/tune_shock.py) when present, else the
+    automatic track_front + speed_from_trajectory fallback. Every diagnostic reads
+    v_sh and the front through this one object, so they can no longer drift apart."""
+
+    def __init__(self, v_sh, sc, cfg, fit=None):
+        self.v_sh, self.sc, self.cfg, self.fit = v_sh, sc, cfg, fit
+        self.from_fit = fit is not None
+        self.MA = v_sh / sc.vA
+        self.Mms = v_sh / np.sqrt(sc.vA ** 2 + sc.Cs0 ** 2)
+
+    def front_m(self, fr):
+        """Forward (+z) shock-front position [m] for frame ``fr`` (np.nan if none)."""
+        if self.fit is not None:
+            return self.fit.z_front(fr.time, fr.time * self.sc.wci0)
+        zexcl = self.cfg["geometry"]["slab_halfwidth_di"] * self.sc.di
+        return metrics.track_front(fr.z_centers, _ion_density(fr, self.cfg),
+                                   self.sc.namb, threshold=1.5, z_exclude=zexcl, side=+1)
+
+
+def resolve_shock(run_dir, frames, cfg, sc):
+    """Build the run's :class:`_Shock`: prefer the by-eye fit, else auto-fallback."""
+    fit = metrics.load_shock_fit(run_dir, sc)
+    if fit is not None:
+        print(f"  shock: by-eye fit (shock_fit.yaml)  v_sh={fit.v_sh/kinshock.units.C:.4f}c  "
+              f"M_A={fit.MA:.2f}  M_ms={fit.Mms:.2f}")
+        return _Shock(fit.v_sh, sc, cfg, fit=fit)
+    zexcl = cfg["geometry"]["slab_halfwidth_di"] * sc.di
+    ts, zs = [], []
+    for fr in frames:
+        zf = metrics.track_front(fr.z_centers, _ion_density(fr, cfg), sc.namb,
+                                 threshold=1.5, z_exclude=zexcl)
+        if np.isfinite(zf):
+            ts.append(fr.time); zs.append(zf)
+    if len(ts) >= 2:
+        z_edge = cfg["geometry"]["domain_halfwidth_de"] * sc.de
+        v = metrics.speed_from_trajectory(np.array(ts), np.array(zs),
+                                          z_edge=z_edge, use_second_half=False)
+    else:
+        v = sc.vsh_model
+    v = v if np.isfinite(v) else sc.vsh_model
+    print(f"  shock: NO shock_fit.yaml -> auto track_front fallback (v_sh={v/kinshock.units.C:.4f}c). "
+          f"Run scripts/tune_shock.py for a by-eye fit.")
+    return _Shock(v, sc, cfg, fit=None)
+
+
 # --- A: streak + trajectory ---
 def fig_streak(frames, cfg, sc):
     t = np.array([fr.time for fr in frames]) * sc.wci0
@@ -78,7 +127,10 @@ def fig_streak(frames, cfg, sc):
     return P.savefig(fig, "shock_streak.png", run_id=cfg["meta"]["run_id"])
 
 
-def fig_trajectory(frames, cfg, sc):
+def fig_trajectory(frames, cfg, sc, shock):
+    """Empirical front points (track_front) with the shock model overlaid. v_sh / M_A
+    come from ``shock`` -- the by-eye fit (shock_fit.yaml) or the auto fallback -- so
+    this figure reports the SAME speed every other diagnostic uses."""
     ts, zs = [], []
     zexcl = cfg["geometry"]["slab_halfwidth_di"] * sc.di   # exclude piston slab
     for fr in frames:
@@ -87,33 +139,44 @@ def fig_trajectory(frames, cfg, sc):
         if np.isfinite(zf):
             ts.append(fr.time)
             zs.append(zf)
-    if len(ts) < 2:
-        print("  shock front not detected; skipping trajectory")
-        return None, np.nan
     ts, zs = np.array(ts), np.array(zs)
-    # Propagating speed from the domain-aware clean window (front < 0.94*edge): the
-    # shock decelerates/stalls at the absorbing boundary, and including those frames
-    # under-reported v_sh and desynchronised the reflected-ion threshold from the
-    # crosscheck. Both diagnostics now share this identical window.
-    z_edge = cfg["geometry"]["domain_halfwidth_de"] * sc.de
-    vsh = metrics.speed_from_trajectory(ts, zs, z_edge=z_edge, use_second_half=False)
-    MA, Mms = vsh / sc.vA, vsh / np.sqrt(sc.vA ** 2 + sc.Cs0 ** 2)
+    C = kinshock.units.C
+    vsh, MA, Mms = shock.v_sh, shock.MA, shock.Mms
     fig, ax = plt.subplots(figsize=(6.6, 4.8))
-    ax.plot(ts * sc.wci0, zs / sc.di0, "o-", color=P.C_PISTON, ms=3, lw=1.0)
+    if ts.size:
+        ax.plot(ts * sc.wci0, zs / sc.di0, "o", color=P.C_PISTON, ms=3,
+                label="tracked front (n>1.5 n_e0)")
+    # overlay the shock MODEL used everywhere else: fit -> z0 + v_sh*t (+ overrides);
+    # fallback -> a line of the fitted slope through the tracked points.
+    tw_all = np.array([fr.time * sc.wci0 for fr in frames])
+    tgrid = np.linspace(tw_all.min(), tw_all.max(), 100)
+    if shock.from_fit:
+        zmodel = (shock.fit.z0 + vsh * (tgrid / sc.wci0)) / sc.di0
+        if shock.fit.fronts:
+            fk = np.array(sorted(shock.fit.fronts))
+            ax.plot(fk, np.array([shock.fit.fronts[k] for k in fk]) / sc.di0,
+                    "x", color="cyan", ms=9, mew=2.0, label="per-time override")
+        lbl = "by-eye fit"
+    else:
+        z0 = float(np.median(zs - vsh * ts)) if ts.size else 0.0
+        zmodel = (z0 + vsh * (tgrid / sc.wci0)) / sc.di0
+        lbl = "auto fit (no shock_fit.yaml)"
+    ax.plot(tgrid, zmodel, "-", color=P.C_REF, lw=1.6, label=lbl)
     ax.set_xlabel(r"$t\,\omega_{ci0}$")
     ax.set_ylabel(r"shock front $z / d_{i0}$")
     P.style_axes(ax)
-    txt = (rf"$v_{{sh}}={vsh/kinshock.units.C:.4f}\,c$" + "\n"
+    ax.legend(frameon=False, fontsize=8, loc="lower right")
+    txt = (rf"$v_{{sh}}={vsh/C:.4f}\,c$" + "\n"
            rf"$M_A={MA:.1f}$ (target {cfg['targets']['M_A']})" + "\n"
            rf"$M_{{ms}}={Mms:.1f}$ (target {cfg['targets']['M_ms']})" + "\n"
            rf"$v_{{sh}}/v_p={vsh/sc.vp_model:.2f}$ (RH $\to$ 4/3)")
     ax.text(0.03, 0.97, txt, transform=ax.transAxes, va="top", fontsize=9,
             bbox=dict(boxstyle="round", fc="white", ec=P.C_REF, alpha=0.9))
-    fig.suptitle(f"{cfg['meta']['run_id']}: shock-front trajectory")
+    src = "by-eye fit" if shock.from_fit else "AUTO fallback"
+    fig.suptitle(f"{cfg['meta']['run_id']}: shock-front trajectory ({src})")
     fig.tight_layout()
     P.savefig(fig, "shock_trajectory.png", run_id=cfg["meta"]["run_id"])
-    print(f"  measured v_sh = {vsh/kinshock.units.C:.4f} c ; M_A = {MA:.2f} ; M_ms = {Mms:.2f}")
-    return vsh, MA
+    print(f"  v_sh = {vsh/C:.4f} c ; M_A = {MA:.2f} ; M_ms = {Mms:.2f}  [{src}]")
 
 
 # --- B: line-outs + phase space ---
@@ -179,13 +242,26 @@ def _select_nonzero(frames, n, sc):
     return [cand[j] for j in np.linspace(0, len(cand) - 1, n).astype(int)]
 
 
-def _shock_window(fr, cfg, sc):
+def _select_times(frames, times, sc):
+    """Indices of the frames NEAREST each requested time (in t*wci0), preserving the
+    requested order. Used by --phase-times to hand-pick the phase-space panels."""
+    tw = np.array([fr.time * sc.wci0 for fr in frames])
+    idx = []
+    for t in times:
+        j = int(np.argmin(np.abs(tw - t)))
+        if j not in idx:            # skip duplicates when two requests snap to one frame
+            idx.append(j)
+        print(f"  phase panel: requested t*wci0={t:.2f} -> nearest frame t*wci0={tw[j]:.2f}")
+    return idx
+
+
+def _shock_window(fr, cfg, sc, shock):
     """(z_lo, z_hi, z_front) in d_i0: a window that FOLLOWS the forward (+z) shock front,
     sized to the feature (extents grow with the front position; rho_i0 floors) and clipped
-    to z >= 0. Falls back to the near-piston region before a front is detectable."""
+    to z >= 0. The front position comes from ``shock`` (the by-eye fit or auto fallback),
+    so the phase panels track the identical front the trajectory/reflected diagnostics use."""
     zexcl = cfg["geometry"]["slab_halfwidth_di"] * sc.di
-    zf = metrics.track_front(fr.z_centers, _ion_density(fr, cfg), sc.namb,
-                             threshold=1.5, z_exclude=zexcl, side=+1)
+    zf = shock.front_m(fr)
     rho = sc.rho_i0 / sc.di0
     zhi = float(np.asarray(fr.z_centers).max()) / sc.di0
     if np.isfinite(zf):
@@ -198,16 +274,16 @@ def _shock_window(fr, cfg, sc):
     return max(lo, 0.0), min(hi, zhi), zfront
 
 
-def fig_phase(frames, cfg, sc, vsh, nframes):
-    idx = _select_nonzero(frames, nframes, sc)
+def fig_phase(frames, cfg, sc, shock, nframes, times=None):
+    idx = _select_times(frames, times, sc) if times else _select_nonzero(frames, nframes, sc)
     fig, axes = plt.subplots(1, len(idx), figsize=(3.4 * len(idx), 4.0), sharey=True)
     axes = np.atleast_1d(axes)
-    vnorm = vsh if (vsh and np.isfinite(vsh)) else sc.vsh_model
+    vnorm = shock.v_sh
     v_edges = np.linspace(PHASE_V_LO, PHASE_V_HI, 201)
     e_species = _electron_species(cfg)
     ks = max(5, int(round(0.30 * sc.di0 / sc.dz)))   # smooth overlays over ~0.30 d_i0
 
-    wins = {i: _shock_window(frames[i], cfg, sc) for i in idx}
+    wins = {i: _shock_window(frames[i], cfg, sc, shock) for i in idx}
 
     # Right-axis scale for the overlaid B_x/B0 + n_e/n_e0 profiles: anchor on the
     # (smoothed) magnetic ramp B_x, O(4-6) at the shock, using panels whose window has
@@ -270,9 +346,154 @@ def fig_phase(frames, cfg, sc, vsh, nframes):
     return P.savefig(fig, "shock_phase.png", run_id=cfg["meta"]["run_id"])
 
 
+# --- B (Fig. 7): species-resolved phase-space rows ---
+# Schaeffer 2020 Fig. 7 is a 3-row x N-timestep grid: row 1 ambient-ion (z, v_z),
+# row 2 piston-ion (z, v_z) -- both with v_z relative to v_sh -- and row 3 electron
+# (z, v_z) with B_x (black) and total n_e (red), relative to their upstream values,
+# overlaid. Columns share a per-time window that follows the forward shock (identical
+# to fig_phase, so the two figures register). Electrons are hot & bidirectional, so
+# their row gets its own symmetric, data-sized v-axis.
+#
+# Unlike fig_phase (additive tints on a black panel), Fig. 7 shows ONE species per
+# panel, so it is rendered on a WHITE background through a perceptually-uniform
+# colormap (empty bins stay white); this also lets B_x be black, as in the paper.
+FIG7_E_VPCTL = 99.5     # electron v-axis half-range from this |v_z|/v_sh percentile
+FIG7_E_VMIN = 3.0       # ... clipped to a sane band (units of v_sh)
+FIG7_E_VMAX = 10.0
+FIG7_CMAP = "cividis"   # perceptually-uniform, CVD-safe (dark blue -> yellow)
+
+
+def _phase_hist_cmap(ax, z, v, w, z_edges, v_edges, cmap=FIG7_CMAP):
+    """Render a single-species phase-space density f(z, v) through a sequential colormap
+    on a WHITE background: empty bins stay white, an asinh stretch keeps both the dense
+    core and the sparse reflected beam visible. Returns nothing (draws into ``ax``)."""
+    ax.set_facecolor("white")
+    ax.set_xlim(z_edges[0], z_edges[-1])
+    ax.set_ylim(v_edges[0], v_edges[-1])
+    if len(z) == 0:
+        return
+    H, _, _ = np.histogram2d(z, v, bins=[z_edges, v_edges], weights=w)
+    inten = np.ma.masked_less_equal(P._asinh_norm(H).T, 0.0)   # (nv, nz), empty -> masked
+    cm = plt.get_cmap(cmap).copy()
+    cm.set_bad("white")
+    ax.imshow(inten, origin="lower", aspect="auto", interpolation="nearest",
+              extent=[z_edges[0], z_edges[-1], v_edges[0], v_edges[-1]],
+              cmap=cm, vmin=0.0, vmax=1.0)
+
+
+def _electron_phase_weighted(fr, cfg, sc):
+    """Combined (z, u_z, w) phase-space arrays for ALL electron species (row 3 shows the
+    total electron distribution, matching the total n_e overlay)."""
+    from kinshock.units import ME
+    zs, us, ws = [], [], []
+    for sp in _electron_species(cfg):
+        z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=ME)
+        if len(z):
+            zs.append(z); us.append(uz); ws.append(w)
+    if not zs:
+        return np.array([]), np.array([]), np.array([])
+    return np.concatenate(zs), np.concatenate(us), np.concatenate(ws)
+
+
+def fig_fig7(frames, cfg, sc, shock, nframes, times=None):
+    idx = _select_times(frames, times, sc) if times else _select_nonzero(frames, nframes, sc)
+    vnorm = shock.v_sh
+    ks = max(5, int(round(0.30 * sc.di0 / sc.dz)))    # smooth overlays over ~0.30 d_i0
+    C = kinshock.units.C
+    ncol = len(idx)
+    wins = {i: _shock_window(frames[i], cfg, sc, shock) for i in idx}
+
+    v_ion = np.linspace(PHASE_V_LO, PHASE_V_HI, 201)   # ion rows: same band as fig_phase
+
+    # electron v-axis: symmetric range from a high percentile of |v_z|/v_sh over the
+    # selected frames (electrons are hot and not a directed beam), clipped to a band.
+    evabs = []
+    for i in idx:
+        _, uz, _ = _electron_phase_weighted(frames[i], cfg, sc)
+        if len(uz):
+            evabs.append(np.nanpercentile(np.abs(uz * C / vnorm), FIG7_E_VPCTL))
+    ve = float(np.clip(max(evabs) if evabs else FIG7_E_VMIN, FIG7_E_VMIN, FIG7_E_VMAX))
+    v_e = np.linspace(-ve, ve, 201)
+
+    # electron-row profile (B_x/B0, n_e/n_e0) scale: anchor on the smoothed magnetic ramp
+    # in windows that have cleared the dense piston (same recipe as fig_phase).
+    slab_di0 = (cfg["geometry"]["slab_halfwidth_di"] * sc.di) / sc.di0
+    piston_margin = max(3.0, 4.0 * slab_di0)
+
+    def _win_bmax(i):
+        fr = frames[i]; lo, hi, _ = wins[i]
+        zc = np.asarray(fr.z_centers) / sc.di0
+        w = (zc >= lo) & (zc <= hi)
+        return float(np.nanmax(_smooth((fr.Bx / sc.B0)[w], ks))) if w.any() else 0.0
+
+    clean = [i for i in idx if wins[i][0] > piston_margin]
+    pool = clean if clean else list(idx)
+    prof_max = float(np.clip(1.3 * max(_win_bmax(i) for i in pool), 4.0, 14.0))
+
+    # Align the overplotted B_x / n_e baseline (value 0) with the phase-space v_z = 0
+    # line, matching fig_phase's convention: the twin axis' lower limit is set so that
+    # its 0 falls at the same panel fraction as v_z = 0 on the electron velocity axis.
+    f0 = (0.0 - v_e[0]) / (v_e[-1] - v_e[0])
+    rlo = -f0 / (1.0 - f0) * prof_max
+
+    fig, axes = plt.subplots(3, ncol, figsize=(3.25 * ncol, 8.6), squeeze=False,
+                             sharey="row")
+    e_species = _electron_species(cfg)
+
+    for c, i in enumerate(idx):
+        fr = frames[i]
+        lo, hi, zfront = wins[i]
+        z_edges = np.linspace(lo, hi, 241)
+
+        # Row 1: ambient ions ; Row 2: piston ions  (v_z / v_sh)
+        for r, (sp, key) in enumerate((("amb_ions", "ambient"), ("piston_ions", "piston"))):
+            z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
+            axc = axes[r][c]
+            _phase_hist_cmap(axc, z / sc.di0, uz * C / vnorm, w, z_edges, v_ion)
+            axc.axhline(1.0, color="0.25", ls=":", lw=0.9)          # v_z = v_sh
+
+        # Row 3: total electron phase space + B_x (black) & n_e (red) overlays
+        ax = axes[2][c]
+        ze, ue, we = _electron_phase_weighted(fr, cfg, sc)
+        _phase_hist_cmap(ax, ze / sc.di0, ue * C / vnorm, we, z_edges, v_e)
+        ax.axhline(0.0, color="0.25", ls=":", lw=0.8)
+        zc = np.asarray(fr.z_centers) / sc.di0
+        m = (zc >= lo) & (zc <= hi)
+        ne = io.species_density(fr, e_species)
+        ax2 = ax.twinx()
+        # white background -> B_x black and n_e red, exactly as the paper's Fig. 7.
+        ax2.plot(zc[m], _smooth((fr.Bx / sc.B0)[m], ks), color="k", lw=1.3,
+                 label=r"$B_x/B_0$")
+        ax2.plot(zc[m], _smooth(np.where(ne > 0, ne / sc.namb, 0.0)[m], ks),
+                 color="#d62728", lw=1.3, label=r"$n_e/n_{e0}$", ls='--')
+        ax2.set_ylim(rlo, prof_max)
+        ax2.set_yticks(np.arange(0, prof_max + 0.1, 2.0))
+        if c == ncol - 1:
+            ax2.set_ylabel(r"$B_x/B_0,\ \ n_e/n_{e0}$")
+            ax2.legend(loc="upper right", fontsize=7, framealpha=0.85,
+                       facecolor="white", labelcolor="k", edgecolor="0.7")
+        else:
+            ax2.set_yticklabels([])
+
+        # shock-front guide on all three rows of the column (region marker)
+        for r in range(3):
+            if zfront is not None:
+                axes[r][c].axvline(zfront, color="0.4", ls="-", lw=0.7, alpha=0.6)
+        axes[0][c].set_title(rf"$t\,\omega_{{ci0}}={fr.time*sc.wci0:.2f}$", fontsize=9)
+        axes[2][c].set_xlabel(r"$z / d_{i0}$")
+
+    axes[0][0].set_ylabel(r"ambient ion  $v_z / v_{sh}$")
+    axes[1][0].set_ylabel(r"piston ion  $v_z / v_{sh}$")
+    axes[2][0].set_ylabel(r"electron  $v_z / v_{sh}$")
+    fig.suptitle(f"{cfg['meta']['run_id']}: initial shock formation "
+                 r"(Fig. 7 — ambient-ion / piston-ion / electron phase space)")
+    fig.tight_layout()
+    return P.savefig(fig, "shock_fig7.png", run_id=cfg["meta"]["run_id"])
+
+
 # --- D: reflected-ion fraction + timescales ---
-def fig_reflected(frames, cfg, sc, vsh):
-    vnorm = vsh if (vsh and np.isfinite(vsh)) else sc.vsh_model
+def fig_reflected(frames, cfg, sc, shock):
+    vnorm = shock.v_sh
     t, G = [], []
     for fr in frames:
         z, uz = io.species_phase(fr, "amb_ions", sc, mass=sc.mi)
@@ -337,14 +558,14 @@ def fig_reflected(frames, cfg, sc, vsh):
 
 
 # --- C: seven criteria ---
-def criteria_table(frames, cfg, sc, vsh):
-    vnorm = vsh if (vsh and np.isfinite(vsh)) else sc.vsh_model
+def criteria_table(frames, cfg, sc, shock):
+    vnorm = shock.v_sh
     zexcl = cfg["geometry"]["slab_halfwidth_di"] * sc.di
     out = []
     for fr in frames:
         n = _ion_density(fr, cfg)
         z_a, uz_a = io.species_phase(fr, "amb_ions", sc, mass=sc.mi)
-        front_z = metrics.track_front(fr.z_centers, n, sc.namb, 1.5, z_exclude=zexcl)
+        front_z = shock.front_m(fr)
         # piston peak-field position (within the slab)
         zc = np.asarray(fr.z_centers)
         pmask = np.abs(zc) <= zexcl
@@ -374,6 +595,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1"))
     ap.add_argument("--nframes", type=int, default=5)
+    ap.add_argument("--phase-times", type=float, nargs="+", default=None, metavar="T",
+                    help="times (in t*wci0) for the ion phase-space panels; snaps to the "
+                         "nearest available frame. Default: --nframes evenly-spaced frames.")
     args = ap.parse_args()
 
     cfg = kinshock.load(args.run_dir)
@@ -396,12 +620,17 @@ def main():
         print(f"{len(field_frames)} field-only frames for the streak "
               f"({len(field_frames)/max(len(frames),1):.0f}x the particle cadence)")
 
+    # SINGLE SOURCE OF TRUTH for v_sh + z_front(t): the by-eye fit (shock_fit.yaml via
+    # scripts/tune_shock.py) if present, else the automatic track_front fallback.
+    shock = resolve_shock(args.run_dir, frames, cfg, sc)
+
     fig_streak(field_frames, cfg, sc)
-    vsh, _ = fig_trajectory(frames, cfg, sc)
+    fig_trajectory(frames, cfg, sc, shock)
     fig_lineouts(frames, cfg, sc, args.nframes)
-    fig_phase(frames, cfg, sc, vsh, args.nframes)
-    fig_reflected(frames, cfg, sc, vsh)
-    criteria_table(frames, cfg, sc, vsh)
+    fig_phase(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
+    fig_fig7(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
+    fig_reflected(frames, cfg, sc, shock)
+    criteria_table(frames, cfg, sc, shock)
 
 
 if __name__ == "__main__":

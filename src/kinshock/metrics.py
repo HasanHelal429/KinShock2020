@@ -258,3 +258,87 @@ def _ramp_scale(zc, field):
     if gmax == 0:
         return np.inf
     return float(fmax / gmax)
+
+
+# --------------------------------------------------------------------------- #
+# Manual by-eye shock fit -- the SINGLE SOURCE OF TRUTH for v_sh and z_front(t)
+# --------------------------------------------------------------------------- #
+# Historically each script re-derived the shock speed from track_front +
+# speed_from_trajectory with slightly different windows, which drifted out of sync
+# (RESULTS.md 2026-07). scripts/tune_shock.py instead fits the front BY EYE against
+# the B_perp / n_e streaks and persists the result here; every diagnostic then reads
+# the same v_sh and the same z_front(t). Model: z_front(t) = z0 + v_sh*t (linear),
+# with optional per-time (t*wci0) overrides for frames refined by hand (regions mode).
+SHOCK_FIT_FILE = "shock_fit.yaml"
+
+
+@dataclass
+class ShockFit:
+    """Persisted by-eye shock kinematics for one run (see scripts/tune_shock.py)."""
+
+    v_sh: float                 # shock speed [m/s]
+    z0: float                   # front intercept at t=0 [m]  (z_front = z0 + v_sh*t)
+    fronts: dict                # {t_wci0 (float): z_front [m]} manual per-time overrides
+    scales: Scales
+
+    def z_front(self, t, t_wci0=None, tol=0.06):
+        """Front position [m] at time ``t`` [s]. Uses the nearest per-time override if
+        one matches ``t_wci0`` within ``tol`` (in t*wci0), else the linear model."""
+        if t_wci0 is not None and self.fronts:
+            key = min(self.fronts, key=lambda k: abs(k - t_wci0))
+            if abs(key - t_wci0) <= tol:
+                return self.fronts[key]
+        return self.z0 + self.v_sh * t
+
+    @property
+    def MA(self):
+        return self.v_sh / self.scales.vA
+
+    @property
+    def Mms(self):
+        return self.v_sh / math.sqrt(self.scales.vA ** 2 + self.scales.Cs0 ** 2)
+
+
+def load_shock_fit(run_dir, scales: Scales):
+    """Load ``runs/<ID>/shock_fit.yaml`` into a :class:`ShockFit`, or ``None`` if absent
+    (callers then fall back to the automatic track_front + speed_from_trajectory)."""
+    import os
+    import yaml
+    path = os.path.join(run_dir, SHOCK_FIT_FILE)
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        d = yaml.safe_load(fh) or {}
+    s = d.get("shock") or {}
+    if "v_sh_over_c" not in s:
+        return None
+    from .units import C
+    fronts = {float(k): float(v) * scales.de
+              for k, v in (s.get("fronts_de") or {}).items()}
+    return ShockFit(v_sh=float(s["v_sh_over_c"]) * C,
+                    z0=float(s.get("z0_de", 0.0)) * scales.de,
+                    fronts=fronts, scales=scales)
+
+
+def save_shock_fit(run_dir, scales: Scales, v_sh, z0, fronts=None):
+    """Write ``runs/<ID>/shock_fit.yaml``. ``v_sh`` [m/s], ``z0`` [m], ``fronts``
+    {t_wci0: z_front[m]}. Lengths are stored in d_e and speed in c."""
+    import os
+    import yaml
+    from .units import C
+    doc = {"shock": {
+        "v_sh_over_c": round(v_sh / C, 6),
+        "z0_de": round(z0 / scales.de, 3),
+        "fronts_de": {f"{float(k):.2f}": round(v / scales.de, 2)
+                      for k, v in sorted((fronts or {}).items())},
+    }}
+    header = (
+        "# Shock kinematics fitted BY EYE with scripts/tune_shock.py -- the SINGLE\n"
+        "# SOURCE OF TRUTH for v_sh and the front trajectory z_front(t), consumed by\n"
+        "# make_figures / crosscheck. z_front(t) = z0 + v_sh*t, with optional per-time\n"
+        "# (t*wci0) overrides in fronts_de. Speed in c, lengths in d_e.\n")
+    path = os.path.join(run_dir, SHOCK_FIT_FILE)
+    with open(path, "w") as fh:
+        fh.write(header)
+        yaml.safe_dump(doc, fh, default_flow_style=False, sort_keys=False)
+    return path

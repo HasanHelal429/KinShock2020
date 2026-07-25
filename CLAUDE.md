@@ -38,18 +38,26 @@ OMP_NUM_THREADS=8 <warpx.1d> runs/<ID>/inputs_* > runs/<ID>/run.log 2>&1 &
 python scripts/run_progress_logger.py runs/<ID> &       # wall-clock progress/ETA log
 python scripts/make_inputs.py runs/<ID> --verify        # deck == config?
 python scripts/run_checks.py   runs/<ID>                # scales vs Table I, conservation
-python scripts/make_figures.py runs/<ID>                # A–D diagnostics
+python scripts/tune_shock.py   runs/<ID>                # fit v_sh + front BY EYE -> shock_fit.yaml
+python scripts/make_figures.py runs/<ID>                # A–D diagnostics (reads shock_fit.yaml)
 ```
 | Script | Purpose |
 |---|---|
 | `make_inputs.py` | config.yaml → WarpX deck (+ `--verify`, `--check`) |
 | `run_checks.py` | bring-up / conservation checks |
+| `tune_shock.py` | fit v_sh + front trajectory BY EYE vs the B/n_e streaks → `runs/<ID>/shock_fit.yaml` |
 | `make_figures.py` | paper diagnostics A–D |
 | `make_movies.py` | density + phase-space movies |
 | `run_progress_logger.py` | sidecar wall-clock progress/ETA log (`<run_dir>/progress.log`) |
 | `bfield_diagnostic.py` | B-field fluctuation: physical vs numerical (spectra/polarization/particle-response) |
 
 ## Hard-won conventions & gotchas
+- **Shock kinematics come from `runs/<ID>/shock_fit.yaml`, fit BY EYE** (`scripts/tune_shock.py`),
+  not auto-detection. It is the single source of truth for `v_sh` and `z_front(t)` (linear
+  `z0 + v_sh*t`, plus optional per-time overrides); `make_figures` reads it via
+  `metrics.load_shock_fit` and falls back to auto `track_front`+`speed_from_trajectory`
+  (with a warning) only when it is absent. Automatic `v_sh` had drifted inconsistently
+  between scripts — always tune once per run so every diagnostic shares one speed/front.
 - **Half-domain (`layout: one_sided`).** Keep `foil.lo`/`injector.lo` at `−slab` even
   one-sided — the domain clips the heated region to `[0, slab]`; moving them to 0
   **doubles the PSC heating rate** (rate ∝ 1/width). This is why foil geometry is *not*
