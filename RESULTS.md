@@ -670,7 +670,9 @@ inside its run dir; launching both controls from the repo root made **R2 and R3 
 `./diags/` and clobber each other** (WarpX `.old.NNNN` rename files were the tell). Fix: **launch
 each run with CWD = its own run dir** (`bash -c 'cd runs/<ID> && warpx …'`) so diag1/diag_fields/
 reducedfiles all land under `runs/<ID>/`. The first R3 "completion" was corrupt and was discarded;
-both were rerun clean. → Added to CLAUDE.md gotchas.
+both were rerun clean. → Added to CLAUDE.md gotchas, and since 2026-07-27 **enforced** by
+`scripts/launch.sh`, which cd's into the run dir for you and refuses to launch into a populated
+`diags/` — use it instead of invoking the binary by hand.
 
 ### R3 (n_e0=0): clean null ✓ — matches paper Fig. 9
 

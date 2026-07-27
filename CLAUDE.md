@@ -34,8 +34,7 @@ regenerate; `--verify` checks `warpx_used_inputs` against the config after a run
 ## Typical workflow
 ```bash
 python scripts/make_inputs.py runs/<ID>                 # config.yaml -> deck
-OMP_NUM_THREADS=8 <warpx.1d> runs/<ID>/inputs_* > runs/<ID>/run.log 2>&1 &
-python scripts/run_progress_logger.py runs/<ID> &       # wall-clock progress/ETA log
+scripts/launch.sh -b -L runs/<ID>                       # launch WarpX (+ progress logger)
 python scripts/make_inputs.py runs/<ID> --verify        # deck == config?
 python scripts/run_checks.py   runs/<ID>                # scales vs Table I, conservation
 python scripts/tune_shock.py   runs/<ID>                # fit v_sh + front BY EYE -> shock_fit.yaml
@@ -44,6 +43,7 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 | Script | Purpose |
 |---|---|
 | `make_inputs.py` | config.yaml → WarpX deck (+ `--verify`, `--check`) |
+| `launch.sh` | **the** way to start a run: cd's into the run dir, benchmarked OMP settings |
 | `run_checks.py` | bring-up / conservation checks |
 | `tune_shock.py` | fit v_sh + front trajectory BY EYE vs the B/n_e streaks → `runs/<ID>/shock_fit.yaml` |
 | `make_figures.py` | paper diagnostics A–D |
@@ -63,12 +63,15 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   **doubles the PSC heating rate** (rate ∝ 1/width). This is why foil geometry is *not*
   rewritten for the half domain. BC token map lives in `kinshock.deck._BC_MAP`.
   Half-domain reproduces full-domain z≥0 to ~3–13% (see RESULTS); bulk energy = 0.5× exactly.
-- **Launch from inside the run dir.** The generated deck sets **no `diag*.file_prefix`**, so WarpX
-  writes plotfiles to `diags/` *relative to the launch CWD*. Always `cd runs/<ID>` before launching
-  (`bash -c 'cd runs/<ID> && OMP_NUM_THREADS=8 … warpx.1d inputs_* > run.log 2>&1'`) so
-  diag1/diag_fields/reducedfiles land under `runs/<ID>/diags/`. Launching two runs from the repo
-  root makes them **share `./diags/` and clobber each other** (WarpX leaves `.old.NNNN` rename files
-  as the tell) — cost a rerun on the R2/R3 controls (RESULTS 2026-07-26).
+- **Launch with `scripts/launch.sh runs/<ID>`, never by hand.** The generated deck sets **no
+  `diag*.file_prefix`**, so WarpX writes plotfiles to `diags/` *relative to the launch CWD*.
+  Launching two runs from the repo root makes them **share `./diags/` and clobber each other**
+  (WarpX leaves `.old.NNNN` rename files as the tell) — cost a rerun on the R2/R3 controls
+  (RESULTS 2026-07-26). `launch.sh` exists to make that unrepeatable: it cd's into the run dir,
+  applies the benchmarked OMP settings, picks the single deck, logs to `<run_dir>/run.log`, and
+  **refuses to start when `diags/` already holds output** (`--force` to override). `-b` detaches,
+  `-L` also starts the progress logger, `-n` dry-runs, and anything after `--` is passed to WarpX
+  as ParmParse overrides (smoke tests only — they will trip `make_inputs.py --verify`).
 - **Performance.** Launch with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
   — near-linear to 8 cores (~1.8× vs 4), memory-bandwidth-bound beyond. `max_grid_size`,
   tiling, and `sort_intervals` were **benchmarked as neutral-to-negative** here — don't bother.

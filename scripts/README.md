@@ -22,6 +22,7 @@ The `run_dir` positional argument defaults to `runs/R1` for every script.
 | Script | Purpose | Reads | Writes |
 |---|---|---|---|
 | `make_inputs.py` | Generate the WarpX input deck from the config | `config.yaml` | `inputs_kinshock_<id>` |
+| `launch.sh` | **The** way to start a run — cd's into the run dir so `diags/` lands there | `config.yaml`, deck | `<run_dir>/{run.log,diags/}` |
 | `run_checks.py` | Bring-up / progress checks (works before any sim output exists) | `config.yaml`, plotfiles, reduced diags | `media/testing/*.png` |
 | `make_figures.py` | Reproduce the paper's shock diagnostics (analyses A–D) | `config.yaml`, plotfiles | `media/<run_id>/*.png`, `criteria.json` |
 | `make_movies.py` | Animated density + phase-space movies | `config.yaml`, plotfiles | `media/<run_id>/*.mp4` |
@@ -32,12 +33,43 @@ Typical workflow for a run:
 
 ```bash
 python scripts/make_inputs.py  runs/R1          # config.yaml -> inputs_kinshock_R1
-# ... run WarpX on the generated deck ...
+scripts/launch.sh -b -L        runs/R1          # start WarpX + the progress logger
 python scripts/make_inputs.py  runs/R1 --verify # confirm warpx_used_inputs == config
 python scripts/run_checks.py   runs/R1          # sanity: scales vs Table I, conservation
 python scripts/make_figures.py runs/R1          # A–D diagnostics + criteria table
 python scripts/make_movies.py  runs/R1          # optional animations
 ```
+
+---
+
+## `launch.sh`
+
+Starts a WarpX run. **Use this rather than invoking the binary yourself**: the generated deck sets
+no `diag*.file_prefix`, so WarpX writes plotfiles to `diags/` *relative to the launch CWD*, and two
+runs launched from the repo root will share `./diags/` and clobber each other (this cost a rerun of
+the R2/R3 controls — see RESULTS 2026-07-26). `launch.sh` always `cd`s into the run dir first.
+
+It also applies the benchmarked thread settings (`OMP_NUM_THREADS=8 OMP_PROC_BIND=spread
+OMP_PLACES=cores` — near-linear to 8 cores, ~1.8× vs 4), resolves the run's single `inputs_*` deck,
+sends stdout/stderr to `<run_dir>/run.log`, and **refuses to start when `diags/` already holds
+output**, since relaunching overwrites a finished run's plotfiles in place.
+
+```bash
+scripts/launch.sh runs/R1                    # foreground, logs to runs/R1/run.log
+scripts/launch.sh -b -L runs/R1              # detach + start the progress logger
+scripts/launch.sh -n runs/R1                 # dry run: print the command, change nothing
+scripts/launch.sh runs/R0 -- max_step=20     # ParmParse overrides (smoke tests)
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `-j, --threads N` | `8` | `OMP_NUM_THREADS`. The benchmarked sweet spot is 8; beyond that the run is memory-bandwidth-bound. |
+| `-w, --warpx PATH` | `$KINSHOCK_WARPX`, else `/home/hhelal/warpx-cda/build/bin/warpx.1d` | WarpX binary. |
+| `-b, --background` | off | Detach via `nohup` and return immediately, printing the PID. |
+| `-L, --logger` | off | Also start `run_progress_logger.py` in the background (stdout → `<run_dir>/logger.out`, gitignored). |
+| `-f, --force` | off | Launch even though `diags/` already has output, overwriting it. |
+| `-n, --dry-run` | off | Print what would run and exit. Warns instead of failing on a populated `diags/`. |
+| `-- <args>` | — | Everything after `--` is appended as ParmParse overrides. **Not** reflected in `config.yaml`, so `make_inputs.py --verify` will flag them afterwards — smoke tests only, never physics. |
 
 ---
 
