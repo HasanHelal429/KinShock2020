@@ -788,3 +788,33 @@ investigated.
 streak was always full-cadence — but it holds all 1001 frames via `load_series` and hands
 pcolormesh the full 1001 × 25000 grid. Same streaming + decimation treatment would speed it up; no
 correctness issue (it reads only `fr.Bx`).
+
+---
+
+## Fig. 7 in ρ_i0 units + `--only` for `make_figures.py` (2026-07-27) — tooling
+
+`make_figures.py` gained two flags, both figure-selection only (no physics touched):
+
+- **`--fig7-xunits d_i0|rho_i0 [...]`** — horizontal normalization for the Fig. 7 grid.
+  `d_i0` (default) → `shock_fig7.png` as before; `rho_i0` → **`shock_fig7_rho_i0.png`**, i.e. the
+  same panels with z in the upstream ion gyroradius ρ_i0 = v_p/ω_ci0 (the paper's z* normalization,
+  already `Scales.rho_i0`). Both units can be requested in one pass. The windows/overlays are still
+  computed in d_i0 and only rescaled by d_i0/ρ_i0 at plot time, so the two files are panel-for-panel
+  identical — only the x scaling, the axis label and a suptitle normalization line differ.
+  For R1_warm, ρ_i0 = 1040 d_e = **10.4 d_i0**, so the ρ_i0 axes are the d_i0 axes ÷10.4
+  (t·ω_ci0 = 1.24 panel: 8–19 d_i0 → 0.77–1.83 ρ_i0, front at 16 d_i0 → 1.53 ρ_i0 — consistent with
+  the onset z*₁ ≈ 1.5 ρ_i0 measured in the R1_half acceptance table).
+- **`--only streak|trajectory|lineouts|phase|fig7|reflected|criteria`** — build a subset. Needed
+  because re-rendering one panel of a 51-frame / 17 GB run otherwise costs the whole A–D suite
+  (the streak also loads the 1001-frame field series).
+
+**Convention worth keeping: `media/R1_warm/shock_fig7*.png` are made with
+`--phase-times 0.15 0.49 0.73 0.98 1.25`** (they snap to frames t·ω_ci0 = 0.11/0.45/0.68/1.01/1.24).
+Those times were **chosen deliberately** to sit across the formation interval; the default
+`--nframes 5` selection spreads panels over the whole run (0.11 … 5.63) and shows late,
+edge-contaminated downstream instead. Regenerate with:
+
+```bash
+python scripts/make_figures.py runs/R1_warm --only fig7 \
+    --fig7-xunits d_i0 rho_i0 --phase-times 0.15 0.49 0.73 0.98 1.25
+```

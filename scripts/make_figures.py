@@ -362,6 +362,19 @@ FIG7_E_VMIN = 3.0       # ... clipped to a sane band (units of v_sh)
 FIG7_E_VMAX = 10.0
 FIG7_CMAP = "cividis"   # perceptually-uniform, CVD-safe (dark blue -> yellow)
 
+# Horizontal-axis normalizations Fig. 7 can be drawn in. The windows (and every other
+# figure) are computed in d_i0, so each entry only needs the length in metres, the axis
+# label, and a filename suffix; the panels are rescaled by d_i0/length at plot time.
+#   d_i0   -- upstream ion inertial length  c/omega_pi0      (default, as in fig_phase)
+#   rho_i0 -- upstream ion gyroradius       v_p/omega_ci0    (the paper's z* normalization)
+# ``note`` (when set) adds a normalization line to the suptitle -- used for the
+# non-default axis, so the default d_i0 figure stays exactly as before.
+FIG7_XUNITS = {
+    "d_i0":   dict(attr="di0",    label=r"$z / d_{i0}$",     suffix="", note=None),
+    "rho_i0": dict(attr="rho_i0", label=r"$z / \rho_{i0}$",  suffix="_rho_i0",
+                   note=r"$\rho_{i0}=v_p/\omega_{ci0}$"),
+}
+
 
 def _phase_hist_cmap(ax, z, v, w, z_edges, v_edges, cmap=FIG7_CMAP):
     """Render a single-species phase-space density f(z, v) through a sequential colormap
@@ -395,7 +408,12 @@ def _electron_phase_weighted(fr, cfg, sc):
     return np.concatenate(zs), np.concatenate(us), np.concatenate(ws)
 
 
-def fig_fig7(frames, cfg, sc, shock, nframes, times=None):
+def fig_fig7(frames, cfg, sc, shock, nframes, times=None, xunits="d_i0"):
+    """Fig. 7 (3 rows x N times). ``xunits`` selects the horizontal normalization from
+    :data:`FIG7_XUNITS` ("d_i0" -> shock_fig7.png, "rho_i0" -> shock_fig7_rho_i0.png);
+    only the x scaling/label/filename change, so the panels stay directly comparable."""
+    xu = FIG7_XUNITS[xunits]
+    xf = sc.di0 / getattr(sc, xu["attr"])      # d_i0-valued windows -> requested units
     idx = _select_times(frames, times, sc) if times else _select_nonzero(frames, nframes, sc)
     vnorm = shock.v_sh
     ks = max(5, int(round(0.30 * sc.di0 / sc.dz)))    # smooth overlays over ~0.30 d_i0
@@ -443,28 +461,28 @@ def fig_fig7(frames, cfg, sc, shock, nframes, times=None):
     for c, i in enumerate(idx):
         fr = frames[i]
         lo, hi, zfront = wins[i]
-        z_edges = np.linspace(lo, hi, 241)
+        z_edges = np.linspace(lo * xf, hi * xf, 241)
 
         # Row 1: ambient ions ; Row 2: piston ions  (v_z / v_sh)
         for r, (sp, key) in enumerate((("amb_ions", "ambient"), ("piston_ions", "piston"))):
             z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
             axc = axes[r][c]
-            _phase_hist_cmap(axc, z / sc.di0, uz * C / vnorm, w, z_edges, v_ion)
+            _phase_hist_cmap(axc, z / sc.di0 * xf, uz * C / vnorm, w, z_edges, v_ion)
             axc.axhline(1.0, color="0.25", ls=":", lw=0.9)          # v_z = v_sh
 
         # Row 3: total electron phase space + B_x (black) & n_e (red) overlays
         ax = axes[2][c]
         ze, ue, we = _electron_phase_weighted(fr, cfg, sc)
-        _phase_hist_cmap(ax, ze / sc.di0, ue * C / vnorm, we, z_edges, v_e)
+        _phase_hist_cmap(ax, ze / sc.di0 * xf, ue * C / vnorm, we, z_edges, v_e)
         ax.axhline(0.0, color="0.25", ls=":", lw=0.8)
         zc = np.asarray(fr.z_centers) / sc.di0
         m = (zc >= lo) & (zc <= hi)
         ne = io.species_density(fr, e_species)
         ax2 = ax.twinx()
         # white background -> B_x black and n_e red, exactly as the paper's Fig. 7.
-        ax2.plot(zc[m], _smooth((fr.Bx / sc.B0)[m], ks), color="k", lw=1.3,
+        ax2.plot(zc[m] * xf, _smooth((fr.Bx / sc.B0)[m], ks), color="k", lw=1.3,
                  label=r"$B_x/B_0$")
-        ax2.plot(zc[m], _smooth(np.where(ne > 0, ne / sc.namb, 0.0)[m], ks),
+        ax2.plot(zc[m] * xf, _smooth(np.where(ne > 0, ne / sc.namb, 0.0)[m], ks),
                  color="#d62728", lw=1.3, label=r"$n_e/n_{e0}$", ls='--')
         ax2.set_ylim(rlo, prof_max)
         ax2.set_yticks(np.arange(0, prof_max + 0.1, 2.0))
@@ -478,17 +496,23 @@ def fig_fig7(frames, cfg, sc, shock, nframes, times=None):
         # shock-front guide on all three rows of the column (region marker)
         for r in range(3):
             if zfront is not None:
-                axes[r][c].axvline(zfront, color="0.4", ls="-", lw=0.7, alpha=0.6)
+                axes[r][c].axvline(zfront * xf, color="0.4", ls="-", lw=0.7, alpha=0.6)
         axes[0][c].set_title(rf"$t\,\omega_{{ci0}}={fr.time*sc.wci0:.2f}$", fontsize=9)
-        axes[2][c].set_xlabel(r"$z / d_{i0}$")
+        axes[2][c].set_xlabel(xu["label"])
 
     axes[0][0].set_ylabel(r"ambient ion  $v_z / v_{sh}$")
     axes[1][0].set_ylabel(r"piston ion  $v_z / v_{sh}$")
     axes[2][0].set_ylabel(r"electron  $v_z / v_{sh}$")
-    fig.suptitle(f"{cfg['meta']['run_id']}: initial shock formation "
-                 r"(Fig. 7 — ambient-ion / piston-ion / electron phase space)")
+    title = (f"{cfg['meta']['run_id']}: initial shock formation "
+             r"(Fig. 7 — ambient-ion / piston-ion / electron phase space)")
+    if xu["note"]:
+        title += ("\n" + rf"$z$ in {xu['note']}"
+                  + rf"$\ = {getattr(sc, xu['attr'])/sc.de:.0f}\,d_e"
+                  + rf" = {getattr(sc, xu['attr'])/sc.di0:.1f}\,d_{{i0}}$")
+    fig.suptitle(title)
     fig.tight_layout()
-    return P.savefig(fig, "shock_fig7.png", run_id=cfg["meta"]["run_id"])
+    return P.savefig(fig, "shock_fig7" + xu["suffix"] + ".png",
+                     run_id=cfg["meta"]["run_id"])
 
 
 # --- D: reflected-ion fraction + timescales ---
@@ -598,7 +622,17 @@ def main():
     ap.add_argument("--phase-times", type=float, nargs="+", default=None, metavar="T",
                     help="times (in t*wci0) for the ion phase-space panels; snaps to the "
                          "nearest available frame. Default: --nframes evenly-spaced frames.")
+    ap.add_argument("--fig7-xunits", nargs="+", choices=sorted(FIG7_XUNITS), metavar="U",
+                    default=["d_i0"],
+                    help="horizontal-axis normalization(s) for Fig. 7: d_i0 (default, "
+                         "-> shock_fig7.png) and/or rho_i0, the upstream ion gyroradius "
+                         "v_p/omega_ci0 (-> shock_fig7_rho_i0.png).")
+    ap.add_argument("--only", nargs="+", default=None, metavar="FIG",
+                    choices=["streak", "trajectory", "lineouts", "phase", "fig7",
+                             "reflected", "criteria"],
+                    help="build only these figures (default: all). e.g. --only fig7.")
     args = ap.parse_args()
+    want = (lambda name: args.only is None or name in args.only)
 
     cfg = kinshock.load(args.run_dir)
     sc = kinshock.units.derive(cfg)
@@ -612,25 +646,35 @@ def main():
           f"{frames[-1].time*sc.wci0:.2f}]")
 
     # field frames (diag_fields if present, else the same diag1 frames): streak
-    field_pfs = io.field_plotfiles(args.run_dir)
-    if field_pfs == particle_pfs:
-        field_frames = frames
-    else:
-        field_frames = load_series(field_pfs)
-        print(f"{len(field_frames)} field-only frames for the streak "
-              f"({len(field_frames)/max(len(frames),1):.0f}x the particle cadence)")
+    if want("streak"):
+        field_pfs = io.field_plotfiles(args.run_dir)
+        if field_pfs == particle_pfs:
+            field_frames = frames
+        else:
+            field_frames = load_series(field_pfs)
+            print(f"{len(field_frames)} field-only frames for the streak "
+                  f"({len(field_frames)/max(len(frames),1):.0f}x the particle cadence)")
 
     # SINGLE SOURCE OF TRUTH for v_sh + z_front(t): the by-eye fit (shock_fit.yaml via
     # scripts/tune_shock.py) if present, else the automatic track_front fallback.
     shock = resolve_shock(args.run_dir, frames, cfg, sc)
 
-    fig_streak(field_frames, cfg, sc)
-    fig_trajectory(frames, cfg, sc, shock)
-    fig_lineouts(frames, cfg, sc, args.nframes)
-    fig_phase(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
-    fig_fig7(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
-    fig_reflected(frames, cfg, sc, shock)
-    criteria_table(frames, cfg, sc, shock)
+    if want("streak"):
+        fig_streak(field_frames, cfg, sc)
+    if want("trajectory"):
+        fig_trajectory(frames, cfg, sc, shock)
+    if want("lineouts"):
+        fig_lineouts(frames, cfg, sc, args.nframes)
+    if want("phase"):
+        fig_phase(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
+    if want("fig7"):
+        for xu in args.fig7_xunits:
+            fig_fig7(frames, cfg, sc, shock, args.nframes, times=args.phase_times,
+                     xunits=xu)
+    if want("reflected"):
+        fig_reflected(frames, cfg, sc, shock)
+    if want("criteria"):
+        criteria_table(frames, cfg, sc, shock)
 
 
 if __name__ == "__main__":

@@ -166,7 +166,9 @@ Reproduce the Schaeffer 2020 shock diagnostics for a run. Config-driven; writes 
 - **A.** B_perp(z,t) streak plot with piston/shock speed lines → `shock_streak.png`;
   shock-front trajectory + measured v_sh, M_A, M_ms → `shock_trajectory.png`
 - **B.** ion (z, u_z) phase space at several times → `shock_phase.png`;
-  density / B_perp line-outs → `shock_lineouts.png`
+  density / B_perp line-outs → `shock_lineouts.png`;
+  species-resolved 3-row phase space (ambient-ion / piston-ion / electron, Fig. 7)
+  → `shock_fig7.png` (and `shock_fig7_rho_i0.png` with `--fig7-xunits rho_i0`)
 - **C.** seven shock-formation criteria per frame → `criteria.json` (+ stdout summary)
 - **D.** reflected-ambient-ion fraction G(t), F(z), t\*₁, z\*₁ → `shock_reflected.png`
 
