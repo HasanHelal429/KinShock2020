@@ -10,11 +10,11 @@ it (e.g. for the units↔Table-I test).
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
-from .units import Scales
+from .units import QE, Scales
 
 
 @dataclass
@@ -28,6 +28,7 @@ class Frame:
     By: np.ndarray
     Bz: np.ndarray
     ds: object                 # underlying yt dataset (for particle access)
+    comps: dict = field(default_factory=dict)   # extra grid components (see load_frame)
 
     @property
     def Bperp(self):
@@ -67,8 +68,13 @@ def field_plotfiles(run_dir):
     return plotfiles(run_dir)
 
 
-def load_frame(path) -> Frame:
-    """Load one plotfile into a :class:`Frame` (1D covering grid along z)."""
+def load_frame(path, fields=()) -> Frame:
+    """Load one plotfile into a :class:`Frame` (1D covering grid along z).
+
+    ``fields`` names extra grid components to read into ``Frame.comps`` (e.g.
+    ``("rho_amb_electrons",)``). Components the plotfile does not carry are simply
+    absent from the dict, so callers can probe availability and fall back.
+    """
     yt = _yt()
     ds = yt.load(path)
     dims = ds.domain_dimensions
@@ -79,15 +85,25 @@ def load_frame(path) -> Frame:
     centers = 0.5 * (edges[:-1] + edges[1:])
     cg = ds.covering_grid(0, ds.domain_left_edge, dims)
 
-    def comp(name):
+    def comp_opt(name):
         try:
             return np.asarray(cg["boxlib", name]).reshape(nz)
         except Exception:
-            return np.zeros(nz)
+            return None
+
+    def comp(name):
+        a = comp_opt(name)
+        return np.zeros(nz) if a is None else a
+
+    comps = {}
+    for name in fields:
+        a = comp_opt(name)
+        if a is not None:
+            comps[name] = a
 
     return Frame(path=path, time=float(ds.current_time),
                  z_edges=edges, z_centers=centers,
-                 Bx=comp("Bx"), By=comp("By"), Bz=comp("Bz"), ds=ds)
+                 Bx=comp("Bx"), By=comp("By"), Bz=comp("Bz"), ds=ds, comps=comps)
 
 
 def species_density(frame: Frame, species) -> np.ndarray:
@@ -108,6 +124,41 @@ def species_density(frame: Frame, species) -> np.ndarray:
             continue
         h, _ = np.histogram(z, bins=edges, weights=w)
         n += h / dz
+    return n
+
+
+def rho_field_names(species):
+    """Per-species charge-density component names (``rho_<species>``) for load_frame."""
+    if isinstance(species, str):
+        species = [species]
+    return tuple(f"rho_{sp}" for sp in species)
+
+
+def field_species_density(frame: Frame, species, charge_states=None) -> np.ndarray:
+    """Number density [m^-3] from the *deposited* ``rho_<species>`` grid components
+    instead of the macroparticles (requires ``load_frame(..., fields=...)``).
+
+    This is what lets a density streak run at the field-only cadence: ``diag_fields``
+    sets ``write_species = 0``, so it carries no particles but does carry per-species
+    rho. Values are shape-factor (and ``filter_npass``) smoothed, so they differ
+    slightly from :func:`species_density` at the sharpest gradients.
+
+    Raises KeyError if the frame carries none of the requested rho components, so
+    callers can fall back to :func:`species_density` on the particle plotfiles.
+    """
+    if isinstance(species, str):
+        species = [species]
+    charge_states = charge_states or {}
+    n = np.zeros(len(frame.z_centers))
+    found = False
+    for sp in species:
+        rho = frame.comps.get(f"rho_{sp}")
+        if rho is None:
+            continue
+        n += np.abs(rho) / (charge_states.get(sp, 1) * QE)
+        found = True
+    if not found:
+        raise KeyError(f"no rho_<species> components for {species} in {frame.path}")
     return n
 
 

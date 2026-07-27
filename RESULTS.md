@@ -727,3 +727,62 @@ B₀ — a caveat that also bounds how "magnetized" the R1_warm shock's turbulen
 (Reference note: R1_warm's by-eye fit reads **v_sh=0.1285 c → M_A=12.8** — the whole-run linear fit
 averages a mildly curved front and sits ~8% under the M_A=14 target; the settled t≳3 slope trends
 steeper. Not re-tuned here; it is the baseline both controls clone and the shared metric threshold.)
+
+---
+
+## tune_shock trajectory streaks were 20× under-sampled in time (2026-07-27) — tooling
+
+**Symptom.** The `|B_perp|` and `n_e` streaks in `media/<ID>/tune_trajectory.png` looked coarsely
+pixelated along `t` — the front read as a blocky staircase rather than a line, which is exactly the
+thing you are trying to fit by eye.
+
+**Cause.** `TrajectoryTuner` read `io.plotfiles()` → `diags/diag1*`, the **Full particle**
+diagnostic (`diag1.intervals = 5000` → **51 frames** for R1_warm). The runs also write a field-only
+diagnostic at `diag_fields.intervals = 250` → **1001 frames**, 20× denser, and `io.field_plotfiles()`
+already existed to reach it (`make_figures.fig_streak` used it; `tune_shock` never did). Two
+distinct things were pinning the tool to the coarse series:
+1. the plotfile list itself (`B_perp` is read straight off the grid — it was low-res for no reason);
+2. `n_e` came from `io.species_density()`, which **histograms macroparticles**
+   (`particle_position_x`/`particle_weight`). `diag_fields` sets `write_species = 0`, so it carries
+   no particles and that method structurally cannot use the dense series.
+
+**Fix.** `n_e` now comes from the **deposited `rho_<species>` fields** (`n = |rho|/(Z·e)`), which
+`diag_fields.fields_to_plot` already writes, so *both* panels run at the field cadence.
+- `io.load_frame(path, fields=(...))` reads extra grid components into a new `Frame.comps` dict;
+  missing components are simply absent, so callers can probe and fall back. One-arg calls unchanged.
+- `io.field_species_density(frame, species, charge_states)` + `io.rho_field_names(species)`.
+- `tune_shock` prefers `field_plotfiles`, and falls back to `plotfiles` + macroparticle histograms
+  when the plotfiles carry no per-species rho (verified on `runs/R1_core`: **`diag1` has only 9
+  components — Ex..Bz, jx..jz — no rho at all**, so pre-`diag_fields` runs behave exactly as before).
+
+**Validation** (`diag_fields020000` vs `diag1020000`, both at t = 7.976658e-08 s):
+
+| comparison | rho-derived vs macroparticle |
+|---|---|
+| integrated density (charge conservation) | **1e-6** agreement |
+| mean deviation, raw 0.3 d_e cells | 7.3% (shape-factor smoothing) |
+| mean deviation, 4.5 d_e display bins | **0.4%** |
+| peak n_e (inside the dense piston) | 257 vs 277 — off-scale above the `vmax=8` cap anyway |
+
+**Three things were needed to make 1001 frames × 25000 cells usable**, all in `TrajectoryTuner`:
+- **stream the series** — one yt dataset alive at a time (`del fr` per iteration). The old
+  list-comprehension would have held 1001 open, since `Frame` keeps `ds` for particle access.
+- **float32** streak storage (~200 MB for both panels instead of 400).
+- **auto z block-averaging to ~1600 bins** (`--zbin` overrides; R1_warm → ×15 = 4.5 d_e). The panel
+  is ~1200 px wide, so 25M pcolormesh quads per re-render bought nothing — and *every* interactive
+  command re-renders. Load is ~1m45s for 1001 frames; `--stride` thins it.
+
+**Caveats for anyone reading these streaks.** (a) Deposited rho is shape-factor (and
+`filter_npass`) smoothed — fine for front-fitting, but do not read absolute peaks off it; the
+particle histogram is the reference. (b) The 4.5 d_e block-mean means the tuner streak is **not** a
+small-scale B diagnostic — use `bfield_diagnostic.py` for spectra at λ ≲ 2–3 d_e.
+
+**Observation, not yet chased:** at full cadence the B panel shows resolved **diagonal striations
+behind the front** that were previously time-aliased into hash. Character (piston/reflected-ion
+striations vs the `intervals = 20` heater cadence beating against the diag cadence) not
+investigated.
+
+**Follow-up left open:** `make_figures.fig_streak` already used the dense field series, so its B
+streak was always full-cadence — but it holds all 1001 frames via `load_series` and hands
+pcolormesh the full 1001 × 25000 grid. Same streaming + decimation treatment would speed it up; no
+correctness issue (it reads only `fr.Bx`).

@@ -16,8 +16,10 @@ editor (robust over SSH, no X11): each command re-renders media/<ID>/tune_*.png.
 Two modes
 ---------
 trajectory (default) -- fit shock.v_sh_over_c / shock.z0_de against the |B_perp| and
-    n_e streaks. The trial line z = z0 + v_sh*t is overlaid; adjust until it rides the
-    forward front. Commands:
+    n_e streaks. Both streaks run at the high-cadence field-only diagnostic's rate
+    (diags/diag_fields*, ~20x diag1), with n_e taken from the deposited rho_<species>
+    fields since that diagnostic writes no particles. The trial line z = z0 + v_sh*t is
+    overlaid; adjust until it rides the forward front. Commands:
         v <val>     set trial v_sh [c]            (e.g. v 0.14)
         z <val>     set trial z0   [d_e]          (front intercept at t=0)
         ma <val>    set v_sh from a target M_A    (v_sh = val * v_A)
@@ -59,6 +61,15 @@ def _electron_species(cfg):
     return [n for n, s in cfg["species"].items() if s.get("kind") == "electron"]
 
 
+def _block_mean(a, k):
+    """Block-average a 1D profile over k cells (display decimation along z)."""
+    a = np.asarray(a, dtype=float)
+    if k <= 1:
+        return a
+    n = (len(a) // k) * k                      # drops a <k-cell remainder at the top
+    return a[:n].reshape(-1, k).mean(axis=1)
+
+
 def _confirm_write(run_dir, sc, v_sh, z0, fronts, no_write):
     """Preview the shock_fit.yaml edits and (unless --no-write) ask y/N before saving."""
     print(f"  -> shock_fit.yaml: v_sh_over_c={v_sh/C:.6f}  z0_de={z0/sc.de:.3f}  "
@@ -83,23 +94,63 @@ def _confirm_write(run_dir, sc, v_sh, z0, fronts, no_write):
 class TrajectoryTuner:
     """|B_perp| + n_e streaks with a movable trial front line z = z0 + v_sh*t."""
 
+    Z_DISPLAY = 1600      # target z bins for the streak (see the decimation note below)
+
     def __init__(self, run_dir, cfg, sc, args):
         self.run_dir, self.cfg, self.sc = run_dir, cfg, sc
         self.png = os.path.join(P.media_dir(run_id=cfg["meta"]["run_id"]), "tune_trajectory.png")
-        pfs = io.plotfiles(run_dir)
+        esp = _electron_species(cfg)
+        rho_fields = io.rho_field_names(esp)
+        charges = {n: s.get("charge_state", 1) for n, s in cfg["species"].items()}
+
+        # Prefer the dense field-only series (diag_fields, ~20x the particle cadence).
+        # It has write_species = 0, so n_e must come from the deposited rho_<species>
+        # fields rather than macroparticles -- that is exactly what makes the full field
+        # cadence usable for BOTH panels. Runs whose plotfiles carry no per-species rho
+        # (e.g. diag1 alone) fall back to the particle diags + macroparticle histograms.
+        particle_pfs = io.plotfiles(run_dir)
+        pfs = io.field_plotfiles(run_dir)
+        use_rho = bool(io.load_frame(pfs[0], fields=rho_fields).comps)
+        if not use_rho and pfs != particle_pfs:
+            print("  field plotfiles carry no per-species rho -> using the particle diags")
+            pfs = particle_pfs
         if len(pfs) < 2:
             raise RuntimeError(f"need >=2 plotfiles for a streak; got {len(pfs)}")
         stride = max(1, args.stride)
         pfs = pfs[::stride]
-        print(f"loading {len(pfs)} frames for the streak (stride {stride})...")
-        frames = [io.load_frame(p) for p in pfs]
-        self.t_wci0 = np.array([fr.time * sc.wci0 for fr in frames])
-        self.t_s = np.array([fr.time for fr in frames])
-        self.zc_di0 = np.asarray(frames[0].z_centers) / sc.di0
-        esp = _electron_species(cfg)
-        self.B = np.array([fr.Bperp / sc.B0 for fr in frames])                 # (nt, nz)
-        self.ne = np.array([np.where((d := io.species_density(fr, esp)) > 0,
-                                     d / sc.namb, np.nan) for fr in frames])
+        src = "deposited rho fields" if use_rho else "macroparticle histograms"
+        print(f"loading {len(pfs)} frames for the streak (stride {stride}; n_e from {src}; "
+              f"{len(particle_pfs)} particle frames exist)...")
+
+        # Stream the series: hold one yt dataset at a time and keep only the decimated
+        # profiles, so a 1000-frame x 25000-cell streak stays in a few hundred MB.
+        zbin, t_s, B, ne = None, [], [], []
+        for i, p in enumerate(pfs):
+            fr = io.load_frame(p, fields=rho_fields if use_rho else ())
+            if zbin is None:
+                nz = len(fr.z_centers)
+                zbin = args.zbin if args.zbin > 0 else max(1, nz // self.Z_DISPLAY)
+                dz = float(fr.z_centers[1] - fr.z_centers[0])
+                self.zc_di0 = _block_mean(fr.z_centers, zbin) / sc.di0
+                if zbin > 1:
+                    # The streak is drawn into ~1200 px, so plotting all nz cells costs
+                    # pcolormesh dearly and resolves nothing extra; block-averaging also
+                    # suppresses the far-upstream numerical hash (lambda < 2-3 d_e).
+                    print(f"  z: {nz} cells -> {len(self.zc_di0)} bins "
+                          f"(block-mean x{zbin} = {zbin*dz/sc.de:.1f} d_e)")
+            t_s.append(fr.time)
+            B.append(_block_mean(fr.Bperp, zbin) / sc.B0)
+            d = (io.field_species_density(fr, esp, charges) if use_rho
+                 else io.species_density(fr, esp))
+            ne.append(_block_mean(d, zbin) / sc.namb)
+            del fr                                  # release the yt dataset
+            if (i + 1) % 50 == 0 or i + 1 == len(pfs):
+                print(f"  {i+1}/{len(pfs)} frames", end="\r", flush=True)
+        print()
+        self.t_s = np.array(t_s)
+        self.t_wci0 = self.t_s * sc.wci0
+        self.B = np.array(B, dtype=np.float32)                                 # (nt, nz)
+        self.ne = np.array(ne, dtype=np.float32)
         # seed from an existing fit, else the model
         fit = metrics.load_shock_fit(run_dir, sc)
         if fit is not None:
@@ -118,7 +169,7 @@ class TrajectoryTuner:
             (aB, self.B, r"$B_\perp/B_0$", "viridis", max(2.0, np.nanpercentile(self.B, 99))),
             # cap n_e well below the dense piston (~250 n_e0) so the ~2-5x shock
             # compression -- the feature to fit the front against -- stays visible.
-            (aN, self.ne, r"$n_e/n_{e0}$", "magma", 8.0)):
+            (aN, np.where(self.ne > 0, self.ne, np.nan), r"$n_e/n_{e0}$", "magma", 8.0)):
             pc = ax.pcolormesh(self.t_wci0, self.zc_di0, S.T, shading="auto",
                                cmap=cmap, vmin=0, vmax=vmax)
             ax.plot(self.t_wci0, z_trial, "-", color="w", lw=2.0,
@@ -253,7 +304,11 @@ def main():
     ap.add_argument("--time", type=float, default=None,
                     help="(regions) frame time t*wci0 to refine; default: last frame.")
     ap.add_argument("--stride", type=int, default=1,
-                    help="(trajectory) plotfile stride for the streak (default 1).")
+                    help="(trajectory) plotfile stride for the streak (default 1 = every "
+                         "field frame; raise it to cut load time on long runs).")
+    ap.add_argument("--zbin", type=int, default=0,
+                    help="(trajectory) block-average the streak over this many z cells "
+                         "for display (default 0 = auto, ~1600 bins).")
     ap.add_argument("--no-write", action="store_true",
                     help="preview edits but never modify shock_fit.yaml.")
     args = ap.parse_args()
