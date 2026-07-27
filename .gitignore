@@ -32,3 +32,6 @@ Backtrace.*
 
 # --- job scratch (regen logs, ad-hoc; keepers live in scripts/) ---
 tmp/
+
+# --- progress-logger stdout (the findings live in progress.log / RESULTS.md) ---
+runs/**/*.out

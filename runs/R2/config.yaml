@@ -1,0 +1,99 @@
+# R2 — NEGATIVE CONTROL: B0 = 0 (unmagnetized).
+#
+# Exact clone of the calibrated production run runs/R1_warm EXCEPT one knob:
+#   field.orientation : perpendicular -> unmagnetized
+# which makes the deck apply Bx = 0 (kinshock.deck line ~144: bx = "0." when
+# orientation != perpendicular) while the reference scales (vA, wci0, rho_i0,
+# M_A) are STILL derived from vA_over_c in units.py -- so this run is normalized
+# in the SAME omega_ci0^-1 / rho_i0 units as R1_warm for a fair side-by-side null.
+#
+# Purpose (REPLICATION_PLAN.md R2, Fig. 9): with no background field the magnetic
+# compression (B pileup), strong ion heating, secondary compression, and the
+# reflected-ambient-ion beam must all DISAPPEAR -- confirming those signatures in
+# R1_warm are shock-specific, not piston artifacts. The piston still expands and
+# initially accelerates ambient ions, but no magnetized shock forms.
+#
+# Boundary kept identical to R1_warm (lo: symmetry, hi: open/pec). pec at hi is
+# safe whether or not the projection divB cleaner auto-runs with Bx=0; the domain
+# is sized so nothing reaches the far boundary within the run.
+
+meta:
+  run_id: R2
+  tier: Core
+  description: >
+    Negative control (B0 = 0). Clone of R1_warm with field.orientation = unmagnetized
+    so the applied Bx = 0. Confirms the magnetic compression, ion heating, secondary
+    compression, and reflected-ion signatures vanish without a background field (Fig. 9).
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Fig. 9"
+  deck: inputs_kinshock_R2
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.078       # identical to R1_warm (M_A ~ 14 baseline)
+    theta_e_init: 0.001
+    theta_i_init: 7.8e-4      # = theta_e_heat/mass_ratio -> T_i = T_e,ab -> v_th,i = C_s,ab
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: unmagnetized   # NEGATIVE CONTROL: applied Bx = 0 (was 'perpendicular')
+  vA_over_c: 0.01             # kept so vA/wci0/rho_i0/M_A scales match R1_warm for normalization
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 7500.0
+  dz_over_de: 0.3
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 250000
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+diagnostics:
+  plotfile_intervals: 5000
+  reduced_intervals: 500
+  field_intervals: 250
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

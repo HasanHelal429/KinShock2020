@@ -1,0 +1,10 @@
+# NEGATIVE-CONTROL reference threshold -- NOT a fit to R3 itself.
+# R3 (n_e0=0) has no shock to fit; this is R1_warm's by-eye v_sh copied in as the
+# SHARED reflection/front threshold so the null test uses the SAME cutoff as the
+# production run. R3's scales (v_A, wci0, rho_i0, B0) are identical to R1_warm, so
+# v_sh_over_c = 0.1285 (M_A = 12.8) applies unchanged. With no ambient ions the
+# reflected fraction G(t) is trivially ~0 -- that is the control's expected null.
+shock:
+  v_sh_over_c: 0.1285
+  z0_de: 0.0
+  fronts_de: {}

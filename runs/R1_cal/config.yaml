@@ -1,0 +1,107 @@
+# R1_cal — CALIBRATION for the piston-ion "ablative warmth" retune.
+#
+# Purpose: a short (~t*wci0 = 1.5), reduced-domain version of R1_half used to
+# check, BEFORE committing to the 6 h full run, that warming the piston ions to
+# the ablation-surface temperature (T_i ~ T_e -> v_th,i ~ C_s,ab) reproduces the
+# broad piston-ion phase space of Schaeffer 2020 Fig. 7 (row 2) WITHOUT pushing
+# M_A off the Table I value of ~14.
+#
+# ONLY difference from runs/R1_half physics: plasma.piston.theta_i_init.
+# Domain / max_step are shrunk purely for turnaround; the shock front stays inside
+# the box to t*wci0 ~ 1.5 (v_sh ~ 14 d_i0 per wci0^-1 -> ~21 d_i0 = 2100 d_e).
+#
+# Collisions were considered and DROPPED: our real-c, free-n0 convention makes the
+# plasma ~1e7x more collisionless than the paper's lambda_ab~20, so faithful
+# collisions are numerically inert and stronger ones would be unphysical (see
+# RESULTS.md 2026-07-24). The piston-ion breadth is instead sourced from the
+# ablative birth spread, which is what the paper's (collisionless) ions carry.
+
+meta:
+  run_id: R1_cal
+  tier: Core
+  description: >
+    Calibration for the ablative piston-ion warmth retune (theta_i_init = theta_e).
+    Short, reduced-domain R1: confirm broad piston-ion phase space (Fig. 7 row 2)
+    and M_A ~ 14 before the full R1_warm rerun.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I"
+  deck: inputs_kinshock_R1_cal
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.092
+    theta_e_init: 0.001
+    # RETUNE (was 1.0e-5): the ablated piston ions are born at ~the ablation-surface
+    # temperature T_i ~ T_e,ab, giving thermal spread v_th,i = C_s,ab = 0.030c -- the
+    # broad piston-ion velocity range the paper shows (from ablative expansion, not
+    # collisions). CONVENTION: for PISTON ions, deck._init_theta feeds theta_i_init
+    # straight into u_std = sqrt(theta_i_init), i.e. it is ION-normalized (u_std^2 =
+    # (v_th,i/c)^2), NOT the kT/m_e c^2 used elsewhere. So v_th,i/c = sqrt(theta_i_init):
+    #   theta_i_init = (C_s,ab/c)^2 = (0.0303)^2 = 9.2e-4  (== theta_e_heat/mass_ratio,
+    #   i.e. T_i = T_e,ab). The first calibration (0.092) mis-set v_th,i to 0.30c and
+    #   blew M_A up to 77; 9.2e-4 restores v_th,i = C_s,ab.
+    theta_i_init: 9.2e-4
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: perpendicular
+  vA_over_c: 0.01
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 2700.0    # shrunk from 7500 (calibration only); n_cell=9000 (div by 8)
+  dz_over_de: 0.3
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 67000                # ~t*wci0 = 1.5 (steps_per_wci0 = 44444)
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+diagnostics:
+  plotfile_intervals: 1500       # ~44 particle frames
+  reduced_intervals: 500
+  field_intervals: 750           # ~89 field-only frames
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

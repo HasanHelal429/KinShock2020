@@ -1,0 +1,11 @@
+# NEGATIVE-CONTROL reference threshold -- NOT a fit to R2 itself.
+# R2 (B0=0) has no magnetized shock to fit; this is R1_warm's by-eye v_sh copied
+# in as the SHARED reflection/front threshold so the null test uses the SAME cutoff
+# as the production run. R2 keeps vA_over_c = 0.01, so its Scales (v_A, wci0, rho_i0)
+# are identical to R1_warm and v_sh_over_c = 0.1285 (M_A = 12.8) applies unchanged.
+# Expected null: ambient ions are initially accelerated by the piston but, with no
+# background field, none gyro-reflect -> G(t) ~ 0 and no magnetic compression.
+shock:
+  v_sh_over_c: 0.1285
+  z0_de: 0.0
+  fronts_de: {}
