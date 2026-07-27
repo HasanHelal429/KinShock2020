@@ -341,7 +341,10 @@ tiers, a short Core-tier or R0 run locally for bring-up).
 - [ ] `src/kinshock/{io,metrics,plotting}.py` + analyses A–F wired into `scripts/make_figures.py`
       and `make_movies.py`, validated on R1 (Core) output, figures to `media/R1/`
 - [ ] **R1 Full run (→ t\*₃, ~730 ch / ~2.9 h @256 cores)** — acceptance criteria (§6) evaluated
-- [ ] R2, R3 negative controls (Core tier) — signatures null; comparison figures to `media/`
+- [x] R2, R3 negative controls (Core tier), 2026-07-26 → `media/R2`, `media/R3` (RESULTS 2026-07-26):
+      R3 (n_e0=0) clean null (G=0, empty ambient, no shock); R2 (B₀=0) no *magnetized* shock (no
+      coherent B ramp), though ambient ions are electrostatically piston-accelerated and the coded
+      7-criteria false-positive (mechanism-blind G>v_sh + B_comp/B₀ with self-fields ≫ weak B₀)
 - [ ] (If core passes) R4–R5 Mach scan → t*/z* invariance (Fig. 6)
 - [ ] (Optional) R6 collisional, R7 mass-ratio 400, R8 CH multi-species
 - [ ] `KinShock2020/RESULTS.md` written; verdict on module verification

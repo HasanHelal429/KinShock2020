@@ -131,7 +131,8 @@ speed/Mach that defines the shock.
 ### Next
 - [ ] Core-tier R1 run → confirm piston-electron θ saturates near θ_e in a large domain
 - [ ] then Full R1 (§7 runtime ~730 core-h) → acceptance criteria (plan §6)
-- [ ] R2 (B₀=0), R3 (n_e0=0) negative controls
+- [x] R2 (B₀=0), R3 (n_e0=0) negative controls (2026-07-26): R3 clean null; R2 no magnetized shock
+      (streak), auto-criteria false-positive on electrostatic ambient acceleration + weak-B₀ self-fields
 
 ---
 
@@ -642,3 +643,87 @@ The WarpX `ParticleHeater` + `TargetInjector` + symmetry-wall half-domain reprod
 Schaeffer-2020-class M_A=14 perpendicular collisionless shock at Table I parameters, with the
 speed model, formation timescales, ~4× compression, and reflected-ion signature — at ~1/4 the
 naive compute. Remaining: R2 (B₀=0) and R3 (n_e0=0) negative controls.
+
+---
+
+## R2 (B₀=0) + R3 (n_e0=0) negative controls (2026-07-26) — `runs/R2`, `runs/R3`
+
+Built as **exact single-knob clones of the calibrated production run `runs/R1_warm`** (warm
+piston ions θ_e_heat=0.078, θ_i=7.8e-4; 25000 cells, dz=0.3 d_e, 250000 steps → t·ω_ci0=5.63,
+100 ppc). One line changed per control, nothing else, so any difference isolates that ingredient:
+- **R2:** `field.orientation: perpendicular → unmagnetized` → deck applies Bx=0 (`kinshock.deck`
+  zeroes `bx` when orientation≠perpendicular). `vA_over_c=0.01` is kept, so the *Scales* (v_A,
+  ω_ci0, ρ_i0) are retained and R2 normalizes in R1_warm's units. Verified raw field Bx=By=Bz=0
+  **exactly at t=0** — the control starts truly unmagnetized.
+- **R3:** `numerics.ppc.ambient: 100 → 0` → zero ambient macroparticles. B₀ is left untouched
+  (**avoids the trap** that zeroing `amb.density_over_n0` would also zero B₀ via
+  `B0=vA·√(μ₀·n_amb·Mᵢ)`, conflating R3 with R2). All scales identical to R1_warm.
+
+Reference threshold for the reflected-ion / front metrics: R1_warm's by-eye **v_sh=0.1285 c
+(M_A=12.85)** copied into each control's `shock_fit.yaml` (scales identical → same cutoff → fair
+side-by-side). R2 ran 6h49m, R3 ran 1h48m (both under 2-run core contention; R3 is ~10× cheaper
+per step with no ambient particles). Figures in `media/R2/`, `media/R3/`.
+
+**Gotcha fixed (cost one restart):** the generated deck sets **no `diag*.file_prefix`**, so WarpX
+writes to `diags/` *relative to the launch CWD*. R1_warm worked because it was launched from
+inside its run dir; launching both controls from the repo root made **R2 and R3 write to the same
+`./diags/` and clobber each other** (WarpX `.old.NNNN` rename files were the tell). Fix: **launch
+each run with CWD = its own run dir** (`bash -c 'cd runs/<ID> && warpx …'`) so diag1/diag_fields/
+reducedfiles all land under `runs/<ID>/`. The first R3 "completion" was corrupt and was discarded;
+both were rerun clean. → Added to CLAUDE.md gotchas.
+
+### R3 (n_e0=0): clean null ✓ — matches paper Fig. 9
+
+| signature | R1_warm (shock) | R3 (n_e0=0) |
+|---|---|---|
+| `is_shock` (7 criteria) | forms (t*≈0.3+) | **False at all 51 frames** |
+| reflected-ion fraction G(t) | finite beam (peak ~0.30) | **0.0000 throughout** |
+| ambient-ion phase space | reflected beam above v_sh | **rows completely empty** (zero ambient loaded) |
+| downstream compression | ~4× plateau | **none** — n_e falls off monotonically into vacuum |
+| onset t*₁ / z*₁ | order-unity | **never triggers** (None) |
+
+With no medium the piston just **free-expands into vacuum+B₀** as a self-similar rarefaction fan
+(Fig. 7 row 2), and its leading edge piles up frozen-in flux as a **magnetic snowplow**
+(B⊥/B₀~14 in the streak) that runs *faster* than v_sh (nothing upstream to load it). That B
+pile-up trips the coded `flag 4 (field_compression)` and the raw `n_compression` reads ~250
+(=piston 2.5 n0 ÷ ambient-reference 0.01 n0, i.e. there is no ambient baseline left) — both are
+artifacts of the missing ambient, **not** a shock; the overall verdict is correctly `is_shock=False`
+because criterion 6 (reflected ions) is 0. **Removing the ambient removes every ambient structure.**
+
+### R2 (B₀=0): no magnetized shock ✓, but the automated flags false-positive — read with care
+
+Paper (Fig. 9) expects: ambient ions *still initially accelerated*, but **no magnetic compression,
+no strong heating, no secondary compression — no shock.** What we find:
+
+- **Field structure — null ✓.** The streak shows **no coherent magnetic ramp** propagating at
+  v_sh; ahead of the piston is dark (B⊥≈0), and the only magnetic activity is incoherent,
+  filamentary **self-generated Weibel/current fields** behind the front. No ordered compression.
+- **Ambient ions accelerated forward ✓ (matches paper).** Fig. 7 row 1 shows a fast ambient band
+  at **v_z/v_sh ≈ 1.5–2**, centered on the **electrostatic piston-reflection cap 2·v_p/v_sh =
+  1.62** — i.e. ambient ions specularly reflected off the *moving piston potential*, not
+  gyro-reflected at a detached magnetized shock.
+- **The criteria give a FALSE POSITIVE** (`is_shock=True` from t*≈0.34, G peak 0.22, B_comp~17–20)
+  for two setup-specific reasons, **both worth remembering**:
+  1. **`G` over-counts.** G = fraction of ambient ions with v_z > v_sh. The forward
+     piston-accelerated ions (up to ~1.6 v_sh) clear that threshold, so a benign electrostatic
+     acceleration reads as "reflection." G is not mechanism-specific.
+  2. **`B_compression = B_max/B₀` is meaningless when self-fields ≫ B₀.** Raw probe: B₀=0.003208 T,
+     but self-generated fields reach **rms ~0.010–0.014 T** by mid/late run (Bx *and* By) — and
+     these are **as large as the *total* field in R1_warm and R3** (their By rms ~0.009–0.013 T).
+     Because vA/c=0.01 makes B₀ very weak, current-driven fields exceed it, so "B₀=0" does not
+     leave the plasma dynamically unmagnetized and the compression ratio is dominated by noise.
+
+**Verdict.** R3 is a textbook clean null. R2 confirms the *magnetized* shock (ordered B pileup +
+magnetic ion reflection at a detached front) is **absent** without B₀ — the field streak is
+unambiguous — while ambient ions are still electrostatically accelerated by the piston, exactly as
+the paper states. The automated 7-criteria detector is **not mechanism-discriminating** and should
+not be read as "R2 forms a shock": inspect the streak + ambient phase space. Two follow-ups if a
+*quantitatively* clean B=0 null is wanted: (a) gate `flag 4`/`B_compression` on the **ordered**
+(box-averaged) field, not peak |B|, and define "reflected" as v_z<0 or a shock-frame beam rather
+than v_z>v_sh; and/or (b) note that the weak-B₀ (vA/c=0.01) regime lets self-generated fields rival
+B₀ — a caveat that also bounds how "magnetized" the R1_warm shock's turbulent component is (its
+*ordered* Bx compression to ~0.28 T peak is still real and carries the reflection).
+
+(Reference note: R1_warm's by-eye fit reads **v_sh=0.1285 c → M_A=12.8** — the whole-run linear fit
+averages a mildly curved front and sits ~8% under the M_A=14 target; the settled t≳3 slope trends
+steeper. Not re-tuned here; it is the baseline both controls clone and the shared metric threshold.)

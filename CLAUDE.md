@@ -63,6 +63,12 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   **doubles the PSC heating rate** (rate ∝ 1/width). This is why foil geometry is *not*
   rewritten for the half domain. BC token map lives in `kinshock.deck._BC_MAP`.
   Half-domain reproduces full-domain z≥0 to ~3–13% (see RESULTS); bulk energy = 0.5× exactly.
+- **Launch from inside the run dir.** The generated deck sets **no `diag*.file_prefix`**, so WarpX
+  writes plotfiles to `diags/` *relative to the launch CWD*. Always `cd runs/<ID>` before launching
+  (`bash -c 'cd runs/<ID> && OMP_NUM_THREADS=8 … warpx.1d inputs_* > run.log 2>&1'`) so
+  diag1/diag_fields/reducedfiles land under `runs/<ID>/diags/`. Launching two runs from the repo
+  root makes them **share `./diags/` and clobber each other** (WarpX leaves `.old.NNNN` rename files
+  as the tell) — cost a rerun on the R2/R3 controls (RESULTS 2026-07-26).
 - **Performance.** Launch with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
   — near-linear to 8 cores (~1.8× vs 4), memory-bandwidth-bound beyond. `max_grid_size`,
   tiling, and `sort_intervals` were **benchmarked as neutral-to-negative** here — don't bother.
