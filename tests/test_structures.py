@@ -178,9 +178,10 @@ def test_metrics_criteria_shape():
 def test_collisional_twin_of_R1_warm():
     """R1_coll must be R1_warm's collisional twin: the ONLY config differences are
     the absolute density scale (n0, so the ambient sits at 1e18 cm^-3) and the
-    `collisions` block — every dimensionless quantity is untouched. The requested
-    collisionality (mfp_ei,ab = 20 d_e,ab) must come out of the derivation exactly,
-    the deck must round-trip, and nu_ei*dt must stay well under 1 for Takizuka-Abe.
+    `collisions` block — every dimensionless quantity is untouched. The paper's Table I
+    collisionality (lambda_ab = wce_ab/nu_ei,ab = 20) must come out of the derivation
+    exactly, the deck must round-trip, and nu_ei*dt must stay well under 1 for
+    Takizuka-Abe.
     """
     from kinshock import deck, units
     warm, coll = kinshock.load(R1_WARM), kinshock.load(R1_COLL)
@@ -197,19 +198,23 @@ def test_collisional_twin_of_R1_warm():
     for k in ("de", "di0", "rho_i0", "dz"):        # lengths scale as 1/sqrt(n0)
         assert abs(getattr(sw, k) / getattr(sc, k) - 1e4) / 1e4 < 1e-9, k
 
-    # (c) the collisionality target is hit, and is resolved in time
-    assert abs(sc.mfp_ei_ab / sc.de - 20.0) < 1e-9, f"mfp/de = {sc.mfp_ei_ab/sc.de}"
+    # (c) the paper's Table I collisionality is hit, and is resolved in time
+    assert abs(sc.lambda_ab - 20.0) < 1e-9, f"lambda_ab = {sc.lambda_ab}"
     assert sc.nu_ei_dt < 0.1, f"nu_ei*dt = {sc.nu_ei_dt}"
     assert sw.coulomb_log is None, "R1_warm must stay collisionless"
+    # lambda_ab = wce/nu_ei is mfp/rho_e,ab, NOT mfp/d_e: with rho_e,ab = 27.9 d_e it
+    # must land at mfp ~ 559 d_e = 5.6 d_i0, i.e. still collisionless at ion scales
+    # (the premise of the paper's Fig. 13).
+    assert abs(sc.mfp_ei_ab / sc.de - 558.6) < 0.5, f"mfp/de = {sc.mfp_ei_ab/sc.de}"
+    assert sc.mfp_ei_ab / sc.di0 > 1.0, f"mfp/di0 = {sc.mfp_ei_ab/sc.di0}"
 
-    # the paper's OWN collisionality is a different quantity (wce/nu = mfp/rho_e),
-    # so lambda_ab = 20 is ~28x less collisional than mfp = 20 d_e. Guard the
-    # distinction so the two targets can never be silently conflated.
+    # guard the distinction so the two "20"s can never be silently conflated: the
+    # mfp = 20 d_e target is a DIFFERENT, ~28x more collisional run.
     alt = kinshock.load(R1_COLL)
-    alt["collisions"]["target"] = {"quantity": "lambda_ab", "value": 20.0}
+    alt["collisions"]["target"] = {"quantity": "mfp_over_de", "value": 20.0}
     sa = units.derive(alt)
-    assert abs(sa.lambda_ab - 20.0) < 1e-9
-    assert sa.mfp_ei_ab / sa.de > 500, f"lambda_ab=20 -> mfp = {sa.mfp_ei_ab/sa.de} d_e"
+    assert abs(sa.mfp_ei_ab / sa.de - 20.0) < 1e-9
+    assert sa.nu_ei_ab / sc.nu_ei_ab > 25, "mfp=20 d_e must be far more collisional"
 
     # (d) deck round-trip, and the collisions actually reach the deck
     warns = deck.verify(coll, os.path.join(R1_COLL, "inputs_kinshock_R1_coll"))

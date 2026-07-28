@@ -143,9 +143,10 @@ Two things to know before using it (details + table in `RESULTS.md` 2026-07-27):
   physically-collisional run would need n_e,ab ~ 3×10²⁸ cm⁻³. `collisions.target` therefore
   states the *physics* target and `units.coulomb_log_for` inverts it to the deck's lnΛ.
 - **λ_ab ≠ mfp/d_e.** λ_ab ≡ ω_ce,ab/ν_ei,ab = mfp/**ρ_e,ab**, and ρ_e,ab = 27.9 d_e,ab here.
-  Table I's λ_ab = 20 is mfp = 559 d_e,ab = 5.6 d_i0; a target of mfp = 20 d_e,ab is 28×
-  *more* collisional (0.2 d_i0, collisional across the ramp). R1_coll currently uses the
-  latter (`quantity: mfp_over_de`); use `quantity: lambda_ab` for the paper's own value.
+  Table I's λ_ab = 20 is mfp = 559 d_e,ab = **5.6 d_i0** — still collisionless at ion scales,
+  as the paper is. R1_coll uses that value (`quantity: lambda_ab, value: 20` → lnΛ = 7713,
+  ν_ei·dt = 1.1×10⁻⁴), so it is a fair comparison against Fig. 13. Beware `mfp_over_de: 20`,
+  which sounds the same but is 28× *more* collisional (0.2 d_i0, collisional across the ramp).
 
 ---
 

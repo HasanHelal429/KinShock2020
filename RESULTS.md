@@ -840,15 +840,17 @@ is 2 hunks: `my_constants.n0` and the new collisions block. Everything else is b
 2. **New `collisions:` block** → 10 WarpX `pairwisecoulomb` collisions (Perez 2012, the
    equivalent of the paper's Takizuka–Abe operator) over **all** unordered species pairs
    including the intra-species self-pairs, so a physical electron collides the same way
-   regardless of which population (piston/ambient) it is loaded into.
+   regardless of which population (piston/ambient) it is loaded into. Target:
+   **λ_ab = ω_ce,ab/ν_ei,ab = 20, the paper's Table I value** ⇒ lnΛ = 7713.
 
 ### The finding: lnΛ has to be forced, and there are two different "20"s
 
 **Real collisions are inert at any attainable density.** We run the paper's dimensionless
 problem at the *real* c, so θ_e = 0.078 means **T_e,ab = 39.9 keV**, not the paper's ~470 eV.
 With ν_ei ∝ n T^(−3/2), even at n_e,ab = 10²⁰ cm⁻³ the physical NRL lnΛ = 11.6 gives
-**mfp_ei,ab = 3.7×10⁵ d_e,ab** — still collisionless by 4 orders of magnitude. Reaching
-mfp = 20 d_e,ab with a *physical* lnΛ would need n_e,ab ~ 3×10²⁸ cm⁻³, far above solid density.
+**mfp_ei,ab = 3.7×10⁵ d_e,ab**, i.e. λ_ab = 1.3×10⁴ — still collisionless by ~3 orders of
+magnitude. Reaching the paper's λ_ab = 20 with a *physical* lnΛ would need n_e,ab ≈ 4×10²⁶ cm⁻³
+(and mfp = 20 d_e,ab would need ~3×10²⁸ cm⁻³) — both far above solid density (~5×10²² cm⁻³).
 (This is the quantitative version of the note dropped in R1_warm's header.) So **lnΛ is the
 knob**: ν_ei is exactly linear in it, and `collisions.target` states the physics target while
 `kinshock.units.coulomb_log_for` inverts it to the single number the deck carries.
@@ -857,36 +859,35 @@ knob**: ν_ei is exactly linear in it, and `collisions.target` states the physic
 
 | target | lnΛ | ν_ei,ab [s⁻¹] | ν_ei·dt | mfp/d_e,ab | mfp/d_i0 | λ_ab = ω_ce/ν_ei |
 |---|---|---|---|---|---|---|
-| `mfp_over_de: 20` **(this run)** | 2.154×10⁵ | 7.88×10¹² | 3.1×10⁻³ | 20 | 0.2 | 0.72 |
-| `lambda_ab: 20` (paper Table I) | 7.71×10³ | 2.82×10¹¹ | 1.1×10⁻⁴ | 559 | 5.59 | 20 |
+| `lambda_ab: 20` **(this run — paper Table I)** | 7.71×10³ | 2.82×10¹¹ | 1.1×10⁻⁴ | 559 | 5.59 | 20 |
+| `mfp_over_de: 20` | 2.154×10⁵ | 7.88×10¹² | 3.1×10⁻³ | 20 | 0.2 | 0.72 |
 | `coulomb_log: physical` | 11.57 | 4.23×10⁸ | 1.7×10⁻⁷ | 3.7×10⁵ | 3725 | 1.3×10⁴ |
 
 The paper's collisionality **λ_ab ≡ ω_ce,ab/ν_ei,ab = 20** (`OVERVIEW.md` §2, Table I) is
-mfp/**ρ_e,ab**, *not* mfp/d_e. R1_coll as configured is therefore **~28× more collisional than
-the paper**: mfp = 0.2 d_i0 means the electrons are collisional *across the shock ramp*,
-whereas the paper stays collisionless at ion scales (λ_mfp/d_i0 = 350) — which is exactly why
-its Fig. 13 finds collisional ≈ collisionless formation. **Expect R1_coll to differ from
-Fig. 13**, and read any suppression of the shock as a consequence of this target, not a
-replication failure. Switching to the paper's value is a one-line config edit:
-`target: {quantity: lambda_ab, value: 20}`.
+mfp/**ρ_e,ab**, *not* mfp/d_e — with ρ_e,ab = 27.9 d_e,ab it means **mfp = 559 d_e,ab =
+5.6 d_i0**, so the plasma stays collisionless at ion scales exactly as in the paper
+(λ_mfp/d_i0 = 350), which is the premise of its Fig. 13 result that collisional and
+collisionless formation look the same. **This run targets that value**, so Fig. 13 is a fair
+comparison. A `mfp_over_de: 20` target would be a different, ~28× more collisional run
+(mfp = 0.2 d_i0, collisional across the ramp) — the test guards the two apart.
 
-ν_ei·dt = 3.1×10⁻³ (collision time resolved ~320× by the PIC step), so no subcycling is
+ν_ei·dt = 1.1×10⁻⁴ (collision time resolved ~9000× by the PIC step), so no subcycling is
 needed and `ndt_supercycle: 1`.
 
 ### Verification done (no shock physics yet)
 - `make_inputs.py runs/R1_coll` → deck round-trips to the config; `--check` still clean for
   R1_warm/R1_recal/R1_cal/R2/R3/R1_core_half (no regression from the new code paths).
-- `run_checks.py runs/R1_coll` → **validation OK**, mfp/d_e = 20.000 exactly.
+- `run_checks.py runs/R1_coll` → **validation OK**, λ_ab = 20.000 exactly (mfp = 558.6 d_e,ab).
 - `tests/test_structures.py` → **11/11 PASS** (new collisional-twin test included).
-- **WarpX smoke** (20 steps, 2000 cells, 8 ppc, throwaway CWD): runs to completion, and
-  `warpx_used_inputs` shows all 10 collisions with `CoulombLog = 215420.86396142383`.
+- **WarpX smoke** (20 steps, 2000 cells, 8 ppc, throwaway CWD): exit 0, no errors, and
+  `warpx_used_inputs` shows all 10 collisions with `CoulombLog = 7713.304243059874`.
   `deck.verify` against it flags only the deliberate smoke overrides.
 
 ### Cost note
 Collisions add ~3 active pair-passes/step over most of the domain (only ambient or only
 piston present) and all 10 in the piston/ambient overlap. Benchmark the first ~1000 steps
-before committing to the full 250 000; if collisions dominate, `ndt_supercycle: 4` keeps
-ν_ei·dt_coll ≈ 1.3×10⁻² and cuts the cost ~4×.
+before committing to the full 250 000; if collisions dominate, `ndt_supercycle: 8` still
+leaves ν_ei·dt_coll ≈ 9×10⁻⁴ and cuts the cost ~8×.
 
 Launch with:
 ```bash

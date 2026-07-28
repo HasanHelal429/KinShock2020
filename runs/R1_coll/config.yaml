@@ -27,13 +27,13 @@
 # lnLambda written into the deck. That is the whole point of this run — a collisional
 # comparison at a realistic density is only reachable with lnLambda as a knob.
 #
-# CAUTION — TWO DIFFERENT "20"s. The target below is the one requested: the electron
-# mean free path = 20 d_e,ab. The paper's Table I collisionality is a DIFFERENT quantity,
-# lambda_ab = omega_ce,ab/nu_ei,ab = 20, which equals mfp/rho_e,ab; with rho_e,ab = 27.9
-# d_e,ab that is mfp = 559 d_e,ab. This run is therefore ~28x MORE collisional than the
-# paper: mfp = 20 d_e,ab = 0.2 d_i0, i.e. collisional across the shock ramp, whereas the
-# paper stays collisionless at ion scales (lambda_mfp/d_i0 = 350). To run the paper's
-# value instead, change one line: `quantity: lambda_ab, value: 20` (-> lnLambda = 7713).
+# CAUTION — TWO DIFFERENT "20"s. The target below is the PAPER's collisionality,
+# lambda_ab = omega_ce,ab/nu_ei,ab = 20 (Table I). That is mfp/rho_e,ab, NOT mfp/d_e,ab:
+# with rho_e,ab = 27.9 d_e,ab it means an electron mean free path of 559 d_e,ab = 5.6 d_i0,
+# so the plasma stays collisionless at ion scales, as in the paper (lambda_mfp/d_i0 = 350)
+# — which is the premise of its Fig. 13 result that collisional and collisionless shock
+# formation look the same. Do not confuse it with `quantity: mfp_over_de, value: 20`, which
+# is a DIFFERENT and ~28x more collisional run (mfp = 0.2 d_i0, collisional across the ramp).
 
 meta:
   run_id: R1_coll
@@ -41,8 +41,8 @@ meta:
   description: >
     Collisional twin of R1_warm: identical dimensionless setup (M_A~14 perpendicular,
     warm ablative piston ions) pinned to an absolute ambient density n_e0 = 1e18 cm^-3,
-    with pairwise Coulomb collisions on all species pairs tuned to an ablation-unit
-    electron mean free path of 20 d_e,ab.
+    with pairwise Coulomb collisions on all species pairs tuned to the paper's Table I
+    collisionality lambda_ab = omega_ce,ab/nu_ei,ab = 20 (mfp = 559 d_e,ab = 5.6 d_i0).
   reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Fig. 13"
   deck: inputs_kinshock_R1_coll
 
@@ -100,16 +100,16 @@ operators:
 #          (e-e, i-i, e-i within and across the piston/ambient populations), so the
 #          treatment does not depend on which population a physical electron is in.
 #   target -> kinshock.units solves for the lnLambda the deck uses:
-#          mfp_over_de : v_te,ab/nu_ei,ab in ablation skin depths  <-- used here
-#          lambda_ab   : the paper's omega_ce,ab/nu_ei,ab          (Table I value: 20)
+#          lambda_ab   : the paper's omega_ce,ab/nu_ei,ab          <-- used here (Table I: 20)
+#          mfp_over_de : v_te,ab/nu_ei,ab in ablation skin depths
 #          coulomb_log : set lnLambda directly ('physical' = NRL formula)
-# Resulting rate: lnLambda = 2.154e5, nu_ei,ab = 7.88e12 s^-1, nu_ei*dt = 3.1e-3, so the
-# collision time is resolved ~320x by the PIC step and no subcycling is needed.
+# Resulting rate: lnLambda = 7713, nu_ei,ab = 2.82e11 s^-1, nu_ei*dt = 1.1e-4, so the
+# collision time is resolved ~9000x by the PIC step and no subcycling is needed.
 collisions:
   model: pairwisecoulomb
   pairs: all
   target:
-    quantity: mfp_over_de
+    quantity: lambda_ab
     value: 20.0
   ndt_supercycle: 1
 

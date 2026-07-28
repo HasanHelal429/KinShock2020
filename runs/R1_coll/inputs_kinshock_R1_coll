@@ -4,7 +4,7 @@
 # regenerate (the config is the single source of truth). Derived scales:
 #   d_e=5.314e-07 m  d_i0=5.314e-05 m  B0=32.08 T  dt*wpe=0.225
 #   M_A=12.8  M_ms=11.7  n_cell=25000  dz=0.3 d_e  domain=0..7500.0 d_e (one-sided, wall at z=0)
-# Collisional twin of R1_warm: identical dimensionless setup (M_A~14 perpendicular, warm ablative piston ions) pinned to an absolute ambient density n_e0 = 1e18 cm^-3, with pairwise Coulomb collisions on all species pairs tuned to an ablation-unit electron mean free path of 20 d_e,ab.
+# Collisional twin of R1_warm: identical dimensionless setup (M_A~14 perpendicular, warm ablative piston ions) pinned to an absolute ambient density n_e0 = 1e18 cm^-3, with pairwise Coulomb collisions on all species pairs tuned to the paper's Table I collisionality lambda_ab = omega_ce,ab/nu_ei,ab = 20 (mfp = 559 d_e,ab = 5.6 d_i0).
 # ==========================================================================
 
 # --- primaries (mirror config.yaml) ---
@@ -134,12 +134,12 @@ target_injector.piston_ions.u_std = sqrt(theta_i_init)
 
 # --- Coulomb collisions (pairwise relativistic binary, Perez 2012 -- the
 #     WarpX equivalent of the paper's Takizuka-Abe operator) ---
-# target: mfp_over_de = 20.0
+# target: lambda_ab = 20.0
 #   T_e,ab = 3.986e+04 eV, n_e,ab = 1e+20 cm^-3
-#   -> nu_ei,ab = 7.878e+12 1/s  (nu_ei*dt = 0.00314)
-#   -> mfp_ei,ab = 20 d_e,ab = 0.2 d_i0,  lambda_ab = wce/nu_ei = 0.7161
+#   -> nu_ei,ab = 2.821e+11 1/s  (nu_ei*dt = 0.000112)
+#   -> mfp_ei,ab = 558.6 d_e,ab = 5.586 d_i0,  lambda_ab = wce/nu_ei = 20
 #   physical (NRL) lnLambda here would be 11.57
-my_constants.coulomb_log = 215420.86396142383
+my_constants.coulomb_log = 7713.304243059874
 collisions.collision_names = col_pe_pe col_pe_pi col_pe_ae col_pe_ai col_pi_pi col_pi_ae col_pi_ai col_ae_ae col_ae_ai col_ai_ai
 col_pe_pe.type       = pairwisecoulomb
 col_pe_pe.species    = piston_electrons piston_electrons
