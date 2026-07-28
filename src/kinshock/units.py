@@ -29,6 +29,11 @@ MU0 = 1.25663706212e-6     # vacuum permeability [H/m]
 ME_C2_J = ME * C * C       # electron rest energy [J]
 ME_C2_EV = ME_C2_J / QE    # electron rest energy [eV] (~511 keV)
 
+# NRL Plasma Formulary (Braginskii) electron-ion collision rate, the standard
+# definition behind both "mean free path" and the paper's collisionality:
+#     nu_ei = 2.91e-6 * n_e[cm^-3] * lnLambda * T_e[eV]^{-3/2}   [s^-1]
+NU_EI_NRL = 2.91e-6
+
 
 @dataclass
 class Scales:
@@ -80,6 +85,18 @@ class Scales:
     domain_halfwidth: float   # [m]
     steps_per_wci0: float     # timesteps per upstream ion gyroperiod (1/wci0)
 
+    # --- collisions (ablation-unit electron-ion; None when the config has no
+    #     `collisions` block, i.e. the run is collisionless) ---
+    Te_ab_eV: float = 0.0        # ablation electron temperature [eV]
+    vte_ab: float = 0.0          # ablation electron thermal speed sqrt(kT_e/m_e) [m/s]
+    wce_ab: float = 0.0          # electron cyclotron frequency eB0/m_e [rad/s]
+    coulomb_log_nrl: float = 0.0  # the PHYSICAL lnLambda at (n_e,ab, T_e,ab)
+    coulomb_log: float | None = None   # lnLambda actually used in the deck
+    nu_ei_ab: float | None = None      # electron-ion collision rate [s^-1]
+    mfp_ei_ab: float | None = None     # electron mean free path v_te/nu_ei [m]
+    lambda_ab: float | None = None     # paper's collisionality wce_ab/nu_ei_ab
+    nu_ei_dt: float | None = None      # nu_ei * dt (must be << 1 for Takizuka-Abe)
+
     # normalization helpers below use these; keep a copy of a few config bits
     _meta: dict = field(default_factory=dict)
 
@@ -105,6 +122,10 @@ class Scales:
         d["di_over_de"] = self.di / self.de
         d["wci0_inv_over_wpe_inv"] = self.wci0_inv * self.wpe
         d["rho_i0_over_de"] = self.rho_i0 / self.de
+        if self.mfp_ei_ab is not None:
+            d["mfp_ei_ab_over_de"] = self.mfp_ei_ab / self.de
+            d["mfp_ei_ab_over_di0"] = self.mfp_ei_ab / self.di0
+            d["rho_e_ab_over_de"] = (self.vte_ab / self.wce_ab) / self.de
         return d
 
     def pretty(self) -> str:
@@ -115,6 +136,9 @@ class Scales:
                  "B0", "wci0_inv", "rho_i0", "vp_model_over_c", "vsh_model_over_c",
                  "MA", "Mms", "beta_ab", "beta_0", "dt", "dt_wpe", "n_cell",
                  "domain_halfwidth", "steps_per_wci0"]
+        if self.coulomb_log is not None:
+            order += ["Te_ab_eV", "coulomb_log_nrl", "coulomb_log", "nu_ei_ab",
+                      "nu_ei_dt", "mfp_ei_ab_over_de", "mfp_ei_ab_over_di0", "lambda_ab"]
         for k in order:
             lines.append(f"  {k:24s} = {r[k]:.5g}")
         return "\n".join(lines)
@@ -180,6 +204,11 @@ def derive(cfg: dict) -> Scales:
     beta_ab = 2.0 * MU0 * n0 * theta_e * ME_C2_J / (B0 * B0)
     beta_0 = 2.0 * MU0 * namb * theta_0 * ME_C2_J / (B0 * B0)
 
+    # ablation electron kinetics (used by the collision block below)
+    Te_ab_eV = theta_e * ME_C2_EV
+    vte_ab = math.sqrt(theta_e) * C
+    wce_ab = QE * B0 / ME
+
     dz = float(geo["dz_over_de"]) * de
     dt = float(num["cfl"]) * dz / C                       # 1D CFL
     dt_wpe = dt * wpe
@@ -190,6 +219,15 @@ def derive(cfg: dict) -> Scales:
     n_cell = int(round(_span * halfwidth_de / float(geo["dz_over_de"])))
     steps_per_wci0 = wci0_inv / dt
 
+    coulomb_log_nrl = _lnL_nrl(n0, Te_ab_eV)
+    coulomb_log = nu_ei_ab = mfp_ei_ab = lambda_ab = nu_ei_dt = None
+    if cfg.get("collisions"):
+        coulomb_log = coulomb_log_for(cfg["collisions"], n0, Te_ab_eV, vte_ab, de, wce_ab)
+        nu_ei_ab = nu_ei(n0, Te_ab_eV, coulomb_log)
+        mfp_ei_ab = vte_ab / nu_ei_ab
+        lambda_ab = wce_ab / nu_ei_ab
+        nu_ei_dt = nu_ei_ab * dt
+
     return Scales(
         n0=n0, mass_ratio=mass_ratio, mi=mi,
         wpe=wpe, de=de, di=di, t_ab=t_ab, Cs_ab=Cs_ab, nt=nt,
@@ -199,5 +237,80 @@ def derive(cfg: dict) -> Scales:
         MA=MA, Mms=Mms, beta_ab=beta_ab, beta_0=beta_0,
         dz=dz, dt=dt, dt_wpe=dt_wpe, n_cell=n_cell,
         domain_halfwidth=domain_halfwidth, steps_per_wci0=steps_per_wci0,
+        Te_ab_eV=Te_ab_eV, vte_ab=vte_ab, wce_ab=wce_ab,
+        coulomb_log_nrl=coulomb_log_nrl, coulomb_log=coulomb_log,
+        nu_ei_ab=nu_ei_ab, mfp_ei_ab=mfp_ei_ab, lambda_ab=lambda_ab, nu_ei_dt=nu_ei_dt,
         _meta=dict(cfg.get("meta", {})),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Coulomb collisions
+# --------------------------------------------------------------------------- #
+def nu_ei(n_e: float, Te_eV: float, coulomb_log: float) -> float:
+    """NRL electron-ion collision rate [s^-1] for ``n_e`` [m^-3], ``Te_eV`` [eV]."""
+    return NU_EI_NRL * (n_e / 1e6) * coulomb_log * Te_eV ** -1.5
+
+
+def _lnL_nrl(n_e: float, Te_eV: float) -> float:
+    """The PHYSICAL Coulomb logarithm (NRL e-i, T_e > 10 eV): 24 - ln(sqrt(n)/T)."""
+    return 24.0 - math.log(math.sqrt(n_e / 1e6) / Te_eV)
+
+
+def coulomb_log_for(coll: dict, n0: float, Te_ab_eV: float, vte_ab: float,
+                    de: float, wce_ab: float) -> float:
+    """Resolve the ``collisions.target`` block to the lnLambda the deck must use.
+
+    Because :mod:`kinshock` runs the paper's dimensionless problem at the REAL
+    speed of light, theta_e = 0.078 means T_e,ab ~ 40 keV rather than the paper's
+    ~470 eV, and nu_ei ~ T^-3/2 makes the plasma collisionless by ~4-9 orders of
+    magnitude at any attainable density (see RESULTS / R1_warm header). lnLambda
+    is therefore used as the single knob that dials in a chosen collisionality:
+    nu_ei is exactly linear in it, so requesting a target mean free path (or the
+    paper's magnetization ratio) inverts to one number.
+
+    ``target.quantity`` is one of
+
+    ``mfp_over_de``
+        electron mean free path v_te,ab/nu_ei,ab in ablation skin depths.
+    ``lambda_ab``
+        the paper's collisionality lambda_ab = omega_ce,ab/nu_ei,ab (Schaeffer
+        2020 Table I uses 20; note this equals mfp/rho_e,ab, NOT mfp/d_e).
+    ``coulomb_log``
+        set lnLambda directly (``value: physical`` uses the NRL formula).
+    """
+    tgt = coll.get("target") or {}
+    quantity = tgt.get("quantity", "coulomb_log")
+    value = tgt.get("value", "physical")
+    # rate per unit lnLambda: nu_ei = rate1 * lnLambda
+    rate1 = nu_ei(n0, Te_ab_eV, 1.0)
+    if quantity == "coulomb_log":
+        return _lnL_nrl(n0, Te_ab_eV) if value == "physical" else float(value)
+    if quantity == "mfp_over_de":
+        return (vte_ab / (float(value) * de)) / rate1
+    if quantity == "lambda_ab":
+        return (wce_ab / float(value)) / rate1
+    raise ValueError(f"unknown collisions.target.quantity {quantity!r}; expected one of "
+                     "'mfp_over_de', 'lambda_ab', 'coulomb_log'")
+
+
+def collision_pairs(cfg: dict) -> list[tuple[str, str]]:
+    """The species pairs to collide, from ``collisions.pairs``.
+
+    ``all`` (default) = every unordered pair of the run's species INCLUDING the
+    intra-species self-pairs, i.e. the full Takizuka-Abe treatment the paper
+    applies. An explicit list of ``[a, b]`` pairs overrides it.
+    """
+    coll = cfg.get("collisions") or {}
+    names = list(cfg["species"])
+    spec = coll.get("pairs", "all")
+    if spec == "all":
+        return [(a, b) for i, a in enumerate(names) for b in names[i:]]
+    pairs = []
+    for p in spec:
+        a, b = (p.split() if isinstance(p, str) else list(p))
+        for s in (a, b):
+            if s not in names:
+                raise ValueError(f"collisions.pairs references unknown species {s!r}")
+        pairs.append((a, b))
+    return pairs

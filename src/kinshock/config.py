@@ -88,6 +88,18 @@ def validate(cfg: dict, scales: units.Scales | None = None,
     if geo.get("layout", "symmetric") == "one_sided" and faces[0] == "periodic":
         warns.append("one-sided layout with a periodic z=0 face: the center should be a "
                      "reflecting (symmetry/foil) wall — set boundary.lo: reflecting")
+    # collisions: Takizuka-Abe/Perez scattering assumes the collision time is
+    # resolved (nu*dt << 1) and needs enough pairs per cell to be a fair sample.
+    if scales.nu_ei_dt is not None:
+        if scales.nu_ei_dt > 0.1:
+            warns.append(f"collisions: nu_ei*dt = {scales.nu_ei_dt:.3g} > 0.1 — the collision "
+                         f"time is under-resolved; raise ndt_subcycle or lower the target "
+                         f"collisionality")
+        if scales.mfp_ei_ab < scales.dz:
+            warns.append(f"collisions: mfp_ei,ab = {scales.mfp_ei_ab/scales.dz:.3g} dz — the "
+                         f"mean free path is below the cell size (unresolved transport)")
+        units.collision_pairs(cfg)   # raises on an unknown species name
+
     has_bfield = (cfg["field"].get("orientation", "perpendicular") != "none"
                   and float(cfg["field"].get("vA_over_c", 0) or 0) != 0)
     if has_bfield and "absorbing" in faces:

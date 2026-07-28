@@ -114,6 +114,25 @@ def _init_theta(role: str, kind: str) -> str:
     return "theta0" if kind == "electron" else "theta0/mass_ratio"
 
 
+def _alias(name: str) -> str:
+    """Short tag for a species name: initials of its underscore-separated tokens
+    (``piston_electrons`` -> ``pe``). Used to build collision names."""
+    return "".join(tok[0] for tok in name.split("_") if tok)
+
+
+def _collision_names(cfg: dict) -> list[tuple[str, str, str]]:
+    """[(collision_name, species_a, species_b)] for the config's collision pairs.
+
+    Names are ``col_<a>_<b>`` from :func:`_alias`; if two species collapse onto
+    the same alias the full species names are used instead, so the mapping stays
+    injective (the deck is regenerated from config, so names must be stable)."""
+    pairs = units.collision_pairs(cfg)
+    names = list(cfg["species"])
+    tags = ({n: _alias(n) for n in names}
+            if len({_alias(n) for n in names}) == len(names) else {n: n for n in names})
+    return [(f"col_{tags[a]}_{tags[b]}", a, b) for a, b in pairs]
+
+
 def _diag_intervals(cfg: dict):
     """(plotfile_intervals, reduced_intervals, field_intervals) from config.
 
@@ -286,6 +305,30 @@ def render(cfg: dict) -> str:
     a(f"target_injector.{nsp}.u_std = sqrt({_init_theta(nspec['role'], nspec['kind'])})")
     a("")
 
+    # collisions ----------------------------------------------------------
+    coll = cfg.get("collisions") or {}
+    if coll:
+        tgt = coll.get("target") or {}
+        cols = _collision_names(cfg)
+        a("# --- Coulomb collisions (pairwise relativistic binary, Perez 2012 -- the")
+        a("#     WarpX equivalent of the paper's Takizuka-Abe operator) ---")
+        a(f"# target: {tgt.get('quantity', 'coulomb_log')} = {tgt.get('value', 'physical')}")
+        a(f"#   T_e,ab = {sc.Te_ab_eV:.4g} eV, n_e,ab = {sc.n0/1e6:.4g} cm^-3")
+        a(f"#   -> nu_ei,ab = {sc.nu_ei_ab:.4g} 1/s  (nu_ei*dt = {sc.nu_ei_dt:.3g})")
+        a(f"#   -> mfp_ei,ab = {sc.mfp_ei_ab/sc.de:.4g} d_e,ab = "
+          f"{sc.mfp_ei_ab/sc.di0:.4g} d_i0,  lambda_ab = wce/nu_ei = {sc.lambda_ab:.4g}")
+        a(f"#   physical (NRL) lnLambda here would be {sc.coulomb_log_nrl:.4g}")
+        a(f"my_constants.coulomb_log = {_num(sc.coulomb_log)}")
+        a(f"collisions.collision_names = {' '.join(n for n, _, _ in cols)}")
+        ndt = int(coll.get("ndt_supercycle", 1))
+        for name, sa, sb in cols:
+            a(f"{name}.type       = pairwisecoulomb")
+            a(f"{name}.species    = {sa} {sb}")
+            a(f"{name}.CoulombLog = coulomb_log")
+            if ndt != 1:
+                a(f"{name}.ndt_supercycle = {ndt}")
+        a("")
+
     # diagnostics ---------------------------------------------------------
     a("# --- diagnostics ---")
     a("# Reduced diags: operator sanity (energy balance, piston replenishment).")
@@ -393,6 +436,14 @@ def key_params(path: str) -> dict:
         k = f"{sp}.num_particles_per_cell_each_dim"
         if k in d:
             out[f"ppc:{sp}"] = int(float(d[k]))
+    cnames = d.get("collisions.collision_names", "").split()
+    out["collision_names"] = " ".join(sorted(cnames))
+    for cn in cnames:
+        out[f"{cn}.species"] = d.get(f"{cn}.species", "").lower()
+        out[f"{cn}.type"] = d.get(f"{cn}.type", "pairwisecoulomb").lower()
+        out[f"{cn}.CoulombLog"] = _eval(d[f"{cn}.CoulombLog"], ns) \
+            if f"{cn}.CoulombLog" in d else -1.0
+        out[f"{cn}.ndt_supercycle"] = int(float(d.get(f"{cn}.ndt_supercycle", 1)))
     for diag in ("EP", "PN", "diag1", "diag_fields"):
         k = f"{diag}.intervals"
         if k in d:

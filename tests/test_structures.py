@@ -23,6 +23,8 @@ from kinshock import metrics
 R1 = os.path.join(ROOT, "runs", "R1")
 R0 = os.path.join(ROOT, "runs", "R0")
 R0_HALF = os.path.join(ROOT, "runs", "R0_half")
+R1_WARM = os.path.join(ROOT, "runs", "R1_warm")
+R1_COLL = os.path.join(ROOT, "runs", "R1_coll")
 
 
 # --------------------------------------------------------------------------- #
@@ -170,6 +172,56 @@ def test_metrics_criteria_shape():
          "steep_ramp", "reflected_ions", "piston_separation"], start=1)}
     assert res.flags["3_density_compression"] and res.flags["4_field_compression"]
     assert res.flags["6_reflected_ions"] and res.flags["7_piston_separation"]
+
+
+# --------------------------------------------------------------------------- #
+def test_collisional_twin_of_R1_warm():
+    """R1_coll must be R1_warm's collisional twin: the ONLY config differences are
+    the absolute density scale (n0, so the ambient sits at 1e18 cm^-3) and the
+    `collisions` block — every dimensionless quantity is untouched. The requested
+    collisionality (mfp_ei,ab = 20 d_e,ab) must come out of the derivation exactly,
+    the deck must round-trip, and nu_ei*dt must stay well under 1 for Takizuka-Abe.
+    """
+    from kinshock import deck, units
+    warm, coll = kinshock.load(R1_WARM), kinshock.load(R1_COLL)
+    sw, sc = units.derive(warm), units.derive(coll)
+
+    # (a) the ambient is at the requested absolute density
+    assert abs(sc.namb / 1e6 - 1e18) / 1e18 < 1e-12, f"n_e0 = {sc.namb/1e6:.4g} cm^-3"
+
+    # (b) every dimensionless quantity matches R1_warm exactly
+    for k in ("mass_ratio", "MA", "Mms", "beta_ab", "beta_0", "dt_wpe", "n_cell",
+              "steps_per_wci0"):
+        a, b = getattr(sw, k), getattr(sc, k)
+        assert abs(a - b) <= 1e-9 * max(1.0, abs(a)), f"{k}: warm {a} vs coll {b}"
+    for k in ("de", "di0", "rho_i0", "dz"):        # lengths scale as 1/sqrt(n0)
+        assert abs(getattr(sw, k) / getattr(sc, k) - 1e4) / 1e4 < 1e-9, k
+
+    # (c) the collisionality target is hit, and is resolved in time
+    assert abs(sc.mfp_ei_ab / sc.de - 20.0) < 1e-9, f"mfp/de = {sc.mfp_ei_ab/sc.de}"
+    assert sc.nu_ei_dt < 0.1, f"nu_ei*dt = {sc.nu_ei_dt}"
+    assert sw.coulomb_log is None, "R1_warm must stay collisionless"
+
+    # the paper's OWN collisionality is a different quantity (wce/nu = mfp/rho_e),
+    # so lambda_ab = 20 is ~28x less collisional than mfp = 20 d_e. Guard the
+    # distinction so the two targets can never be silently conflated.
+    alt = kinshock.load(R1_COLL)
+    alt["collisions"]["target"] = {"quantity": "lambda_ab", "value": 20.0}
+    sa = units.derive(alt)
+    assert abs(sa.lambda_ab - 20.0) < 1e-9
+    assert sa.mfp_ei_ab / sa.de > 500, f"lambda_ab=20 -> mfp = {sa.mfp_ei_ab/sa.de} d_e"
+
+    # (d) deck round-trip, and the collisions actually reach the deck
+    warns = deck.verify(coll, os.path.join(R1_COLL, "inputs_kinshock_R1_coll"))
+    assert warns == [], f"R1_coll deck differs from config: {warns}"
+    text = deck.render(coll)
+    names = [ln.split("=", 1)[1].split() for ln in text.splitlines()
+             if ln.startswith("collisions.collision_names")][0]
+    assert len(names) == 10, f"expected all 10 species pairs, got {names}"
+    assert "col_ae_ai.species    = amb_electrons amb_ions" in text
+    assert f"my_constants.coulomb_log = {sc.coulomb_log!r}" in text
+    # a collisionless config must emit no collisions block at all
+    assert "collisions.collision_names" not in deck.render(warm)
 
 
 # --------------------------------------------------------------------------- #

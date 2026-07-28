@@ -130,6 +130,23 @@ collisionless at the high flow speeds (λ_mfp/d_i0 ≈ 350). **Plan:** run R1 co
 binary Coulomb collisions on the (H⁺, e⁻) pairs, tuned to λ_ab ≈ 20, to confirm formation is
 unchanged and to get realistic electron isotropy/heating in the downstream.
 
+**Status: `runs/R1_coll/` fills the R6 slot** (config + deck done 2026-07-27, not yet launched)
+— R1_warm's collisional twin, every dimensionless primary identical, pinned to an absolute
+ambient n_e0 = 10¹⁸ cm⁻³ (`reference.n0 = 1e26` m⁻³). Config-driven via a `collisions:` block
+(`model`, `pairs`, `target`, `ndt_supercycle`) rendered by `kinshock.deck`; `--verify` covers it.
+
+Two things to know before using it (details + table in `RESULTS.md` 2026-07-27):
+
+- **lnΛ is a knob, not a physical value.** At real c, θ_e = 0.078 ⇒ T_e,ab = 39.9 keV (not the
+  paper's ~470 eV), so ν_ei ∝ n T^(−3/2) leaves the plasma collisionless by ~4 orders of
+  magnitude even at n_e,ab = 10²⁰ cm⁻³ (physical lnΛ = 11.6 → mfp = 3.7×10⁵ d_e,ab). A
+  physically-collisional run would need n_e,ab ~ 3×10²⁸ cm⁻³. `collisions.target` therefore
+  states the *physics* target and `units.coulomb_log_for` inverts it to the deck's lnΛ.
+- **λ_ab ≠ mfp/d_e.** λ_ab ≡ ω_ce,ab/ν_ei,ab = mfp/**ρ_e,ab**, and ρ_e,ab = 27.9 d_e,ab here.
+  Table I's λ_ab = 20 is mfp = 559 d_e,ab = 5.6 d_i0; a target of mfp = 20 d_e,ab is 28×
+  *more* collisional (0.2 d_i0, collisional across the ramp). R1_coll currently uses the
+  latter (`quantity: mfp_over_de`); use `quantity: lambda_ab` for the paper's own value.
+
 ---
 
 ## 5. Known risks / mitigations

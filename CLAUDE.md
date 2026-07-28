@@ -29,6 +29,9 @@ regenerate; `--verify` checks `warpx_used_inputs` against the config after a run
 ## Runs
 - `R0`, `R0_half` — smoke tests (short, pre-shock).
 - `R1_core`, `R1_core_half` — physics runs (dz=0.3 d_e; `_half` = one-sided z≥0 domain).
+- `R1_warm` — the current full reference run (warm ablative piston ions, settled M_A≈14).
+- `R1_coll` — R1_warm's collisional twin: same dimensionless setup, ambient pinned to
+  10¹⁸ cm⁻³, pairwise Coulomb collisions (see the collisions gotcha below).
 - Scales: mᵢ/mₑ=100, d_i0=100 d_e, ρ_i0≈1040 d_e, B0 along x (perpendicular shock).
 
 ## Typical workflow
@@ -72,6 +75,14 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   **refuses to start when `diags/` already holds output** (`--force` to override). `-b` detaches,
   `-L` also starts the progress logger, `-n` dry-runs, and anything after `--` is passed to WarpX
   as ParmParse overrides (smoke tests only — they will trip `make_inputs.py --verify`).
+- **Collisions (`collisions:` block, `runs/R1_coll`).** Two traps. (1) **lnΛ is a knob, not a
+  physical value**: at real c, θ_e = 0.078 ⇒ T_e,ab = 39.9 keV, so ν_ei ∝ n T^(−3/2) keeps the
+  plasma collisionless (physical lnΛ → mfp ≈ 4×10⁵ d_e,ab) at *any* attainable density. Set
+  `collisions.target` to the physics you want and let `units.coulomb_log_for` invert it.
+  (2) **λ_ab ≠ mfp/d_e**: the paper's λ_ab ≡ ω_ce,ab/ν_ei,ab is mfp/ρ_e,ab, and ρ_e,ab ≈ 28 d_e,
+  so Table I's λ_ab = 20 means mfp = 559 d_e, *not* 20 d_e. Pick `quantity: lambda_ab` vs
+  `mfp_over_de` deliberately. Since n0 is a pure scale factor, a collisional run is the only
+  reason to pin an absolute density — the collisionless physics is identical either way.
 - **Performance.** Launch with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
   — near-linear to 8 cores (~1.8× vs 4), memory-bandwidth-bound beyond. `max_grid_size`,
   tiling, and `sort_intervals` were **benchmarked as neutral-to-negative** here — don't bother.
