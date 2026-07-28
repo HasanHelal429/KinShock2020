@@ -104,14 +104,20 @@ operators:
 #          mfp_over_de : v_te,ab/nu_ei,ab in ablation skin depths
 #          coulomb_log : set lnLambda directly ('physical' = NRL formula)
 # Resulting rate: lnLambda = 7713, nu_ei,ab = 2.82e11 s^-1, nu_ei*dt = 1.1e-4, so the
-# collision time is resolved ~9000x by the PIC step and no subcycling is needed.
+# collision time is resolved ~9000x by the PIC step -- vastly more than needed.
+#   ndt_supercycle: 8 -- the 10 pairs cost 2.4x the ENTIRE rest of the timestep
+#   (benchmarked 2026-07-28, 1500 steps @ 8 threads: 0.279 s/step vs 0.083 s/step for the
+#   identical collisionless R1_warm deck, i.e. 3.4x -> ~24 h for the full 250k steps).
+#   Applying collisions every 8th step with dt_coll = 8*dt preserves the rate and still
+#   resolves the collision time ~1100x, for ~0.107 s/step -> ~9 h. Drop to 1 only if a
+#   convergence check ever shows the twin comparison is sensitive to it.
 collisions:
   model: pairwisecoulomb
   pairs: all
   target:
     quantity: lambda_ab
     value: 20.0
-  ndt_supercycle: 1
+  ndt_supercycle: 8
 
 diagnostics:
   plotfile_intervals: 5000

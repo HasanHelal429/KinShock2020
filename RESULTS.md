@@ -893,3 +893,47 @@ Launch with:
 ```bash
 scripts/launch.sh -b -L runs/R1_coll
 ```
+
+---
+
+## R1_coll — collision cost benchmarked, `ndt_supercycle: 8`, run launched (2026-07-28)
+
+Answered the cost note above with a measurement before committing the 250k steps. Two
+1500-step runs back-to-back in a throwaway CWD (8 threads, `OMP_PROC_BIND=spread`,
+chablis load ~18–20), decks copied verbatim so the ONLY difference is the collisions block:
+
+| deck | s/step (WarpX `Avg. per step`) |
+|---|---|
+| `inputs_kinshock_R1_warm` (collisionless twin) | **0.0825** |
+| `inputs_kinshock_R1_coll` (10 pairs, `ndt=1`) | **0.2785** |
+
+**The 10 pairwise-Coulomb pairs cost 3.4× — i.e. 2.4× the entire rest of the timestep.**
+Anchoring on R1_warm's real 7h11m for 250k steps (its logged early rate 0.077–0.087 s/step
+brackets today's 0.0825, so the machine is in the same regime) that projects **~24 h** at
+`ndt_supercycle: 1`, and the 3.4× is a *floor*: collision cost grows super-linearly in
+particle count as the piston sweeps into the ambient and more cells activate all 10 pairs
+rather than ~3.
+
+**Decision: `ndt_supercycle: 8`.** ν_ei·dt = 1.1×10⁻⁴, so the collision time was resolved
+~9000× — applying the operator every 8th step with dt_coll = 8·dt preserves the rate and
+still resolves it ~1100×. Not a physics compromise; a 2.6× saving on an operator that was
+four orders of magnitude over-resolved. `coulomb_log = 7713.304243059874` and λ_ab = 20.000
+are **unchanged** by the supercycle (verified via `run_checks.py`) — the inversion is on the
+rate, not the cadence.
+
+| `ndt_supercycle` | s/step | projected full run |
+|---|---|---|
+| 1 | 0.279 | ~24 h |
+| 4 | 0.132 | ~11.5 h |
+| **8 (chosen)** | ~0.11–0.14 | **~10 h** |
+
+**Launched** 2026-07-28 10:08 (`scripts/launch.sh -b -L runs/R1_coll`, pid 1233159, logger
+1233161). Early logged rate 0.143 s/step(warpx) cumulative / 0.114 instantaneous at step
+200; with R1_warm's 1.34× growth over the run that lands at **~10–11 h**, finishing ~21:00.
+Watch `runs/R1_coll/progress.log`.
+
+**Caveat to revisit if the twin comparison ever disagrees with R1_warm:** the supercycle is
+unvalidated here — no ndt=1 vs ndt=8 convergence check was run (that would cost the 24 h
+this avoids). The ~1100× resolution margin makes it very unlikely to matter, but if
+collisional/collisionless formation *does* differ (contra the paper's Fig. 13), rule out
+the supercycle before believing the physics.
