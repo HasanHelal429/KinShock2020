@@ -33,6 +33,11 @@ ME_C2_EV = ME_C2_J / QE    # electron rest energy [eV] (~511 keV)
 # definition behind both "mean free path" and the paper's collisionality:
 #     nu_ei = 2.91e-6 * n_e[cm^-3] * lnLambda * T_e[eV]^{-3/2}   [s^-1]
 NU_EI_NRL = 2.91e-6
+# ... and its ion-ion counterpart (see `nu_ii`), which is the rate criterion 2
+# ("collisionless") depends on:
+#     nu_i  = 4.80e-8 * Z^4 * mu^{-1/2} * n_i[cm^-3] * lnLambda * T_i[eV]^{-3/2}
+NU_II_NRL = 4.80e-8
+MP = 1.67262192369e-27     # proton mass [kg] (sets mu = m_i/m_p in nu_ii)
 
 
 @dataclass
@@ -96,6 +101,13 @@ class Scales:
     mfp_ei_ab: float | None = None     # electron mean free path v_te/nu_ei [m]
     lambda_ab: float | None = None     # paper's collisionality wce_ab/nu_ei_ab
     nu_ei_dt: float | None = None      # nu_ei * dt (must be << 1 for Takizuka-Abe)
+    # UPSTREAM ion-ion collisionality -- what criterion 2 ("collisionless")
+    # actually asks about, since the shock's dissipation is at ion scales in the
+    # ambient. Distinct from mfp_ei_ab, which is an *electron* mfp at *ablation*
+    # conditions: the two differ by ~10^3 here. inf when the run has no
+    # collisions block, because then there is no collision operator at all.
+    nu_ii_amb: float = math.inf     # ambient ion-ion collision rate [s^-1]
+    mfp_ii_amb: float = math.inf    # ambient ion mean free path v_ti/nu_ii [m]
 
     # normalization helpers below use these; keep a copy of a few config bits
     _meta: dict = field(default_factory=dict)
@@ -126,6 +138,7 @@ class Scales:
             d["mfp_ei_ab_over_de"] = self.mfp_ei_ab / self.de
             d["mfp_ei_ab_over_di0"] = self.mfp_ei_ab / self.di0
             d["rho_e_ab_over_de"] = (self.vte_ab / self.wce_ab) / self.de
+            d["mfp_ii_amb_over_di0"] = self.mfp_ii_amb / self.di0
         return d
 
     def pretty(self) -> str:
@@ -138,7 +151,12 @@ class Scales:
                  "domain_halfwidth", "steps_per_wci0"]
         if self.coulomb_log is not None:
             order += ["Te_ab_eV", "coulomb_log_nrl", "coulomb_log", "nu_ei_ab",
-                      "nu_ei_dt", "mfp_ei_ab_over_de", "mfp_ei_ab_over_di0", "lambda_ab"]
+                      "nu_ei_dt", "mfp_ei_ab_over_de", "mfp_ei_ab_over_di0", "lambda_ab",
+                      # the UPSTREAM ion collisionality criterion 2 tests -- printed
+                      # last and next to lambda_ab because the two are easy to
+                      # confuse and disagree by ~10^3 (see the config header's
+                      # "TWO DIFFERENT 20s" warning, and RESULTS 2026-07-29)
+                      "mfp_ii_amb_over_di0"]
         for k in order:
             lines.append(f"  {k:24s} = {r[k]:.5g}")
         return "\n".join(lines)
@@ -221,12 +239,28 @@ def derive(cfg: dict) -> Scales:
 
     coulomb_log_nrl = _lnL_nrl(n0, Te_ab_eV)
     coulomb_log = nu_ei_ab = mfp_ei_ab = lambda_ab = nu_ei_dt = None
+    # No collisions block -> no collision operator in the deck, so the simulated
+    # plasma is exactly collisionless and the ion mfp is infinite. Reporting a
+    # finite "physical" value instead would be meaningless for a collisionless
+    # run, where n0 is a free scale factor (REPLICATION_PLAN §1) and so any
+    # absolute lnLambda is arbitrary.
+    nu_ii_amb = 0.0
+    mfp_ii_amb = math.inf
     if cfg.get("collisions"):
         coulomb_log = coulomb_log_for(cfg["collisions"], n0, Te_ab_eV, vte_ab, de, wce_ab)
         nu_ei_ab = nu_ei(n0, Te_ab_eV, coulomb_log)
         mfp_ei_ab = vte_ab / nu_ei_ab
         lambda_ab = wce_ab / nu_ei_ab
         nu_ei_dt = nu_ei_ab * dt
+        # Upstream ion-ion mfp under the lnLambda actually in force. The same
+        # forced lnLambda applies to every pair in the deck (one `coulomb_log`
+        # constant), so the ambient ions are collisional by the same factor the
+        # ablation electrons were tuned to.
+        Ti_amb_eV = theta_0 * ME_C2_EV
+        vti_amb = math.sqrt(theta_0 / mass_ratio) * C
+        nu_ii_amb = nu_ii(namb, Ti_amb_eV, coulomb_log, mi,
+                          Z=float(ref.get("charge_state", 1)))
+        mfp_ii_amb = vti_amb / nu_ii_amb
 
     return Scales(
         n0=n0, mass_ratio=mass_ratio, mi=mi,
@@ -240,6 +274,7 @@ def derive(cfg: dict) -> Scales:
         Te_ab_eV=Te_ab_eV, vte_ab=vte_ab, wce_ab=wce_ab,
         coulomb_log_nrl=coulomb_log_nrl, coulomb_log=coulomb_log,
         nu_ei_ab=nu_ei_ab, mfp_ei_ab=mfp_ei_ab, lambda_ab=lambda_ab, nu_ei_dt=nu_ei_dt,
+        nu_ii_amb=nu_ii_amb, mfp_ii_amb=mfp_ii_amb,
         _meta=dict(cfg.get("meta", {})),
     )
 
@@ -250,6 +285,25 @@ def derive(cfg: dict) -> Scales:
 def nu_ei(n_e: float, Te_eV: float, coulomb_log: float) -> float:
     """NRL electron-ion collision rate [s^-1] for ``n_e`` [m^-3], ``Te_eV`` [eV]."""
     return NU_EI_NRL * (n_e / 1e6) * coulomb_log * Te_eV ** -1.5
+
+
+def nu_ii(n_i: float, Ti_eV: float, coulomb_log: float, mi: float,
+          Z: float = 1.0) -> float:
+    """NRL ion-ion collision rate [s^-1] for ``n_i`` [m^-3], ``Ti_eV`` [eV].
+
+        nu_i = 4.80e-8 Z^4 mu^{-1/2} n_i[cm^-3] lnLambda Ti[eV]^{-3/2}
+
+    with mu = m_i/m_p the ion mass number. Note ``mi`` is the ion mass in kg, so
+    a reduced-mass run (m_i = 100 m_e here, mu = 0.054) is handled correctly --
+    using mu = 1 would understate the rate by 4.3x.
+
+    This is the ION rate, not `nu_ei` scaled: it is what criterion 2
+    ("collisionless") tests, because a magnetized collisionless shock dissipates
+    at ion scales. Sanity check on the two together: for hydrogen at T_i = T_e
+    this gives nu_ii/nu_ei = 1/sqrt(2) * sqrt(m_e/m_p), the standard result.
+    """
+    mu = mi / MP
+    return NU_II_NRL * Z ** 4 * mu ** -0.5 * (n_i / 1e6) * coulomb_log * Ti_eV ** -1.5
 
 
 def _lnL_nrl(n_e: float, Te_eV: float) -> float:

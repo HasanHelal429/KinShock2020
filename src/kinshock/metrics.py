@@ -207,7 +207,13 @@ def evaluate_criteria(zc, n_e, Bmag, uz_ambient, z_ambient, scales: Scales,
       * ``vsh``/``v_front`` : shock speed and local front speed [m/s]
       * ``piston_field_z``  : position of the piston's peak field
       * ``front_z``         : position of the shock/precursor field peak
-      * ``lambda_ii_over_di0``: ion-ion mfp / d_i0 (defaults to config-scale ~350 if None)
+      * ``lambda_ii_over_di0``: UPSTREAM ion-ion mfp / d_i0. Defaults to
+        ``scales.mfp_ii_amb / scales.di0``, which is inf for a collisionless deck
+        (no collision operator) and the value implied by the deck's forced
+        lnLambda for a collisional one. This used to be a hard-coded 350.0 --
+        the paper's Table I figure -- which silently reported R1_coll, the one run
+        with collisions, as 670x less collisional than it is (see RESULTS
+        2026-07-29). Pass a value only to override the config-derived one.
     """
     n_e = np.asarray(n_e, dtype=float)
     Bmag = np.asarray(Bmag, dtype=float)
@@ -219,7 +225,8 @@ def evaluate_criteria(zc, n_e, Bmag, uz_ambient, z_ambient, scales: Scales,
     # steep ramp: characteristic gradient scale of |B| near the front, in d_i0
     ramp_di0 = _ramp_scale(zc, Bmag) / scales.di0 if scales.di0 else np.inf
     Mms_front = v_front / math.sqrt(scales.vA ** 2 + scales.Cs0 ** 2)
-    lam = lambda_ii_over_di0 if lambda_ii_over_di0 is not None else 350.0
+    lam = (lambda_ii_over_di0 if lambda_ii_over_di0 is not None
+           else (scales.mfp_ii_amb / scales.di0 if scales.di0 else math.inf))
     sep = (abs(front_z - piston_field_z) >= 0.25 * scales.rho_i0)
 
     values = {

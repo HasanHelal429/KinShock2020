@@ -937,3 +937,91 @@ unvalidated here — no ndt=1 vs ndt=8 convergence check was run (that would cos
 this avoids). The ~1100× resolution margin makes it very unlikely to matter, but if
 collisional/collisionless formation *does* differ (contra the paper's Fig. 13), rule out
 the supercycle before believing the physics.
+
+## R1_coll finished + analysed: shock is R1_warm's twin, but criterion 2 **fails** (2026-07-29)
+
+Run completed 2026-07-28 23:07: **250000/250000 steps, 12h58m wall, mean 0.187 s/step(warpx)**
+— 1.3× the ~10 h projected above, the extra coming from the same end-loaded cost growth the
+benchmark predicted (0.115 → 0.187 s/step as the piston activates all 10 pairs across more
+cells) plus host contention (×1.04 → ×1.27). `make_inputs.py --verify`: **OK**, WarpX ran
+exactly this config. `run_checks.py`: validation OK, λ_ab = 20.000, mfp_ei,ab = 558.6 d_e.
+
+### Shock kinematics: identical to R1_warm, by eye and by fit
+
+`tune_shock.py` streaks for R1_coll and R1_warm are superposable. Trials at 0.1225 / 0.1285 /
+0.1350 c bracket the front the same way in both, so **`shock_fit.yaml` was set to R1_warm's
+exact values — v_sh = 0.1285 c, z0 = 0, no per-time overrides** — deliberately, so every
+downstream diagnostic in the twin comparison shares one front definition. M_A = 12.85,
+M_ms = 11.73, v_sh/v_p = 1.24.
+
+(The auto-tracker's `n > 1.5 n_e0` front again runs ~4% steeper than the by-eye ramp fit and
+saturates when it hits the domain edge at t ≈ 5.2 — the usual reason this project fits by eye.)
+
+### Criterion 2 was a hard-coded constant, and it hid the one thing R1_coll tests
+
+`metrics.evaluate_criteria` defaulted `lambda_ii_over_di0` to a literal **350.0** — the
+paper's Table I figure — and `make_figures` never passed anything else. So the collisionless
+criterion reported the *paper's* collisionality for every run, including the only run in the
+repo that has a collision operator. Now derived from the config:
+
+* `units.nu_ii` — NRL ion-ion rate ν_i = 4.80e-8 Z⁴ μ^(−1/2) n_i lnΛ T_i^(−3/2), with
+  μ = m_i/m_p from the **actual** ion mass (μ = 0.054 here; assuming μ = 1 would understate
+  the rate 4.3×). Validated two ways: for hydrogen at T_i = T_e it reproduces
+  ν_ii/ν_ei = sqrt(m_e/m_p)/√2 to 4 digits, and with a *physical* lnΛ it gives
+  λ_ii/d_i0 = **347** vs the paper's quoted 350 — i.e. the old hard-coded constant was
+  exactly "the physical-lnΛ value", which is why nobody noticed.
+* `Scales.mfp_ii_amb` / `mfp_ii_amb_over_di0`, printed by `run_checks.py`. **inf** when the
+  config has no `collisions` block (no collision operator ⇒ genuinely collisionless; a
+  finite "physical" number would be meaningless there, since n0 is a free scale factor).
+
+**Result: R1_coll's upstream λ_ii/d_i0 = 0.52, so criterion 2 fails in all 51 frames** and the
+run never satisfies criteria 1–7. R1_warm passes all seven (first shock t*ω_ci0 = 0.34).
+
+### The third instance of the "two different numbers" trap
+
+**A single lnΛ knob cannot match both of the paper's collisionality numbers at real c.**
+Table I quotes λ_ab = ω_ce,ab/ν_ei,ab = 20 *and* λ_mfp/d_i0 = 350 together; the paper gets
+both because its T_e,ab ≈ 470 eV. We run at real c, so θ_e = 0.078 ⇒ T_e,ab = 39.9 keV, and
+hitting λ_ab = 20 needs lnΛ = 7713 = **667× physical**. That same 667× multiplies the
+*upstream* rate too, dragging λ_ii/d_i0 from 347 down to 0.52 — from collisionless-at-ion-
+scales to marginally ion-collisional across the ramp. Choosing `quantity: lambda_ab` was
+therefore choosing to break criterion 2, silently.
+
+If a future run wants "collisional but still a collisionless shock", target the upstream
+number instead: λ_ii/d_i0 = 347 × (11.567/lnΛ), so **lnΛ ≈ 400 gives λ_ii/d_i0 ≈ 10** while
+still being 35× more collisional than physical (λ_ab would then be 385, not 20). The
+reachable window is narrow because the 39× temperature error eats it.
+
+### What collisions actually changed: ~12% less peak B⊥, nothing else
+
+Per-criterion, R1_coll vs R1_warm at matched times — every criterion that measures the
+*shock* agrees; only criterion 2 differs:
+
+| quantity | R1_warm | R1_coll |
+|---|---|---|
+| n compression (t = 1.35 / 2.81 / 4.16) | 272 / 270 / 270 | 265 / 267 / 284 |
+| piston separation / ρ_i0 | 1.666 / 3.469 / 5.137 | 1.660 / 3.468 / 5.134 |
+| reflected fraction G | 0.073 / 0.190 / 0.260 | 0.070 / 0.206 / 0.283 |
+| ramp scale / d_i0 | 0.017 / 0.020 / 0.015 | 0.020 / 0.016 / 0.014 |
+| frames failing crit. 2 (of 51) | 0 | **51** |
+
+Peak B⊥/B0, **excluding the outer 2 d_i0**: R1_coll / R1_warm = **0.881 ± 0.013** (mean over
+46 frames at t*ω_ci0 > 0.5, frame-to-frame σ = 0.088). Consistent with the streaks, where
+R1_coll's far-upstream small-scale hash is visibly damped relative to R1_warm's — collisions
+eat the fine-scale B fluctuations while leaving the macroscopic ramp alone.
+
+**Do NOT quote `B_compression` from `criteria.json` at late times.** It is a global max, and
+from t*ω_ci0 ≈ 5.5 the open hi boundary throws an ~80× B⊥ spike in **both** runs (warm 83.4 /
+85.9, coll 78.1 / 66.3 raw, vs 19.0 / 18.4 and 14.1 / 15.6 with the outer 2 d_i0 cut). The
+apparent "86 vs 66" late-time difference is that artifact, not physics.
+
+### Bottom line
+
+The paper's Fig. 13 claim — collisional and collisionless perpendicular shock formation look
+the same — **holds here, and more strongly than the paper tested it**: R1_coll reproduces
+R1_warm's compression, front speed, ramp steepness, piston separation and reflected-ion
+fraction while sitting at λ_ii/d_i0 = 0.52 instead of 350, i.e. ~670× more collisional and
+past the point where its own criterion 2 calls it collisionless. The honest caveat is that
+R1_coll is therefore **not** "the paper's Table I collisionality"; it is a much more
+collisional run that behaves the same anyway. The supercycle caveat from 2026-07-28 is not
+implicated — the twins agree, which is the direction that needed no exoneration.
