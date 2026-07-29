@@ -808,16 +808,22 @@ correctness issue (it reads only `fr.Bx`).
   because re-rendering one panel of a 51-frame / 17 GB run otherwise costs the whole A–D suite
   (the streak also loads the 1001-frame field series).
 
-**Convention worth keeping: `media/R1_warm/shock_fig7*.png` are made with
+**Convention worth keeping: `media/{R1_warm,R1_coll}/shock_fig7*.png` are made with
 `--phase-times 0.15 0.49 0.73 0.98 1.25`** (they snap to frames t·ω_ci0 = 0.11/0.45/0.68/1.01/1.24).
 Those times were **chosen deliberately** to sit across the formation interval; the default
 `--nframes 5` selection spreads panels over the whole run (0.11 … 5.63) and shows late,
 edge-contaminated downstream instead. Regenerate with:
 
 ```bash
-python scripts/make_figures.py runs/R1_warm --only fig7 \
+python scripts/make_figures.py runs/<ID> --only fig7 \
     --fig7-xunits d_i0 rho_i0 --phase-times 0.15 0.49 0.73 0.98 1.25
 ```
+
+**A bare `make_figures.py runs/<ID>` silently reverts fig7 to the default times** — it did exactly
+that to R1_warm during the 2026-07-29 R1_coll analysis, and only the stale timestamp on
+`shock_fig7_rho_i0.png` (which the default pass does not write, since `--fig7-xunits` defaults to
+`d_i0` alone) gave it away. If the two fig7 files for a run have different mtimes, the `d_i0` one is
+the default-times imposter. **Always re-render fig7 with the flags above after any full-suite run.**
 
 ---
 
