@@ -1031,3 +1031,89 @@ past the point where its own criterion 2 calls it collisionless. The honest cave
 R1_coll is therefore **not** "the paper's Table I collisionality"; it is a much more
 collisional run that behaves the same anyway. The supercycle caveat from 2026-07-28 is not
 implicated — the twins agree, which is the direction that needed no exoneration.
+
+---
+
+## Laser deposition vs. the heater, and the cost to reach the 2019 OMEGA experiment (2026-07-31) — analysis, no runs
+
+Desk analysis only: no WarpX was launched. Full write-up now lives in `README.md`
+(§"Modeling ablation" and §"Mapping to the 2019 OMEGA experiment"); this entry records
+the findings and the numbers that took work to pin down.
+
+### The heater's `intervals: 20` is exact, not an approximation
+Both `ParticleHeater` and the fork's unused `LaserDeposition` deliver energy through the
+*same* drag-free Gaussian kick (`ParticleHeater.cpp:319`, `LaserDeposition.cpp:1366`).
+That makes them Wiener processes, and Wiener increments are self-similar under
+time-splitting — so subcycling the heater is distributionally exact at any `intervals`.
+There is no `-(u−u_target)/τ` term anywhere: `theta` is a heating **rate** parameter, not a
+thermostat setpoint (`OVERVIEW.md`'s "relax toward T_e,ab" is loose phrasing). T_e,ab
+emerges from heating balanced against ablation loss + `TargetInjector` replenishment.
+Measured for R1_warm: `fac` = 4.36e-4 ω_pe, heating e-fold θ_e/fac ≈ 179 ω_pe⁻¹ ≈ 800
+timesteps, ~2.5% of thermal energy per application, 250k steps ≈ 300 heating times.
+
+### The laser's dt constraint is not the wavelength
+`LaserDeposition` is geometric-optics: the ray march is instantaneous on a frozen density
+snapshot, and `ray_cfl` is an *arc-length* step (a fraction of `min_dx`), not a timestep.
+λ₀ costs nothing. The constraint is that `H = K·I/(n_e m_e)` with
+`K ~ n_e² T_e^{-3/2}/√(1−n_e/n_cr)` is a stiff explicit functional of the state: subcycling
+drops to first order, the T^{−3/2} feedback needs `(3/2)ΔT_e/T_e ≪ 1`, the critical-surface
+singularity concentrates the whole beam into ~1 cell (vs the heater's 133), and the critical
+surface moves (`dt_dep ≲ dz/v_front`). **The module enforces no dt limit at all** — grepped;
+there is no assert. It is entirely on the user.
+
+### Root cause of every laser mismatch: θ_e = 0.078 ⇒ T_e,ab ≈ 39.9 keV
+Real c forces M_A ≈ 14 to come from an inflated temperature. Consequences: IB absorption
+∝T^{−3/2} gives mfp ≈ 4×10⁵ d_e (transparent), and matching the heater's power needs
+I₀ ~10¹⁷ W/cm², ~100× a real HED laser. Same shape as the lnΛ trap, third instance.
+
+**Fix, config-only: emulate reduced c.** With s ≡ √(39900/470) = 9.21, divide every θ by
+s² = 84.8 and `vA_over_c` by s, multiply `max_step` by s. M_A, β, ρ_i0/d_e, d_i0/d_e are all
+invariant, and the heater stays self-consistent (`fac` ∝ θ^1.5 ÷ s³, so θ/fac grows by s in
+step with everything else). Only ω_ci0 ÷ s ⇒ s× more steps. Buys T_e,ab = 470 eV,
+I₀ ≈ 1.3e14 W/cm², lnΛ ≈ 80 for 9× compute. **Not yet tested.**
+
+### The 2019 experiment (PRL 122, 245001) is a *small* problem
+Paper-quoted: OMEGA, 351 nm; ambient beam 100 J/1 ns, piston 2 beams 350 J/2 ns, both CH;
+B_y peak 10 T ∝1/x; ambient n_e0 = 0.9±0.2e18 cm⁻³, T_e0 = 40±10 eV; probed x = 3–4 mm,
+2 ns starting 3–4.5 ns after t₀; v_sh ≈ 750 km/s, M_s ≈ 15, n_e/n_e0 ≈ 10, T_ex/T_e0 ≈ 10.
+Spot size / on-target intensity are **not quoted** in the paper.
+
+Derived (CH A/Z = 13/7; B ≈ 3 T at the probe — 10 T is at the target and falls ∝1/x, and
+3 T is what makes M_A = 14.8 agree with the quoted M_s ≈ 15; this is the dominant
+uncertainty, M_A ∝ 1/B and β ∝ 1/B²): d_e0 = 5.60 µm, d_i0 = 327 µm (58.4 d_e0),
+λ_D0 = 0.050 µm, v_A = 50.6 km/s, β_e0 = 1.6, ω_ci0⁻¹ = 6.5 ns.
+
+**The headline: the observed domain is 12 d_i0 and the entire observation window is
+t·ω_ci0 ≈ 0.5–1.0 — inside one gyroperiod.** Compare R1_warm at 75 d_i0 and t·ω_ci0 = 5.6.
+An experiment-matched run is ~4000 cells × ~67k steps ≈ **1/23× R1_warm**, and since matching
+β_e0 = 1.6 means raising `theta_0` 0.002 → 8.05e-3, dz/λ_D *improves* from 6.7 to 3.3.
+`R1_coll`'s ambient is already 10¹⁸ cm⁻³, i.e. the experiment's density, so its
+collisionality is directly testable against the paper's τ_pa/τ_s ≫ 1 claim.
+
+### Correction: adding the laser need NOT cost 4×10³–5×10⁴×
+First pass said one box must span solid CH (1e23) down to the 0.9e18 ambient — 10⁵ in
+density, 316× in d_e. That conflated two independent things. IB absorption
+(`K ∝ n_e² lnΛ T^{-3/2}/n_cr`) works at any density; what needs n_cr is the *critical
+surface*, and that is a statement about **n_target/n_cr**, not absolute density.
+
+- Solid density is unnecessary: the ray cannot see past n_cr, so everything above it is a
+  mass reservoir — which is `TargetInjector`'s job. Worth ~5.6×.
+- 351 nm is unnecessary: λ₀ enters only through n_cr. **R1_warm's contrast is already
+  2.5 : 0.01 = 250×**, ample to host a critical surface. Put n_cr ≈ 1.25 n0 (half the target
+  density, 125× the ambient): critical sits inside the target, the ambient is at
+  n/n_cr = 8e-3 ⇒ refractive index 0.996 (no bending, no absorption), and dz is set by d_e at
+  the target density — which the run already resolves. **Cost ≈ 1× R1_warm.**
+
+At R1_coll's n0 = 1e20 cm⁻³ that is n_cr = 1.25e20 ⇒ λ₀ ≈ 3 µm (mid-IR). In 1D there is
+exactly one ray, so the ray-march cost (80 ms/application, dominant in 2D per the header) is
+negligible; and with a *resolved* preplasma ramp of ~30 d_e (~100 cells) the deposition is no
+more localized than the heater's 133-cell slab, so `intervals` 5–20 should hold. Scaling n and
+n_cr down together by f gives τ ∝ √f, so the 100× scale-down costs only ~10× in lnΛ →
+lnΛ ≈ 800 with the reduced-c emulation. This promotes C++ change (1), `critical_density` as a
+direct input, from convenience to **load-bearing**: otherwise the deck says λ₀ = 3 µm where it
+means "n_cr at 1.25 n0" — the naming trap R1_coll already paid for.
+
+A *faithful* 351 nm / solid-CH calculation still costs 4e3–5e4×; the way to afford that is a
+small high-resolution laser run near the target used only to *compute* T_e,ab and the ablation
+rate, feeding `theta_e_heat` to an R1-class heater run (~23× R1_warm, one-time), replacing the
+by-eye recalibration history (0.092 → 0.062 → 0.078) with a first-principles number.
