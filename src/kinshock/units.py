@@ -176,6 +176,32 @@ def _mul(x, y):
         return x * y
 
 
+def b0_from_vA_over_c(vA_over_c: float, namb: float, mi: float) -> float:
+    """The legacy vA_over_c -> B0 [T] map, kept so old configs can be migrated exactly."""
+    return float(vA_over_c) * C * math.sqrt(MU0 * namb * mi)
+
+
+def _b0_tesla(cfg: dict) -> float:
+    """Read the PRIMARY background field ``field.B0_tesla`` [T].
+
+    ``field.vA_over_c`` was the old primary. It is refused rather than silently
+    accepted: the two parameterizations disagree the moment the ambient density
+    changes, which is exactly the failure mode this inversion exists to prevent.
+    """
+    fld = cfg["field"]
+    if "B0_tesla" in fld:
+        if "vA_over_c" in fld:
+            raise KeyError(
+                "field: set B0_tesla OR vA_over_c, not both — B0_tesla is the primary "
+                "and vA_over_c is the removed legacy key")
+        return float(fld["B0_tesla"])
+    if "vA_over_c" in fld:
+        raise KeyError(
+            "field.vA_over_c is no longer a primary — B0 is set directly and v_A is "
+            "derived. Migrate with: python scripts/migrate_field_b0.py <run_dir>")
+    raise KeyError("field: missing required primary 'B0_tesla' [T]")
+
+
 def derive(cfg: dict) -> Scales:
     """Compute all derived scales from a loaded config dict (see runs/R1/config.yaml)."""
     ref = cfg["reference"]
@@ -208,10 +234,16 @@ def derive(cfg: dict) -> Scales:
     de0 = C / wpe0
     di0 = de0 * math.sqrt(mass_ratio)
 
-    vA = float(cfg["field"]["vA_over_c"]) * C
-    B0 = vA * math.sqrt(MU0 * namb * mi)
+    # B0 is the PRIMARY (tesla); v_A is derived from it and the ambient density.
+    # The inverse (vA_over_c primary) was the original design and is a trap: it makes
+    # B0 -- and therefore wci0, the clock every t*wci0 plot is drawn against -- scale
+    # as sqrt(namb), so a wrong ambient density silently rescales time. That is what
+    # put a 1.218x late bias into t*_1 (RESULTS 2026-07-31). With B0 primary,
+    # wci0 = q_e*B0/m_i depends on nothing but B0 and the ion mass.
+    B0 = _b0_tesla(cfg)
     wci0 = QE * B0 / mi
     wci0_inv = 1.0 / wci0
+    vA = B0 / math.sqrt(MU0 * namb * mi) if B0 else 0.0
 
     vp_model = float(mdl["vp_over_c"]) * C
     vsh_model = float(mdl["vsh_over_Csab"]) * Cs_ab

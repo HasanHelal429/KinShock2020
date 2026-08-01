@@ -22,6 +22,8 @@ The `run_dir` positional argument defaults to `runs/R1` for every script.
 | Script | Purpose | Reads | Writes |
 |---|---|---|---|
 | `make_inputs.py` | Generate the WarpX input deck from the config | `config.yaml` | `inputs_kinshock_<id>` |
+| `make_run_readme.py` | Write `runs/<ID>/README.md` — the run's own page, with a source for every number | `config.yaml` | `<run_dir>/README.md` |
+| `migrate_field_b0.py` | One-shot `field.vA_over_c` → `field.B0_tesla` (exact map; decks keep the same numeric B0) | `config.yaml` | `config.yaml` (in place) |
 | `launch.sh` | **The** way to start a run — cd's into the run dir so `diags/` lands there | `config.yaml`, deck | `<run_dir>/{run.log,diags/}` |
 | `run_checks.py` | Bring-up / progress checks (works before any sim output exists) | `config.yaml`, plotfiles, reduced diags | `media/testing/*.png` |
 | `make_figures.py` | Reproduce the paper's shock diagnostics (analyses A–D) | `config.yaml`, plotfiles | `media/<run_id>/*.png`, `criteria.json` |
@@ -261,3 +263,46 @@ Example `progress.log` line:
 
 The `x1.11` means wall time ran 11% over pure compute due to sharing the node —
 a direct readout of the contention cost the CPU benchmark quantified.
+
+
+---
+
+## `make_run_readme.py`
+
+One README per run directory. Every row carries its provenance, so "where did this number come
+from?" is answerable without re-deriving anything:
+
+* **`config.yaml:<key>`** — a primary. Editing it is the only way to change the run.
+* **`derived: <formula>`** — computed by `units.derive`; never stored, never hand-copied.
+* **Table I** — Schaeffer 2020's value, with the ratio and a `**OFF**` flag past 20%, plus the
+  known cause when the repo already understands the deviation.
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `run_dir ...` | — | One or more run directories. |
+| `--all` | off | Every `runs/*/` that has a `config.yaml`. |
+| `--check` | off | Do not write; exit 1 if any README is stale. Use in CI / before a commit. |
+
+**Prose is preserved.** Anything between `<!-- prose:begin -->` and `<!-- prose:end -->` is
+hand-written and survives regeneration — that is where a run's story lives (why it exists, what
+it showed, what to distrust). Everything outside those markers is rewritten from the config, so
+never hand-edit the tables.
+
+## `migrate_field_b0.py`
+
+`field.B0_tesla` (tesla) is the primary background field; `v_A` is derived from it and the
+ambient density. This script converts configs that still carry the old `field.vA_over_c`
+primary, applying exactly the map the old code used
+(`B0 = vA_over_c * c * sqrt(mu0 * namb * m_i)`), so the regenerated deck holds the *same*
+numeric `B0` and `make_inputs.py --verify` still passes against an existing
+`warpx_used_inputs`. Edits are line-based, so comments and key order survive.
+
+`units.derive` refuses a config still carrying `vA_over_c` rather than guessing — the two
+parameterizations disagree the moment the ambient density changes, which is the failure this
+inversion exists to prevent (RESULTS 2026-07-31).
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `run_dir ...` | — | One or more run directories. |
+| `--all` | off | Every `runs/*/` that has a `config.yaml`. |
+| `-n, --dry-run` | off | Report the B0 each config would get; write nothing. |

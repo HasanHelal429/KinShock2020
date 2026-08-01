@@ -71,7 +71,7 @@ def test_R0_matches_R1_physics():
                  ("plasma", "piston", "theta_e_heat"),
                  ("plasma", "piston", "density_over_n0"),
                  ("plasma", "ambient", "density_over_n0"),
-                 ("plasma", "ambient", "theta_0"), ("field", "vA_over_c")):
+                 ("plasma", "ambient", "theta_0"), ("field", "B0_tesla")):
         a, b = r1, r0
         for k in path:
             a, b = a[k], b[k]
@@ -248,3 +248,37 @@ def _run_all():
 if __name__ == "__main__":
     print("KinShock2020 structure tests\n" + "=" * 40)
     sys.exit(0 if _run_all() else 1)
+
+
+def test_B0_is_primary_and_vA_is_derived():
+    """B0 must be independent of the ambient density; v_A must scale as 1/sqrt(namb).
+
+    This is the whole point of the inversion: under the old vA_over_c primary, B0 --
+    and therefore wci0, the clock for every t*wci0 plot -- scaled as sqrt(namb), so a
+    wrong ambient density silently rescaled time (RESULTS 2026-07-31).
+    """
+    import copy
+    import math
+
+    cfg = kinshock.load(R1)
+    base = kinshock.units.derive(cfg)
+
+    hot = copy.deepcopy(cfg)
+    hot["plasma"]["ambient"]["density_over_n0"] *= 4.0
+    quad = kinshock.units.derive(hot)
+
+    assert quad.B0 == base.B0, "B0 must not move when the ambient density changes"
+    assert quad.wci0 == base.wci0, "wci0 must not move when the ambient density changes"
+    assert math.isclose(quad.vA, base.vA / 2.0, rel_tol=1e-12), \
+        "v_A must be derived as B0/sqrt(mu0*namb*m_i)"
+
+
+def test_legacy_vA_over_c_is_refused():
+    """A stale config must fail loudly with the migration command, not silently."""
+    import pytest
+
+    cfg = kinshock.load(R1)
+    cfg["field"].pop("B0_tesla")
+    cfg["field"]["vA_over_c"] = 0.01
+    with pytest.raises(KeyError, match="migrate_field_b0"):
+        kinshock.units.derive(cfg)

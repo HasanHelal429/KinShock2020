@@ -1117,3 +1117,138 @@ A *faithful* 351 nm / solid-CH calculation still costs 4e3–5e4×; the way to a
 small high-resolution laser run near the target used only to *compute* T_e,ab and the ablation
 rate, feeding `theta_e_heat` to an R1-class heater run (~23× R1_warm, one-time), replacing the
 by-eye recalibration history (0.092 → 0.062 → 0.078) with a first-principles number.
+
+---
+
+## Table I re-read from the PDF: four unit errors, and a 1.218× clock bias (2026-07-31) — desk analysis, no runs
+
+Triggered by asking whether WarpX can run a reduced speed of light (it cannot — `PhysConst::c`
+is a `constexpr` in `ablastr/constant.H:60`, 207 call sites, no ParmParse override; note
+`my_constants.clight` *is* settable and silently shadows it **in deck parser expressions only**,
+which would be a self-inconsistent run). Pulling `schaeffer2020.pdf` to settle it turned up
+four things we had wrong.
+
+### 1. The reduced speed of light is θ_e,ab. There was never anything to port.
+
+§II, p.3: *"a reduced proton-to-electron mass ratio µ_p = 100 (d_i,ab = 10 d_e,ab), and a
+reduced speed of light set by the ratio T_e,ab/m_e c², which can be written relative to the
+sound speed as c = √(µ_p/T_e,ab) C_s,ab."*
+
+c/C_s,ab = √(100/0.092) = 33.0 = 1/0.0303, i.e. Table I's C_s,ab = 0.030 c. The `c_sim/c_phys
+= 0.02` row is a *reported consequence* of choosing θ_e,ab, not an independent knob. **R1_warm
+already is the paper's reduced-c run** (its c/C_s,ab = 35.8; the 8% gap is entirely the
+0.092 → 0.078 M_A recalibration). A custom reduced-c WarpX build would reproduce a run we have.
+
+### 2. Sim → phys is three different factors, so s = 50 was wrong; s = 9.21 was right
+
+- velocities × **0.0234** (C_s,ab 0.030c→210 km/s and v_p 0.104c→730 km/s both give 42.7;
+  the tabulated 0.02 is rounded)
+- temperatures ÷ **100** (0.092 m_ec² = 47.0 keV → 470 eV; 0.002 m_ec² = 1022 eV → 10 eV)
+- lengths at **real c and real m_p** (n_e,ab = 6e20 cm⁻³ ⇒ d_i,ab = 9.31 µm; L_z = 900 d_i,ab
+  = 8.4 mm ⇒ 9.33 µm ✓; d_i0 = 11.2 d_i,ab = 104 µm ✓)
+
+Temperature is ÷100 and not ÷1824 = 1/0.0234² because the physical column also restores the
+real mass ratio: 0.0234² × 1836/100 = 1/99.4. Cross-check: √(470 eV/m_p) = 212 km/s = the
+quoted C_s,ab. **So 0.02 is a velocity factor and cannot be used as a temperature factor** —
+the 2026-07-31 emulation's s = √(39900/470) = 9.21 is correct and lands exactly on the paper's
+own physical column (470 eV). s = 50 would give T_e,ab = 16 eV, colder than the upstream.
+
+### 3. λ_ab = mfp/d_e,ab exactly — CLAUDE.md gotcha (2) was wrong, by 28×
+
+§II, p.3: *"λ_ab = ω_ce,ab/ν_ei,ab = λ_mfp,ab/d_e,ab, where ω_ce,ab is the electron
+gyrofrequency at **B_ab**"*, with B_ab ≡ √(µ₀ n_e,ab T_e,ab) — the fundamental field, not B₀.
+The identity is exact: ρ_e(B_ab) = √(T m_e)/(e√(µ₀nT)) = √(m_e/(µ₀ n e²)) = c/ω_pe = d_e,ab.
+
+Our note evaluated ρ_e at **B₀** instead, got ρ_e,ab ≈ 28 d_e — that number is √(β_ab/2) = 24,
+an artifact of the wrong field — and set R1_coll's target to mfp = 559 d_e. **Table I's
+λ_ab = 20 means mfp = 20 d_e,ab; R1_coll is ~28× less collisional than the paper.** Correcting
+it needs lnΛ ≈ 2×10⁵ instead of 7713, which makes the λ_ii conflict worse.
+
+And the paper concedes that conflict itself: the λ_ab scaling *"ensures that dimensionless
+quantities such as the magnetic Reynolds number are correct, but electron collisionality
+relative to global scales (e.g. ν_ei,ab t_ab) is only quantitatively matched at physical mass
+ratios."* **The knob that buys both λ_ab and λ_mfp/d_i0 is µ_p = 1836, not a reduced c.** Our
+2026-07-29 finding is corroborated by the authors; the proposed fix was aimed at the wrong knob.
+
+### 4. The ambient is 0.008 n_e,ab, and it biases every t·ω_ci0 by 1.218× late
+
+Table I's code density unit is **not** n_e,ab: it lists n_e,ab = 1.25 and n_e0 = 0.01 in code
+units ⇒ **n_e0/n_e,ab = 0.008**. Three rows confirm it, and nothing else fits:
+
+| Table I row | formula | with 0.008 | quoted |
+|---|---|---|---|
+| d_i0/d_i,ab | √(n_e,ab/n_e0) | 11.18 | 11.2 |
+| β_ab | (n_e,ab/n_e0)·θ_e/(µ_p(v_A/c)²) | 1158 | 1150 |
+| ω_ci0⁻¹/t_ab | √(n_e,ab/n_e0)·C_s,ab/v_A | 34.03 | 33.9 |
+
+(Those also pin the paper's β convention as **β = µ₀nT/B²** despite its text saying 2µ₀nT/B²:
+β₀ = θ₀/(µ_p(v_A/c)²) = 0.201 vs the tabulated 0.2. `units.py:222-223` uses the factor-2 form,
+so `derive()` reports β₀ = 0.4 against a `targets:` value of 0.2, and β_ab = 1560 vs 1150.
+Convention mismatch, not physics — but it makes that check permanently fail.)
+
+**Our `density_over_n0: 0.01` is 25% high, and it propagates into the clock.** `units.derive`
+builds B₀ from `vA_over_c` *and* n_amb, so B₀ ∝ √n_amb ⇒ **ω_ci0 ∝ √n_amb**:
+
+| | R1_warm | paper |
+|---|---|---|
+| n_amb/n_e,ab | 0.010 | 0.008 |
+| d_i0/d_i,ab | 10.00 | 11.18 |
+| ρ_i0/d_e | 1040 | ≈1180 |
+| **ω_ci0⁻¹/t_ab** | **27.93** | **33.9** |
+
+Total 1.218× = 1.118 (density) × 1.086 (θ_e 0.092→0.078, since t_ab ∝ 1/√θ_e). **Our
+gyroperiod is 18% short, so every t·ω_ci0 observable is biased 1.218× LATE** (fewer ablation
+times per gyroperiod ⇒ a piston-driven event lands at larger t·ω_ci0), and every z/ρ_i0
+observable 1.118× far.
+
+That is the direction and roughly the size of the residual we had pinned on the half-domain
+wall: onset **t*₁ = 1.41 ω_ci0⁻¹ (later 1.35) vs the paper's ≈1**, with z*₁ correspondingly
+far (2026-07-24, 2026-07-26 entries). Dividing out 1.218 leaves ~1.1×, a much more plausible
+size for the wall artifact. **Not proven** — it assumes t*₁ is set by piston/ablation physics
+rather than pure gyro-physics, which is testable by rerunning with n_amb = 0.008.
+
+### Consequences / open decisions
+
+- Configs are **unchanged** — fixing `density_over_n0` invalidates R1_warm and R1_coll and
+  needs a rerun (7h11m each). Flagged, not done.
+- Matching M_A = 14 by lowering θ_e necessarily breaks C_s,ab/v_A (2.79 vs the paper's 3.04),
+  so v_sh/C_s,ab ≈ 5.0 vs the paper's 4.6. With θ_e off the paper's value, M_A and v_sh/C_s,ab
+  cannot both match — pick the anchor deliberately.
+- R1_warm's box is 7500 d_e vs the paper's 9000 d_e,ab (30000 cells, one-sided), and 250k steps
+  vs 400k (τ·ω_ci0 5.6 vs 6.5).
+- The paper uses the **Takizuka–Abe** collision operator; R1_coll uses WarpX's Perez.
+- Docs corrected this session: CLAUDE.md gotchas (2) and (3) + two new gotchas;
+  REPLICATION_PLAN §1 (reduced c, conversions, invariants) and §2 (the paper's domain is
+  **one-sided**, not a centered symmetric slab — `layout: one_sided` is the faithful geometry).
+
+### Architecture follow-up (same day): B0 is now the primary, and every run has a README
+
+Two changes prompted by finding (4) above.
+
+**`field.B0_tesla` replaces `field.vA_over_c` as the primary; v_A is derived.** Under the old
+parameterization `units.derive` built `B0 = vA_over_c * c * sqrt(mu0*namb*m_i)`, so B0 — and
+therefore `wci0 = q_e*B0/m_i`, the clock every `t*wci0` plot is drawn against — scaled as
+`sqrt(namb)`. A wrong ambient density silently rescaled *time*. Inverted, `wci0` depends on
+nothing but B0 and the ion mass, and `v_A = B0/sqrt(mu0*namb*m_i)` absorbs the density instead,
+which is the physically honest direction. `units.derive` now **refuses** a config carrying the
+old key (pointing at the migration script) rather than guessing.
+
+All 14 configs migrated with `scripts/migrate_field_b0.py`, which applies exactly the old map,
+so **nothing changed numerically**: the deck diff is two lines
+(`my_constants.vA` + symbolic `B0` -> a literal `B0 = 0.0032075256118468715`), and all 13 runs
+with a `warpx_used_inputs` still report `OK (WarpX ran exactly this config)`. Two new tests
+pin the behaviour: B0/wci0 invariant under a 4x ambient change while v_A halves, and the legacy
+key raising. 13/13 pytest green.
+
+Caveat accepted knowingly: absolute tesla couples B0 to n0. R1_coll (n0 = 1e20 m^-3) needs
+B0 = 32.1 T for the same dimensionless run R1_warm gets at 3.21 mT. Rescaling n0 now requires
+rescaling B0 by sqrt(n0'/n0) by hand — noted in CLAUDE.md.
+
+**`runs/<ID>/README.md`, generated by `scripts/make_run_readme.py`.** One page per run where
+every number carries a source: `config.yaml:<key>` (primary), `derived: <formula>`, or Table I
+with the ratio and a `**OFF**` flag past 20%. Rows the repo already understands as wrong carry
+the known cause inline, so R1_warm's page now states its own 0.824x gyroperiod, the 2x beta
+convention and the 0.01-vs-0.008 ambient without anyone having to re-read RESULTS. Prose
+between `<!-- prose:begin -->` / `<!-- prose:end -->` is hand-written and preserved across
+regeneration; tables are always rewritten. `--check` fails on a stale one. R1_warm and R1_coll
+have seeded prose; the other 12 carry the placeholder.

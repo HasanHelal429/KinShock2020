@@ -101,7 +101,7 @@ def validate(cfg: dict, scales: units.Scales | None = None,
         units.collision_pairs(cfg)   # raises on an unknown species name
 
     has_bfield = (cfg["field"].get("orientation", "perpendicular") != "none"
-                  and float(cfg["field"].get("vA_over_c", 0) or 0) != 0)
+                  and float(cfg["field"].get("B0_tesla", 0) or 0) != 0)
     if has_bfield and "absorbing" in faces:
         warns.append("boundary 'absorbing' (Silver-Mueller) is incompatible with the B-field "
                      "divergence cleaner that runs when a background B is set; use 'open' "

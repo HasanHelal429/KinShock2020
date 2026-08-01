@@ -47,7 +47,9 @@ plasma:
 # --- background magnetic field (perpendicular, out of the propagation axis) ---
 field:
   orientation: perpendicular  # B0 transverse to z (deck sets Bx = B0 in 1D)
-  vA_over_c: 0.01             # PRIMARY: sets B0 = vA * sqrt(mu0 * n_e0 * m_i).
+  B0_tesla: 0.0032075256118468715        # PRIMARY [T]. Migrated from vA_over_c = 0.01 (identical B0).
+  # v_A is DERIVED: B0/sqrt(mu0*namb*m_i) = 0.01 c
+  # (was: # PRIMARY: sets B0 = vA * sqrt(mu0 * n_e0 * m_i).)
                               # Chosen so predicted M_A = vsh_model / vA ~ 14 (see model:).
                               # NOTE: with theta_0 = 0.002 this yields beta_0 ~ 0.4 in our
                               # SI formula vs Table I's 0.2 (factor ~2 from the paper's

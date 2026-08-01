@@ -38,7 +38,8 @@ plasma:
 
 field:
   orientation: perpendicular
-  vA_over_c: 0.01
+  B0_tesla: 0.0032075256118468715        # PRIMARY [T]. Migrated from vA_over_c = 0.01 (identical B0).
+  # v_A is DERIVED: B0/sqrt(mu0*namb*m_i) = 0.01 c
 
 geometry:
   dims: 1

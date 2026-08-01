@@ -24,18 +24,30 @@ modify or import them** (§6, §8).
 
 ## 1. Reproduction strategy: match the dimensionless run, not the µm-scale experiment
 
-PSC ran with a **reduced speed of light** (c_sim/c_phys = 0.02) purely for cost; WarpX uses
-real c. The shock physics is set entirely by **dimensionless ratios**, which are c-independent.
-So we reproduce the **sim-value / dimensionless columns of Table I directly**, reading every
-"× c" as a fraction of the *real* c. This yields hot (≈ 47 keV) piston electrons and a fast
-(≈ 0.1 c) piston — i.e. we run PSC's electron-reduced simulation, which is exactly the object
-we are validating against. Matching a specific experiment in SI (the "physical value" column)
-is a later step, done via the PSC↔SI unit table in
-`warpx-cda/heating_operator/HEATING_OPERATOR_PLAN.md §3`.
+**PSC's "reduced speed of light" is not an independent input — it *is* θ_e,ab.** §II, p.3:
+"a reduced speed of light set by the ratio T_e,ab/m_e c², which can be written relative to the
+sound speed as c = √(µ_p/T_e,ab) C_s,ab." Pick θ_e,ab and µ_p and c/C_s,ab is determined:
+√(100/0.092) = 33.0, i.e. Table I's C_s,ab = 0.030 c. **So setting θ_e,ab in real-c WarpX
+reproduces the reduced-c run exactly; there is nothing to port.** (R1_warm's θ_e = 0.078 gives
+c/C_s,ab = 35.8 vs the paper's 33.0 — an 8% gap that is entirely the M_A recalibration.) The
+`c_sim/c_phys = 0.02` row is a *reported consequence* of θ_e,ab, not a knob, and is anyway
+rounded: the velocity rows imply 0.0234.
+
+We therefore reproduce the **sim-value / dimensionless columns of Table I directly**, reading
+every "× c" as a fraction of the *real* c. This yields hot (≈ 47 keV) piston electrons and a
+fast (≈ 0.1 c) piston — i.e. we run PSC's electron-reduced simulation, which is exactly the
+object we are validating against.
+
+**Table I sim → phys conversions** (three *different* factors — no single one works):
+velocities × 0.0234; temperatures **÷ 100** (= 0.0234² × 1836/100, because the phys column also
+restores the real mass ratio — *not* ÷1824); lengths at real c and real m_p, unscaled.
+Matching the "physical value" column therefore costs s = √(39900/470) = 9.21 in the
+config-only emulation (RESULTS 2026-07-31), **not** s = 50 — 0.02 is a velocity factor.
 
 **Invariants to preserve** (everything else follows): m_i/m_e = 100 · θ_e,ab = 0.092 (heater)
-· T₀/T_e,ab = 0.0217 · density contrast n_t : n_e,ab : n_e0 = 2.5 : 1 : 0.01 · M_A = 14 ·
-M_ms = 13 · β_ab = 1150 · β₀ = 0.2 · collisionality λ_ab = 20.
+· T₀/T_e,ab = 0.0217 · density contrast n_t : n_e,ab : n_e0 = 2.5 : 1 : **0.008** (Table I's
+0.01 is in code units, where n_e,ab = 1.25) · M_A = 14 · M_ms = 13 · β_ab = 1150 · β₀ = 0.2
+(both under β = µ₀nT/B²) · collisionality λ_ab = 20 = mfp/d_e,ab.
 
 **Reference density.** Define the WarpX reference n₀ ≡ n_e,ab (the ablation density). Its
 absolute value is free (choose for a convenient dt / domain in SI, e.g. n₀ = 1×10²⁴–10²⁶ m⁻³);
@@ -45,20 +57,22 @@ d_e ≡ c/ω_pe(n₀), d_i = 10 d_e.
 
 ## 2. Parameter mapping (Table I → WarpX 1D deck)
 
-Geometry: **1D3V**, z = ablation/propagation axis. Symmetric target slab at domain center,
-periodic BC → two counter-propagating shocks in ±z (equivalent to the paper's "ablated in
-both directions, analyze z ≥ 0"); stop before either reaches the boundary. Perpendicular
-field **out of the propagation axis: B_x = B₀** (matches the paper's B₀ x̂; any transverse
-component is valid in 1D).
+Geometry: **1D3V**, z = ablation/propagation axis. **The paper's own domain is one-sided**
+(§II, p.3): 30000 cells over 9000 × 5 d_e,ab, target at 0 < z ≤ 2 d_i,ab, ambient plasma and
+field at z > 2 d_i,ab — it does *not* ablate in both directions from a centered slab. An
+earlier version of this line said otherwise; `layout: one_sided` (R1_warm, R1_coll) is the
+faithful geometry, and the symmetric/periodic full-domain runs are the approximation, not the
+other way round. Perpendicular field **out of the propagation axis: B_x = B₀** (matches the
+paper's B₀ x̂; any transverse component is valid in 1D).
 
 | Paper (Table I) | WarpX deck setting | Notes |
 |---|---|---|
-| Domain L_z (paper 9000 d_e per analyzed half) | **tiered** (see below) | half-domain must exceed the shock position at the final analysis time |
+| Domain L_z = 9000 d_e,ab (one-sided, 30000 cells) | **tiered** (see below) | R1_warm uses 7500 d_e = 83% of the paper's box |
 | dz ≈ 0.3 d_e | `n_cell = L_z / 0.3 d_e` | resolve d_e; `algo.particle_shape = 2–3` |
 | Target region 0<z<2 d_i,ab | slab `|z| < 2 d_i` (= 20 d_e) | heater + injector region |
 | Target density 2.5 n_e,ab | `n_t = 2.5 n₀` | injector target density |
 | Ablation ref n_e,ab | `n₀` | fixes d_e, ω_pe |
-| Ambient n_e0 = 0.01 n_e,ab | `n_amb = 0.01 n₀` | **contrast 250** (see §5 noise note) |
+| Ambient **n_e0 = 0.008 n_e,ab** (Table I: 0.01 *code units*, n_e,ab = 1.25) | `n_amb = 0.008 n₀` — **runs still use 0.01, 25% high** | contrast 312, not 250. Sets B₀ ∝ √n_amb ⇒ ω_ci0; see CLAUDE.md gotcha |
 | mass ratio 100 | `M_i = 100 m_e` | piston & ambient ions |
 | T_e,ab = 0.092 m_e c² | `particle_heater.<piston_e>.theta = 0.092` | drives C_s,ab = √(θ/100) c = 0.030 c |
 | Heating for whole run | `particle_heater.intervals = 20` | PSC flatfoil cadence |

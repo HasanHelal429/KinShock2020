@@ -44,7 +44,9 @@ plasma:
 
 field:
   orientation: unmagnetized   # NEGATIVE CONTROL: applied Bx = 0 (was 'perpendicular')
-  vA_over_c: 0.01             # kept so vA/wci0/rho_i0/M_A scales match R1_warm for normalization
+  B0_tesla: 0.0032075256118468715        # PRIMARY [T]. Migrated from vA_over_c = 0.01 (identical B0).
+  # v_A is DERIVED: B0/sqrt(mu0*namb*m_i) = 0.01 c
+  # (was: # kept so vA/wci0/rho_i0/M_A scales match R1_warm for normalization)
 
 geometry:
   dims: 1

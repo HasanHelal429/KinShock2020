@@ -88,7 +88,7 @@ three ways: IB absorption ∝ T^{−3/2} (mfp ≈ 4×10⁵ d_e ⇒ transparent),
 | primary | change |
 |---|---|
 | `theta_e_heat`, `theta_e_init`, `theta_i_init`, `theta_0` | ÷ s² = 84.8 |
-| `vA_over_c` | ÷ s (0.01 → 1.09e-3) |
+| `B0_tesla` | ÷ s (3.2075e-3 → 3.483e-4 T) — v_A/c then falls 0.01 → 1.09e-3 on its own |
 | `max_step` | × s (250k → 2.3M) |
 | lengths in d_e, `dz_over_de`, `cfl`, `mass_ratio` | unchanged |
 
@@ -156,7 +156,7 @@ the 2020 representative run (80 d_i0, 6.5 gyroperiods). Matching it is **cheaper
 | dz/λ_D | 6.7 | 3.3 (better) |
 | relative cost | 1× | **~1/23×** |
 
-Experiment-matched keeps `vA_over_c = 0.01` and `theta_e_heat = 0.078` (M_A ≈ 14–15 ✓) and only
+Experiment-matched keeps `B0_tesla = 3.2075e-3` (v_A/c = 0.01) and `theta_e_heat = 0.078` (M_A ≈ 14–15 ✓) and only
 raises `theta_0` 0.002 → 8.05e-3 to match β_e0 ≈ 1.6, which *improves* Debye resolution.
 
 ### Adding the laser: n_cr is a dimensionless parameter, not 351 nm

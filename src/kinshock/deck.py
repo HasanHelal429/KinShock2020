@@ -5,7 +5,7 @@ source of truth) — the forward direction of REPLICATION_PLAN.md §6.0a.
 (densities as fractions of n0, temperatures as theta = kT/m_e c^2, lengths in
 d_e / d_i, speeds as fractions of c). :func:`render` maps those onto a WarpX deck
 whose ``my_constants`` are written *symbolically* — ``nt = 2.5*n0``,
-``slab = 2.0*di``, ``B0 = vA*sqrt(mu0*namb*Mi)`` — so the deck stays readable and
+``slab = 2.0*di``, ``di = de*sqrt(mass_ratio)`` — so the deck stays readable and
 WarpX still records the fully-resolved values in ``warpx_used_inputs``.
 
 Because the mapping is one-way (config -> deck), the deck never has to be hand-
@@ -194,8 +194,9 @@ def render(cfg: dict) -> str:
     a("my_constants.di           = de*sqrt(mass_ratio)")
     a(f"my_constants.nt           = {_num(pis['density_over_n0'])}*n0")
     a(f"my_constants.namb         = {_num(amb['density_over_n0'])}*n0")
-    a(f"my_constants.vA           = {_num(cfg['field']['vA_over_c'])}*clight")
-    a("my_constants.B0           = vA*sqrt(mu0*namb*Mi)")
+    # B0 is a primary: emitted as a literal so the deck cannot drift from the config
+    # if namb changes. v_A is derived (reported in the header) and is not needed here.
+    a(f"my_constants.B0           = {_num(sc.B0)}")
     a(f"my_constants.theta_e_heat = {_num(pis['theta_e_heat'])}")
     a(f"my_constants.theta0       = {_num(amb['theta_0'])}")
     a(f"my_constants.theta_e_init = {_num(pis['theta_e_init'])}")

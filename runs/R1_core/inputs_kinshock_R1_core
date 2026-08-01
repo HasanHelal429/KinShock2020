@@ -16,8 +16,7 @@ my_constants.de           = clight/wpe
 my_constants.di           = de*sqrt(mass_ratio)
 my_constants.nt           = 2.5*n0
 my_constants.namb         = 0.01*n0
-my_constants.vA           = 0.01*clight
-my_constants.B0           = vA*sqrt(mu0*namb*Mi)
+my_constants.B0           = 0.0032075256118468715
 my_constants.theta_e_heat = 0.092
 my_constants.theta0       = 0.002
 my_constants.theta_e_init = 0.001
@@ -139,7 +138,7 @@ EP.intervals = 500
 PN.type      = ParticleNumber
 PN.intervals = 500
 
-# Full plotfiles: fields + raw particles for (z,uz) phase space (~50 frames).
+# diag1: fields + raw particles for (z,uz) phase space (~50 frames).
 diagnostics.diags_names = diag1
 diag1.intervals = 2500
 diag1.diag_type = Full
