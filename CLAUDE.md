@@ -56,7 +56,7 @@ rewritten from config. Run `--check` to fail on a stale one. Read it before touc
 ```bash
 python scripts/make_inputs.py runs/<ID>                 # config.yaml -> deck
 python scripts/make_run_readme.py runs/<ID>            # refresh the run's README tables
-scripts/launch.sh -b -L runs/<ID>                       # launch WarpX (+ progress logger)
+scripts/launch.sh -b runs/<ID>                          # launch WarpX (progress logger is ON by default)
 python scripts/make_inputs.py runs/<ID> --verify        # deck == config?
 python scripts/run_checks.py   runs/<ID>                # scales vs Table I, conservation
 python scripts/tune_shock.py   runs/<ID>                # fit v_sh + front BY EYE -> shock_fit.yaml
@@ -94,7 +94,8 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   (RESULTS 2026-07-26). `launch.sh` exists to make that unrepeatable: it cd's into the run dir,
   applies the benchmarked OMP settings, picks the single deck, logs to `<run_dir>/run.log`, and
   **refuses to start when `diags/` already holds output** (`--force` to override). `-b` detaches,
-  `-L` also starts the progress logger, `-n` dry-runs, and anything after `--` is passed to WarpX
+  the progress logger is **on by default** (`--no-logger` to suppress; every run must leave a
+  `progress.log`), `-n` dry-runs, and anything after `--` is passed to WarpX
   as ParmParse overrides (smoke tests only — they will trip `make_inputs.py --verify`).
 - **Collisions (`collisions:` block, `runs/R1_coll`).** Three traps. (1) **lnΛ is a knob, not a
   physical value**: at real c, θ_e = 0.078 ⇒ T_e,ab = 39.9 keV, so ν_ei ∝ n T^(−3/2) keeps the

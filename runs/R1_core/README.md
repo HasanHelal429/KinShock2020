@@ -81,10 +81,10 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | piston speed v_p / c | 0.104 | 0.104 | 1.000x (+0.0%) ok |  |
 | Alfven Mach v_sh/v_A | 13.9525 | 14 | 0.997x (-0.3%) ok |  |
 | magnetosonic Mach | 12.7368 | 13 | 0.980x (-2.0%) ok |  |
-| ablation beta | 1840 | 1150 | 1.600x (+60.0%) **OFF** | same 2x convention, plus the n_amb 0.01-vs-0.008 error |
-| upstream beta | 0.4 | 0.2 | 2.000x (+100.0%) **OFF** | paper tabulates beta = mu0*n*T/B^2; units.py uses 2*mu0*n*T/B^2 (2x) |
+| ablation beta (Table I 1150, x2 convention) | 1840 | 2300 | 0.800x (-20.0%) ~ | n_amb 0.01 vs Table I's 0.008, and/or theta_e off 0.092 |
+| upstream beta (Table I 0.2, x2 convention) | 0.4 | 0.4 | 1.000x (-0.0%) ok |  |
 | d_i0 / d_i,ab | 10 | 11.18 | 0.894x (-10.6%) ~ | n_amb is 0.01 n0; Table I is 0.008 n0 |
-| gyroperiod in ablation times | 30.3315 | 33.9 | 0.895x (-10.5%) ~ | n_amb 25% high (1.118x) and theta_e recal (1.086x) |
+| gyroperiod in ablation times | 30.3315 | 33.9 | 0.895x (-10.5%) ~ | n_amb 25% high (1.118x) and/or theta_e recal (1.086x) |
 
 ## Files
 

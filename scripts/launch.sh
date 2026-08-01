@@ -15,7 +15,11 @@
 #   -j, --threads N    OMP_NUM_THREADS (default 8)
 #   -w, --warpx PATH   WarpX binary (default $KINSHOCK_WARPX, else the repo's usual build)
 #   -b, --background   detach and return immediately (prints the PID)
-#   -L, --logger       also start scripts/run_progress_logger.py in the background
+#   -L, --logger       start scripts/run_progress_logger.py (DEFAULT ON)
+#       --no-logger    do NOT start the progress logger (rarely what you want:
+#                      a run with no progress.log leaves no wall-clock record)
+#       --every-pct P  logger checkpoint every P percent of max_step (default 10)
+#       --poll S       logger poll interval in seconds (default 30)
 #   -f, --force        launch even though diags/ already holds output (see below)
 #   -n, --dry-run      print what would run, change nothing
 #
@@ -36,7 +40,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WARPX="${KINSHOCK_WARPX:-/home/hhelal/warpx-cda/build/bin/warpx.1d}"
 THREADS=8
 BACKGROUND=0
-LOGGER=0
+LOGGER=1        # progress logger is ON by default -- every run gets a progress.log
+EVERY_PCT=""
+POLL=""
 FORCE=0
 DRYRUN=0
 RUN_DIR=""
@@ -51,6 +57,9 @@ while [[ $# -gt 0 ]]; do
         -w|--warpx)      WARPX="${2:-}";   shift 2 ;;
         -b|--background) BACKGROUND=1; shift ;;
         -L|--logger)     LOGGER=1;     shift ;;
+        --no-logger)     LOGGER=0;     shift ;;
+        --every-pct)     EVERY_PCT="$2"; shift 2 ;;
+        --poll)          POLL="$2";      shift 2 ;;
         -f|--force)      FORCE=1;      shift ;;
         -n|--dry-run)    DRYRUN=1;     shift ;;
         -h|--help)       sed -n '2,32p' "${BASH_SOURCE[0]}"; exit 0 ;;
@@ -92,6 +101,11 @@ echo "launch: $(basename "$RUN_DIR")  deck=$DECK  threads=$THREADS"
 echo "launch: cwd=$RUN_DIR  (so diags/ lands here, not in the repo root)"
 echo "launch: $WARPX $DECK ${EXTRA[*]:-} > run.log 2>&1"
 if [[ $DRYRUN -eq 1 ]]; then
+    if [[ $LOGGER -eq 1 ]]; then
+        echo "launch: progress logger WOULD start -> $(basename "$RUN_DIR")/progress.log (every=${EVERY_PCT:-10}%% poll=${POLL:-30}s)"
+    else
+        echo "launch: progress logger DISABLED (--no-logger) — run leaves no wall-clock record"
+    fi
     echo "launch: --dry-run, nothing started."
     exit 0
 fi
@@ -101,8 +115,11 @@ export OMP_NUM_THREADS="$THREADS" OMP_PROC_BIND=spread OMP_PLACES=cores
 
 start_logger() {   # after WarpX, so run.log exists (the logger waits for it anyway)
     [[ $LOGGER -eq 1 ]] || return 0
+    local largs=()
+    [[ -n "$EVERY_PCT" ]] && largs+=(--every-pct "$EVERY_PCT")
+    [[ -n "$POLL"      ]] && largs+=(--poll "$POLL")
     nohup python "$ROOT/scripts/run_progress_logger.py" "$RUN_DIR" \
-        > "$RUN_DIR/logger.out" 2>&1 &
+        ${largs[@]+"${largs[@]}"} > "$RUN_DIR/logger.out" 2>&1 &
     echo "launch: progress logger pid $! -> $(basename "$RUN_DIR")/progress.log"
 }
 

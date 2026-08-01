@@ -116,8 +116,14 @@ collisions:
   model: pairwisecoulomb
   pairs: all
   target:
-    quantity: lambda_ab
-    value: 20.0
+    # PINNED 2026-08-01. This run was built when `lambda_ab` was mis-defined as
+    # mfp/rho_e,ab(B0) instead of the paper's mfp/d_e,ab, so `lambda_ab: 20` here
+    # actually meant mfp = 559 d_e,ab -- ~28x LESS collisional than Table I.
+    # The definition is now fixed in units.coulomb_log_for; this config is pinned to
+    # the literal lnLambda it really ran so the deck and warpx_used_inputs still match.
+    # Do not read this run as "Table I collisionality" -- see runs/R1_paper.
+    quantity: coulomb_log
+    value: 7713.304243059874
   ndt_supercycle: 8
 
 diagnostics:

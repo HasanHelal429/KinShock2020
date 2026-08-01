@@ -34,19 +34,25 @@ TABLE_I = {
     "vp_model_over_c":   (0.104,   "piston speed v_p / c"),
     "MA":                (14.0,    "Alfven Mach v_sh/v_A"),
     "Mms":               (13.0,    "magnetosonic Mach"),
-    "beta_ab":           (1150.0,  "ablation beta"),
-    "beta_0":            (0.2,     "upstream beta"),
+    # units.py reports beta = 2*mu0*n*T/B^2; Table I tabulates mu0*n*T/B^2 (its own
+    # text says 2x, but 1150/0.2 only reproduce without the 2). Compare like with
+    # like by doubling the paper value rather than silently flagging every run.
+    "beta_ab":           (2300.0,  "ablation beta (Table I 1150, x2 convention)"),
+    "beta_0":            (0.4,     "upstream beta (Table I 0.2, x2 convention)"),
     "di0_over_di_ab":    (11.18,   "d_i0 / d_i,ab"),
     "wci0_inv_over_tab": (33.9,    "gyroperiod in ablation times"),
     "lambda_ab":         (20.0,    "collisionality mfp/d_e,ab"),
 }
 
 # Rows that CLAUDE.md / RESULTS flag as knowingly off the paper. Keyed by report key.
+# Shown only for rows that are ACTUALLY off (>5%), so a faithful run's table stays
+# clean instead of carrying stale excuses.
 KNOWN_DEVIATIONS = {
-    "beta_0": "paper tabulates beta = mu0*n*T/B^2; units.py uses 2*mu0*n*T/B^2 (2x)",
-    "beta_ab": "same 2x convention, plus the n_amb 0.01-vs-0.008 error",
-    "wci0_inv_over_tab": "n_amb 25% high (1.118x) and theta_e recal (1.086x)",
+    "beta_ab": "n_amb 0.01 vs Table I's 0.008, and/or theta_e off 0.092",
+    "wci0_inv_over_tab": "n_amb 25% high (1.118x) and/or theta_e recal (1.086x)",
     "di0_over_di_ab": "n_amb is 0.01 n0; Table I is 0.008 n0",
+    "Cs_ab_over_c": "theta_e_heat recalibrated off the paper's 0.092",
+    "MA": "model M_A from model.vsh_over_Csab; the by-eye settled value is in shock_fit.yaml",
 }
 
 
@@ -174,8 +180,13 @@ def _paper_rows(sc: units.Scales, rep: dict) -> list[tuple[str, str, str, str, s
     for key, (want, label) in TABLE_I.items():
         if key not in got or got[key] is None:
             continue
+        off = False
+        try:
+            off = abs(float(got[key]) / float(want) - 1.0) > 0.05
+        except (TypeError, ValueError, ZeroDivisionError):
+            off = True
         rows.append((label, _fmt(got[key]), _fmt(want), _delta(got[key], want),
-                     KNOWN_DEVIATIONS.get(key, "")))
+                     KNOWN_DEVIATIONS.get(key, "") if off else ""))
     return rows
 
 

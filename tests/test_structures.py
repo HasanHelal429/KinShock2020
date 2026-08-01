@@ -179,9 +179,11 @@ def test_collisional_twin_of_R1_warm():
     """R1_coll must be R1_warm's collisional twin: the ONLY config differences are
     the absolute density scale (n0, so the ambient sits at 1e18 cm^-3) and the
     `collisions` block — every dimensionless quantity is untouched. The paper's Table I
-    collisionality (lambda_ab = wce_ab/nu_ei,ab = 20) must come out of the derivation
-    exactly, the deck must round-trip, and nu_ei*dt must stay well under 1 for
-    Takizuka-Abe.
+    R1_coll was built when `lambda_ab` was mis-defined (omega_ce at B0 rather than at
+    B_ab), so it targets mfp = 559 d_e,ab -- ~28x LESS collisional than Table I's
+    lambda_ab = 20. Its config is now pinned to the literal lnLambda it ran, so the
+    deck still round-trips; this test locks in that it is NOT the paper's
+    collisionality. runs/R1_paper is. nu_ei*dt must stay well under 1 for Takizuka-Abe.
     """
     from kinshock import deck, units
     warm, coll = kinshock.load(R1_WARM), kinshock.load(R1_COLL)
@@ -198,14 +200,12 @@ def test_collisional_twin_of_R1_warm():
     for k in ("de", "di0", "rho_i0", "dz"):        # lengths scale as 1/sqrt(n0)
         assert abs(getattr(sw, k) / getattr(sc, k) - 1e4) / 1e4 < 1e-9, k
 
-    # (c) the paper's Table I collisionality is hit, and is resolved in time
-    assert abs(sc.lambda_ab - 20.0) < 1e-9, f"lambda_ab = {sc.lambda_ab}"
+    # (c) R1_coll sits ~28x off Table I, and is resolved in time
+    assert abs(sc.lambda_ab - 558.6) < 0.5, f"lambda_ab = {sc.lambda_ab}"
     assert sc.nu_ei_dt < 0.1, f"nu_ei*dt = {sc.nu_ei_dt}"
     assert sw.coulomb_log is None, "R1_warm must stay collisionless"
-    # lambda_ab = wce/nu_ei is mfp/rho_e,ab, NOT mfp/d_e: with rho_e,ab = 27.9 d_e it
-    # must land at mfp ~ 559 d_e = 5.6 d_i0, i.e. still collisionless at ion scales
-    # (the premise of the paper's Fig. 13).
-    assert abs(sc.mfp_ei_ab / sc.de - 558.6) < 0.5, f"mfp/de = {sc.mfp_ei_ab/sc.de}"
+    # lambda_ab == mfp/d_e,ab exactly (Sec. II), so these are the same number.
+    assert abs(sc.mfp_ei_ab / sc.de - sc.lambda_ab) < 1e-9
     assert sc.mfp_ei_ab / sc.di0 > 1.0, f"mfp/di0 = {sc.mfp_ei_ab/sc.di0}"
 
     # guard the distinction so the two "20"s can never be silently conflated: the
@@ -282,3 +282,39 @@ def test_legacy_vA_over_c_is_refused():
     cfg["field"]["vA_over_c"] = 0.01
     with pytest.raises(KeyError, match="migrate_field_b0"):
         kinshock.units.derive(cfg)
+
+
+def test_R1_paper_hits_table_I():
+    """runs/R1_paper is the faithful Table I run: every dimensionless row must land.
+
+    Guards the four unit errors found on 2026-07-31 (RESULTS) from creeping back:
+    the ambient is 0.008 n_e,ab (not 0.01), theta_e,ab is the paper's 0.092, B0 comes
+    from Table I's own code units, and lambda_ab = mfp/d_e,ab = 20.
+    """
+    import math
+    from kinshock import units
+
+    cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_paper"))
+    sc = units.derive(cfg)
+    C = units.C
+
+    assert cfg["plasma"]["ambient"]["density_over_n0"] == 0.008
+    assert cfg["plasma"]["piston"]["theta_e_heat"] == 0.092
+    assert abs(sc.di0 / sc.di - 11.18) < 0.01, f"d_i0/d_i,ab = {sc.di0/sc.di}"
+    assert abs(sc.wci0_inv / sc.t_ab - 33.9) < 0.1, f"1/wci0 = {sc.wci0_inv/sc.t_ab} t_ab"
+    assert abs(sc.MA - 14.0) / 14.0 < 0.01, f"M_A = {sc.MA}"
+    assert abs(sc.Cs_ab / C - 0.0303) < 1e-4, f"C_s,ab/c = {sc.Cs_ab/C}"
+    # betas: units.py carries the 2x convention, so compare against 2x Table I
+    assert abs(sc.beta_ab - 2300.0) / 2300.0 < 0.01, f"beta_ab = {sc.beta_ab}"
+    assert abs(sc.beta_0 - 0.4) < 1e-3, f"beta_0 = {sc.beta_0}"
+    assert sc.n_cell == 30000, f"n_cell = {sc.n_cell}"
+    # collisions: PSC's lambda_ab = 20 dial, translated
+    assert abs(sc.lambda_ab - 20.0) < 1e-9, f"lambda_ab = {sc.lambda_ab}"
+    assert abs(sc.mfp_ei_ab / sc.de - 20.0) < 1e-9
+    ndt = cfg["collisions"]["ndt_supercycle"]
+    assert sc.nu_ei_dt * ndt < 0.1, f"nu_ei*dt*ndt = {sc.nu_ei_dt*ndt}"
+    # and WarpX's cross-section clamp must not engage at that lnLambda
+    v = math.sqrt(2 * sc.Te_ab_eV * units.QE / units.ME)
+    b0 = units.QE ** 2 / (2 * math.pi * units.EPS0 * units.ME * v * v)
+    rmin = 1.0 / (4.0 * math.pi / 3.0 * sc.n0) ** (1 / 3)
+    assert math.pi * b0 * b0 * sc.coulomb_log < 1.0 / (sc.n0 * rmin), "sigma clamped"

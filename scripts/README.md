@@ -68,7 +68,10 @@ scripts/launch.sh runs/R0 -- max_step=20     # ParmParse overrides (smoke tests)
 | `-j, --threads N` | `8` | `OMP_NUM_THREADS`. The benchmarked sweet spot is 8; beyond that the run is memory-bandwidth-bound. |
 | `-w, --warpx PATH` | `$KINSHOCK_WARPX`, else `/home/hhelal/warpx-cda/build/bin/warpx.1d` | WarpX binary. |
 | `-b, --background` | off | Detach via `nohup` and return immediately, printing the PID. |
-| `-L, --logger` | off | Also start `run_progress_logger.py` in the background (stdout → `<run_dir>/logger.out`, gitignored). |
+| `-L, --logger` | **on** | Start `run_progress_logger.py` in the background (stdout → `<run_dir>/logger.out`, gitignored). On by default — every run should leave a `progress.log`. |
+| `--no-logger` | off | Suppress the progress logger. Rarely wanted: the run then leaves no wall-clock record. |
+| `--every-pct P` | `10` | Logger checkpoint every P percent of `max_step`. On a 12 h run the default 10% is ~1.2 h per line — use `0.5`–`1` for a run you want to watch. |
+| `--poll S` | `30` | Logger poll interval, seconds. |
 | `-f, --force` | off | Launch even though `diags/` already has output, overwriting it. |
 | `-n, --dry-run` | off | Print what would run and exit. Warns instead of failing on a populated `diags/`. |
 | `-- <args>` | — | Everything after `--` is appended as ParmParse overrides. **Not** reflected in `config.yaml`, so `make_inputs.py --verify` will flag them afterwards — smoke tests only, never physics. |

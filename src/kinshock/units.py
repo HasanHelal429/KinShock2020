@@ -282,7 +282,12 @@ def derive(cfg: dict) -> Scales:
         coulomb_log = coulomb_log_for(cfg["collisions"], n0, Te_ab_eV, vte_ab, de, wce_ab)
         nu_ei_ab = nu_ei(n0, Te_ab_eV, coulomb_log)
         mfp_ei_ab = vte_ab / nu_ei_ab
-        lambda_ab = wce_ab / nu_ei_ab
+        # Schaeffer 2020 Sec. II: lambda_ab = omega_ce,ab/nu_ei,ab = mfp/d_e,ab, with
+        # omega_ce,ab at the FUNDAMENTAL field B_ab = sqrt(mu0 n_e,ab T_e,ab). Since
+        # rho_e(B_ab) = c/omega_pe = d_e exactly, that IS mfp/d_e. Using `wce_ab`
+        # (which is at B0) instead overstates it by sqrt(beta_ab) ~ 34x -- the bug
+        # corrected 2026-08-01 (see coulomb_log_for).
+        lambda_ab = mfp_ei_ab / de
         nu_ei_dt = nu_ei_ab * dt
         # Upstream ion-ion mfp under the lnLambda actually in force. The same
         # forced lnLambda applies to every pair in the deck (one `coulomb_log`
@@ -360,8 +365,16 @@ def coulomb_log_for(coll: dict, n0: float, Te_ab_eV: float, vte_ab: float,
     ``mfp_over_de``
         electron mean free path v_te,ab/nu_ei,ab in ablation skin depths.
     ``lambda_ab``
-        the paper's collisionality lambda_ab = omega_ce,ab/nu_ei,ab (Schaeffer
-        2020 Table I uses 20; note this equals mfp/rho_e,ab, NOT mfp/d_e).
+        the paper's collisionality. Schaeffer 2020 Sec. II defines it as
+        lambda_ab = omega_ce,ab/nu_ei,ab = **mfp/d_e,ab**, with omega_ce,ab taken at
+        the FUNDAMENTAL field B_ab = sqrt(mu0 n_e,ab T_e,ab), not at B0. The identity
+        is exact because rho_e(B_ab) = sqrt(m_e/(mu0 n e^2)) = c/omega_pe = d_e,ab.
+        So this is identical to ``mfp_over_de`` and Table I's 20 means mfp = 20 d_e,ab.
+
+        CORRECTED 2026-08-01: this branch used omega_ce at **B0**, which is larger by
+        sqrt(beta_ab) (~34x here), so it silently targeted a ~28-34x longer mean free
+        path. runs/R1_coll was built against the old meaning and is pinned to an
+        explicit ``coulomb_log`` so its deck is unchanged; see its README.
     ``coulomb_log``
         set lnLambda directly (``value: physical`` uses the NRL formula).
     """
@@ -375,7 +388,9 @@ def coulomb_log_for(coll: dict, n0: float, Te_ab_eV: float, vte_ab: float,
     if quantity == "mfp_over_de":
         return (vte_ab / (float(value) * de)) / rate1
     if quantity == "lambda_ab":
-        return (wce_ab / float(value)) / rate1
+        # lambda_ab = mfp/d_e,ab exactly (see docstring); wce_ab is at B0 and is NOT
+        # the right gyrofrequency here.
+        return (vte_ab / (float(value) * de)) / rate1
     raise ValueError(f"unknown collisions.target.quantity {quantity!r}; expected one of "
                      "'mfp_over_de', 'lambda_ab', 'coulomb_log'")
 
