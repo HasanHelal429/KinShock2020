@@ -89,6 +89,9 @@ def main():
     ap.add_argument("--fps", type=int, default=8)
     ap.add_argument("--vsh-c", type=float, default=None,
                     help="shock speed in units of c (default: model value from config)")
+    ap.add_argument("--only", choices=("ni", "phase"), default=None,
+                    help="render just one movie (default: both). Useful mid-run, "
+                         "when you only want the phase space as a progress check.")
     args = ap.parse_args()
 
     cfg = kinshock.load(args.run_dir)
@@ -96,8 +99,10 @@ def main():
     vsh = args.vsh_c * kinshock.units.C if args.vsh_c else sc.vsh_model
     pfs = io.plotfiles(args.run_dir)
     print(f"{cfg['meta']['run_id']}: {len(pfs)} plotfiles -> movies (v_sh={vsh/kinshock.units.C:.4f} c)")
-    movie_ni(pfs, cfg, sc, args.fps)
-    movie_phase(pfs, cfg, sc, vsh, args.fps)
+    if args.only != "phase":
+        movie_ni(pfs, cfg, sc, args.fps)
+    if args.only != "ni":
+        movie_phase(pfs, cfg, sc, vsh, args.fps)
 
 
 if __name__ == "__main__":

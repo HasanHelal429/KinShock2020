@@ -1252,3 +1252,105 @@ convention and the 0.01-vs-0.008 ambient without anyone having to re-read RESULT
 between `<!-- prose:begin -->` / `<!-- prose:end -->` is hand-written and preserved across
 regeneration; tables are always rewritten. `--check` fails on a stale one. R1_warm and R1_coll
 have seeded prose; the other 12 carry the placeholder.
+
+## R1_paper finished + analysed: M_A lands at 14.8, but θ_e,ab is a *rate*, not a temperature (2026-08-01)
+
+`runs/R1_paper` ran to completion: **322,400 steps in 16h09m** @ 8 threads (mean 0.180 s/step),
+51 particle frames + 1291 field-only frames, t·ω_ci0 ∈ [0, 6.49]. `make_inputs --verify` →
+`OK (WarpX ran exactly this config)`; `run_checks` validation OK; `make_run_readme --check` clean.
+
+### Two fronts, not one — and the fast one is the shock
+
+The first pass at a by-eye fit rode the **piston** edge (0.118 c), because the n_e streak is
+dominated by the 250 n_e0 piston plasma. Separating the deposited per-species rho fixes it
+(outer 2 d_i0 guarded throughout, per the open-hi artifact note):
+
+| tracker | v | M_A |
+|---|---|---|
+| ambient compression, leading edge (n_amb > 2 n_e0) | 0.1484 c | 14.84 |
+| B ramp (smoothed B_perp > 3 B0) | 0.150 c | 15.0 |
+| **piston front** (n_piston > 0.5 n_e0) | **0.1145 c** | 11.45 |
+
+Shock–piston separation grows monotonically 1.7 → 15.5 d_i0 through t·ω_ci0 = 5.3 (it only
+shrinks after, when the shock hits the boundary). The shock decoupling from its driver is the
+formation signature, and it is unambiguous here. `shock_fit.yaml` set to **v_sh = 0.148 c,
+z0 = 0** (M_A = 14.80, M_ms = 13.51).
+
+| quantity | R1_paper | Table I | note |
+|---|---|---|---|
+| M_A | **14.80** | 14 | +5.7% (R1_warm: 12.85) |
+| v_sh / C_s,ab | 4.88 | 4.6 | +6% |
+| v_sh / v_p (model v_p) | 1.42 | ≈ 4/3 | |
+| v_sh / v_p (**measured** v_p = 0.1145 c) | **1.29** | ≈ 4/3 | the honest comparison |
+| onset t*₁ | 1.30 ω_ci0⁻¹ | ≈ 1 | R1_warm 1.35 |
+| onset z*₁ | 1.6 ρ_i0 | ≈ 1 | R1_warm 1.46 |
+| reflected fraction G (peak) | 0.234 | present | R1_half 0.30 |
+
+**The 1.218× clock bias does not explain the onset gap.** CLAUDE.md's leading hypothesis was that
+the wrong ambient density biased every t·ω_ci0 observable late by 1.218×, which predicted
+t*₁ → 1.35/1.218 = **1.11**. R1_paper is built with the corrected clock (B0 primary, n_amb =
+0.008) and measures **1.30**. Given RESULTS' own ±0.4 detection sensitivity on these near-identical
+G curves this is suggestive rather than decisive, but the clock was clearly not the dominant term.
+
+### Compression: quote the front-following window, never criteria.json's globals
+
+`criteria.json` reports n_compression = 278 and B_compression = 61.7 — those are the piston and
+the boundary spike. In a window that follows the front ([z_f−5, z_f+2] d_i0, outer 2 d_i0 cut,
+t·ω_ci0 ∈ 1.5–5.3, 94 field frames):
+
+* ambient density compression n/n_e0 = **7.1 mean / 7.0 median / 9.0 max**
+* field compression B_perp/B0 = **11.9 mean / 12.0 median / 13.9 max**
+
+### Criteria: 6 of 7, and criterion 2 fails exactly as the config predicted
+
+51/51 super-magnetosonic, 51/51 density compression, 50/51 field compression, 50/51 steep ramp,
+50/51 reflected ions, 49/51 piston separation — and **0/51 collisionless**, λ_ii/d_i0 = 0.0150
+against the 350 threshold. So `is_shock` is false in every frame, the same structural outcome as
+R1_coll and for the same reason. The config header called this in advance ("the 350 row describes
+the EXPERIMENT, not the run"); criterion 2's threshold is not applicable to a run that targets
+λ_ab = 20 at µ_p = 100.
+
+### θ_e,ab = 0.092 is a heating rate, and the run is 2.5× less collisional than configured
+
+`plasma.piston.theta_e_heat` is threaded config → deck → `warpx_used_inputs` intact, so the run
+used the paper's number. But `ParticleHeater.cpp:191-207` implements PSC's `HeatingSpotFoil`,
+`H = 8·θ^{3/2}/(√(M_i/m_e)·width/d_e)·c²ω_pe`, applied as momentum diffusion `d⟨u_i²⟩/dt = H`.
+**Nothing thermostats the electrons to θ.** Measured (weight-weighted, per-cell drift subtracted,
+isotropic in x/y/z, steady from t·ω_ci0 = 1.3 to 5.45):
+
+| region | n_e/n_e,ab | θ_e | vs 0.092 |
+|---|---|---|---|
+| target slab, 0–0.18 d_i0 | 1.93 | 0.219 (112 keV) | 2.38× |
+| ablation front, 0.18–2.9 d_i0 | 0.99 | 0.146 (74.5 keV) | 1.58× |
+| plume, 8.2–10.9 d_i0 | 0.62 | 0.091 | 0.99× |
+
+There is no point where n = n_e,ab *and* θ = 0.092 simultaneously. Consequence for collisionality:
+lnΛ = 3.00×10⁹ was inverted assuming T_e,ab = 47 keV, but WarpX's Perez operator is dimensional
+and uses the real local state, and mfp ∝ T²/n, so the **delivered λ_ab ≈ 51 at the ablation front
+(59 in the slab) against the configured 20** — R1_paper is ~2.5× less collisional than intended.
+Same direction as the R1_coll error, different cause (that one was ω_ce at B0; this is T_e).
+
+This probably does *not* break PSC fidelity — PSC uses the identical formula with the identical θ,
+so its electrons should land at the same temperature and 0.092 is plausibly its input parameter
+too. What it does break is every **derived** quantity that reads 0.092 as a temperature: C_s,ab ∝
+√θ_e, hence t_ab, the M_A/M_ms normalizations, β_ab, and `vsh_model`. TODO: decide whether
+`units.derive` should carry a measured-T_e,ab override, or whether the Table I comparison should
+be restated against the measured ablation temperature.
+
+### Tooling: the conservation check has been vacuous since it was written
+
+`run_checks.operator_balance_figure` indexed the EP/PN reduced diags at columns 0/1 — but
+`io.reduced_diag` keeps the step column, so those are *step* and *time*. Both panels plotted
+step-versus-time, for every run ever checked. Fixed to columns 1/2. R1_paper now reads: total
+particle energy grows linearly to **2553× E(0)** (heater + injector driving an open system, as
+designed) and macroparticles 6.00×10⁶ → 7.65×10⁶, with a rollover at t·ω_pe ≈ 58,000
+(t·ω_ci0 ≈ 5.2) as the shock reaches the open boundary and particles start leaving.
+
+### Housekeeping
+
+* `make_movies.py` gained `--only {ni,phase}` so the phase movie can be rendered mid-run.
+* Fig. 7 regenerated on the documented convention times (`--phase-times 0.15 0.49 0.73 0.98 1.25`
+  → snapping to 0.13/0.52/0.78/1.04/1.30 at this run's cadence), both `d_i0` and `rho_i0`. The
+  bare `make_figures.py` pass earlier in the session had reverted it to the default spread —
+  exactly the trap documented on 2026-07-27.
+* Clean physics window is **t·ω_ci0 ≲ 5.3**; the front reaches the guard limit (78.5 d_i0) at ≈5.4.
