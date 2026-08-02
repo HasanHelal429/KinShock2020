@@ -1,0 +1,8 @@
+# Shock kinematics fitted BY EYE with scripts/tune_shock.py -- the SINGLE
+# SOURCE OF TRUTH for v_sh and the front trajectory z_front(t), consumed by
+# make_figures / crosscheck. z_front(t) = z0 + v_sh*t, with optional per-time
+# (t*wci0) overrides in fronts_de. Speed in c, lengths in d_e.
+shock:
+  v_sh_over_c: 0.148
+  z0_de: 0.0
+  fronts_de: {}
