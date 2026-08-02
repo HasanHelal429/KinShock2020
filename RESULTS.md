@@ -1398,3 +1398,69 @@ the rescaling unchanged** — no need to re-tune by eye after the rerun.
 **Still open:** the other 15 run configs remain at n0 = 1.0e18 and are each matched to a
 completed run, so they were left alone. R1_coll is the one that matters (its collisionality
 is absolute); it sits at 1.0e26, still 6x below Table I.
+
+## 2026-08-02 — Physical lnLambda vs the lambda_ab = 20 dial: a matched pair at t*wci0 = 0.389
+
+Two runs, identical in every key except `collisions.target`, both 19344 steps (t*wci0 =
+0.389, pre-shock) at ppc 25, 1h01m each:
+
+* `runs/R1_paper_dial` — `lambda_ab: 20.0`      -> lnLambda = 1.2235e5 (the dial)
+* `runs/R1_paper_phys` — `coulomb_log: physical` -> lnLambda = 10.836 (NRL at this n,T)
+
+Verified single-variable by diffing the parsed YAML; both give MA = 13.952, Mms = 12.737,
+dt = 1.6282e-16, 30000 cells, B0 = 70.273 T. A matched control was needed rather than
+reusing R1_paper because that run is at ppc 100 and this grid heats numerically as
+1/sqrt(ppc) — the very effect under measurement.
+
+**Collisions transfer electron energy to ions, as they should.** Final-frame temperatures
+(mean of the three directional temperatures, weighted):
+
+| species | dial (collisional) | phys (collisionless) | phys/dial |
+|---|---|---|---|
+| piston_electrons | 69 678 eV | 84 769 eV | 1.22 |
+| piston_ions      | 37 635 eV | 19 764 eV | **0.53** |
+| amb_electrons    |  9 623 eV | 11 167 eV | 1.16 |
+| amb_ions         |  8 791 eV |  7 203 eV | 0.82 |
+
+With the dial on, piston ions are **1.90x hotter** and piston electrons 0.82x cooler: the
+collisional operator is draining the heated electrons into the ions. Without it the energy
+stays where the heater put it.
+
+**Collisions isotropize, and that is the cleanest single signature.** T_perp/T_par:
+
+| species | dial | phys |
+|---|---|---|
+| piston_electrons | **1.025** | 1.298 |
+| amb_electrons    | **0.680** | 0.413 |
+
+66 electron collision times have elapsed by step 19344 at the dial (vs 5.8e-3 at the
+physical value), and the dial run has driven the piston electrons to within 2.5% of
+isotropy while the collisionless run retains a 30% perpendicular excess. Both species move
+toward T_perp/T_par = 1 with collisions on.
+
+**Bulk dynamics barely care at this early time.** n_compression 320 (dial) vs 315 (phys),
+1.6%; piston_separation/rho_i0 identical at 0.554; M_ms,front identical at 13.51.
+reflected_fraction_G is 0.00374 (dial) vs 0.00276 (phys), i.e. 36% more reflected ions with
+collisions, but both are ~0.3% and this is pre-shock. Criteria 4 (field compression) and 5
+(steep ramp) are False in BOTH — no shock by t*wci0 = 0.389, expected since onset is ~1.
+`first shock (crit 1-7) = None` for both.
+
+**Criterion 2 flips True/False, but that is definitional, not a discovery.**
+`criteria.json`'s `lambda_ii_over_di0` (168.8 phys / 0.014951 dial) is computed from
+`Scales.mfp_ii_amb`, i.e. from the config, NOT measured from the plotfiles. So the flip
+merely restates the input. The measured results are the temperatures, anisotropies,
+compression and reflected fraction above.
+
+**Where this leaves the two Table I rows.** The physical lnLambda puts upstream
+mfp_ii/d_i0 at 168.8 against Table I's quoted 350 — within 2.1x, where the dial misses by
+2.3e4x — but it puts lambda_ab at 2.2581e5 against Table I's 20, missing by 1.1e4x. Still
+one knob, still two rows. Confirms Sec. II's own statement that the fix is mu_p = 1836.
+
+**NB on the 347 rule in CLAUDE.md.** `lambda_ii/d_i0 ~ 347*(11.567/lnLambda)` reproduces
+R1_coll exactly (346.5 at its physical lnLambda = 11.567) but is **density-specific** and
+does not transfer: mfp_ii/d_i0 ~ T_i^2/(n_amb^(1/2) lnLambda), and R1_paper's ambient is
+4.8e24 m^-3 against R1_coll's 1e24, so sqrt(4.8) = 2.19x shorter. Observed ratio
+168.803/346.463 = 0.48722 against (1/sqrt(4.8))*(11.567/10.836) = 0.48722.
+
+**Caveat: pre-shock only.** These runs say nothing about whether the physical lnLambda
+still yields a collisionless *shock* — that needs t*wci0 >~ 1, i.e. ~50k steps.
