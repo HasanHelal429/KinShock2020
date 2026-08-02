@@ -67,7 +67,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 
 | Quantity | Value | config key |
 |---|---|---|
-| reference density n0 [m^-3] | 1.0e18 | `reference.n0` |
+| reference density n0 [m^-3] | 6.0e26 | `reference.n0` |
 | mass ratio m_i/m_e | 100 | `reference.mass_ratio` |
 | charge state Z | 1 | `reference.charge_state` |
 | target density / n0 | 2 | `plasma.piston.density_over_n0` |
@@ -77,7 +77,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | ambient density / n0 | 0.008 | `plasma.ambient.density_over_n0` |
 | ambient theta_0 | 0.002 | `plasma.ambient.theta_0` |
 | field orientation | perpendicular | `field.orientation` |
-| **B0 [T]** | 0.0028689 | `field.B0_tesla` |
+| **B0 [T]** | 70.2734 | `field.B0_tesla` |
 | dims | 1 | `geometry.dims` |
 | layout | one_sided | `geometry.layout` |
 | slab halfwidth [d_i] | 2 | `geometry.slab_halfwidth_di` |
@@ -97,16 +97,16 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 
 | Quantity | Value | From |
 |---|---|---|
-| omega_pe [rad/s] | 5.64146e+10 | sqrt(n0 q^2/(eps0 m_e)) |
-| d_e [m] | 0.00531409 | c/omega_pe |
-| d_i,ab [m] | 0.0531409 | d_e*sqrt(m_i/m_e) |
+| omega_pe [rad/s] | 1.38187e+15 | sqrt(n0 q^2/(eps0 m_e)) |
+| d_e [m] | 2.16947e-07 | c/omega_pe |
+| d_i,ab [m] | 2.16947e-06 | d_e*sqrt(m_i/m_e) |
 | C_s,ab / c | 0.0303315 | sqrt(theta_e,ab/mass_ratio) |
-| t_ab [s] | 5.84406e-09 | d_i,ab / C_s,ab |
-| n_amb [m^-3] | 8e+15 | density_over_n0 * n0 |
-| d_i0 [m] | 0.594134 | c/omega_pi(n_amb) |
+| t_ab [s] | 2.38583e-13 | d_i,ab / C_s,ab |
+| n_amb [m^-3] | 4.8e+24 | density_over_n0 * n0 |
+| d_i0 [m] | 2.42554e-05 | c/omega_pi(n_amb) |
 | d_i0 / d_e | 111.803 | derived |
-| **omega_ci0 [rad/s]** | 5.04588e+06 | **q_e*B0/m_i — B0 only, no n_amb** |
-| 1/omega_ci0 [s] | 1.98182e-07 | 1/omega_ci0 |
+| **omega_ci0 [rad/s]** | 1.23598e+11 | **q_e*B0/m_i — B0 only, no n_amb** |
+| 1/omega_ci0 [s] | 8.09073e-12 | 1/omega_ci0 |
 | **v_A / c** | 0.01 | **B0/sqrt(mu0*n_amb*m_i) — DERIVED** |
 | rho_i0 / d_e | 1162.76 | v_p/omega_ci0 / d_e |
 | v_p / c (model) | 0.104 | config model.vp_over_c |
@@ -115,16 +115,16 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | M_ms | 12.7368 | v_sh/sqrt(v_A^2+C_s0^2) |
 | beta_ab | 2300 | 2*mu0*n0*T_e,ab/B0^2 |
 | beta_0 | 0.4 | 2*mu0*n_amb*T_0/B0^2 |
-| dz [m] | 0.00159423 | dz_over_de * d_e |
-| dt [s] | 3.98833e-12 | CFL-limited |
+| dz [m] | 6.50841e-08 | dz_over_de * d_e |
+| dt [s] | 1.62823e-16 | CFL-limited |
 | dt*omega_pe | 0.225 | dt * omega_pe |
 | n_cell | 30000 | domain / dz (halved when one_sided) |
 | steps per 1/omega_ci0 | 49690.4 | 1/(omega_ci0*dt) |
 | run length [1/omega_ci0] | 6.48817 | max_step * dt * omega_ci0 |
 | T_e,ab [eV] | 47011.9 | theta_e,ab * m_e c^2 |
-| lnLambda (used) | 2.99691e+09 | units.coulomb_log_for(collisions.target) |
-| lnLambda (physical) | 20.9426 | NRL at (n0, T_e,ab) |
-| nu_ei,ab [1/s] | 8.5557e+08 | NRL electron-ion |
+| lnLambda (used) | 122348 | units.coulomb_log_for(collisions.target) |
+| lnLambda (physical) | 10.8364 | NRL at (n0, T_e,ab) |
+| nu_ei,ab [1/s] | 2.09571e+13 | NRL electron-ion |
 | nu_ei*dt | 0.00341229 | must be << 1 |
 | mfp_ei,ab / d_e | 20 | v_te/nu_ei / d_e |
 | lambda_ab | 20 | omega_ce,ab/nu_ei,ab = mfp/d_e,ab |
@@ -143,7 +143,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | upstream beta (Table I 0.2, x2 convention) | 0.4 | 0.4 | 1.000x (-0.0%) ok |  |
 | d_i0 / d_i,ab | 11.1803 | 11.18 | 1.000x (+0.0%) ok |  |
 | gyroperiod in ablation times | 33.9116 | 33.9 | 1.000x (+0.0%) ok |  |
-| collisionality mfp/d_e,ab | 20 | 20 | 1.000x (+0.0%) ok |  |
+| collisionality mfp/d_e,ab | 20 | 20 | 1.000x (-0.0%) ok |  |
 
 ## Files
 

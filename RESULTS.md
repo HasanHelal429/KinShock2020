@@ -1354,3 +1354,47 @@ designed) and macroparticles 6.00×10⁶ → 7.65×10⁶, with a rollover at t·
   bare `make_figures.py` pass earlier in the session had reverted it to the default spread —
   exactly the trap documented on 2026-07-27.
 * Clean physics window is **t·ω_ci0 ≲ 5.3**; the front reaches the guard limit (78.5 d_i0) at ≈5.4.
+
+## 2026-08-02 — R1_paper's reference density was 6e8x low; corrected to Table I's 6e20 cm^-3
+
+`runs/R1_paper/config.yaml` carried `reference.n0 = 1.0e18 m^-3` — R1_warm's arbitrary
+placeholder, inherited by every run in the repo. Table I's own SI column gives
+**n_e,ab = 6e20 cm^-3 = 6.0e26 m^-3**, so the config was low by 6e8. Corrected today,
+together with the B0 it controls.
+
+* **Table I's SI densities also confirm the 0.008 ambient independently.** Table I lists
+  n_e,ab = 6e20 cm^-3 and n_e0 = 4.8e18 cm^-3, and 4.8e18/6e20 = **0.008 exactly** — a
+  fourth confirmation of the 2026-07-31 finding, alongside d_i0/d_i,ab = 11.18,
+  beta_ab = 1158 and omega_ci0^-1/t_ab = 34.0.
+* **B0 had to move with it.** `B0 ~ sqrt(n0)` (CLAUDE.md's absolute-tesla caveat), so
+  B0_tesla went 2.8688981230645468e-3 -> **70.27336525536518 T** (x24494.897). Recomputed
+  from the config's own primary definition, B0 = 0.01*m_e*wpe(n0/1.25)/q_e, not by scaling
+  the old float; the independent M_A = 14 cross-check gives 70.035 T, still agreeing to
+  **0.339%** — the same margin as at the old density.
+* **The correction is exactly physics-neutral.** Every dimensionless row is bit-identical:
+  v_A/c, C_s,ab/c, beta_ab, beta_0, T_e,ab, lambda_ab = 20, nu_ei*dt = 3.4e-3,
+  mfp_ii/d_i0 = 0.0150, rho_i0/d_e = 1162.8, dt*wpe = 0.225, n_cell = 30000.
+  `run_checks.py` still reports M_A = 13.952, M_ms = 12.737, validation OK.
+* **The real gain is the collision dial.** lnLambda ~ n0^(-1/2), so the deck's value drops
+  **2.997e9 -> 1.223e5** while the NRL physical value at (n0, T_e,ab) goes 20.9 -> 10.8.
+  R1_paper is therefore 1.1e4x physical instead of 1.4e8x — still a dial (see the
+  2026-08-01 entry on why PSC's lambda0 is equally unphysical), but four orders better.
+* **Checked the one non-invariant safety margin.** WarpX's clamp is
+  `sigma_eff = min(pi*b0^2*lnLambda, sigma_max)` with `sigma_max = 1/(maxn*rmin)` and
+  `rmin = (4pi/3*maxn)^(-1/3)` (`ElasticCollisionPerez.H:88,94`). b0 is set by relative
+  velocity and so is invariant here, leaving sigma_eff/sigma_max ~ n0^(1/6): it grows 29x,
+  8.7e-6 -> **2.5e-4**, still a 4.0e3x margin, so the clamp never engages. (The config
+  header's old "5e-6" was slightly optimistic; 8.7e-6 was the actual value. Same verdict.)
+
+**The completed 16h09m run is now stale and must be relaunched.** Its plotfiles are in SI,
+so they cannot be reinterpreted under the new scales — `--verify` reports
+`prob_hi: deck 47.8268 vs config 0.00195252`, and any normalized analysis against the old
+`diags/` is meaningless. Deleted the two plotfile-derived figures
+(`media/testing/R1_paper_{loaded_state,operator_balance}.png`) so they cannot be mistaken
+for current; `R1_paper_config_summary.png` is config-only and remains valid.
+`shock_fit.yaml` is stored in normalized units (v_sh/c, lengths in d_e) and so **survives
+the rescaling unchanged** — no need to re-tune by eye after the rerun.
+
+**Still open:** the other 15 run configs remain at n0 = 1.0e18 and are each matched to a
+completed run, so they were left alone. R1_coll is the one that matters (its collisionality
+is absolute); it sits at 1.0e26, still 6x below Table I.
