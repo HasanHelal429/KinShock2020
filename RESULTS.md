@@ -1572,3 +1572,31 @@ The EPW notch defaults to exactly the IAW window (518.7-545.3 nm scaled, 474.9-5
 unscaled), so the two panels are complementary: the EPW figure blanks what the IAW figure
 resolves. Without it the unshifted probe light and the ion feature dominate the colour
 scale and the satellites are invisible.
+
+### 2026-08-03 (addendum 2) — the fig7 default-times trap caught R1_paper too
+
+The bare `make_figures.py runs/R1_paper` passes run earlier today silently rebuilt
+`shock_fig7.png` on the **default** `--nframes 5` spread instead of the convention times,
+exactly as documented on 2026-07-27 and as happened to R1_warm on 2026-07-29. The tell was
+again the mtime mismatch: `shock_fig7.png` freshly written while `shock_fig7_rho_i0.png`
+still carried an 08-01 date, because the default pass does not write the rho_i0 variant.
+
+Rebuilt both on the convention times:
+
+    python scripts/make_figures.py runs/R1_paper --only fig7 \
+        --fig7-xunits d_i0 rho_i0 --phase-times 0.15 0.49 0.73 0.98 1.25
+
+which snap to t*wci0 = **0.13 / 0.52 / 0.78 / 1.04 / 1.30** at this run's 51-frame cadence
+(R1_warm's snapped to 0.11/0.45/0.68/1.01/1.24 -- the requested times are the same, the
+available frames differ). The panels show the reflected-ion branch above v_z/v_sh = 1
+building through the formation interval, with B_x/B_0 reaching ~6 and the n_e/n_e0 ramp
+co-located, consistent with the criteria table above (49/51 frames pass everything but
+criterion 2).
+
+Also regenerated `shock_phase.mp4`, which was dated 08-01 13:19 -- older than even the
+superseded run, and rendered while `io.load_frame` was still returning B = 0. Rebuilt from
+the new plotfiles with `--vsh-c 0.148` so its reflected-ion threshold uses `shock_fit.yaml`'s
+by-eye v_sh rather than the config model value of 0.1395 c.
+
+Still stale in `media/R1_paper/`: `tune_trajectory.png` (08-01 21:54). That one comes from
+`tune_shock.py`, which is a BY-EYE fit and deliberately not auto-run.
