@@ -54,7 +54,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from kinshock import config as kconfig  # noqa: E402
 from kinshock import units  # noqa: E402
-from kinshock.units import ME  # noqa: E402
+from kinshock.units import ME, MP  # noqa: E402
 
 PLASMAPY_SRC = os.environ.get(
     "KINSHOCK_PLASMAPY", os.path.expanduser("~/Schaeffer_PlasmaPy/src")
@@ -142,6 +142,20 @@ def window(half_nm, probe_nm, bins):
     return np.linspace(probe_nm - half, probe_nm + half, bins)
 
 
+def resolve_scale_factor(value, cfg):
+    """Resolve ``--velocity-scale-factor`` to a number, or None for no rescaling.
+
+    ``physical`` derives it from the config: R = (m_p/m_e) / mass_ratio, the factor
+    by which the run's reduced mass ratio understates the real one (18.36 at
+    mass_ratio = 100). Mirrors ``collisions.target.value: physical`` elsewhere.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str) and value.lower() == "physical":
+        return (MP / ME) / float(cfg["reference"]["mass_ratio"])
+    return float(value)
+
+
 def model(pt, electrons, ions, cfg, scales, args):
     """Forward-model both features. Returns the pipeline's spectrogram object."""
     import astropy.units as u
@@ -149,20 +163,46 @@ def model(pt, electrons, ions, cfg, scales, args):
     c = 299792458.0
     angle = np.deg2rad(args.angle)
 
+    R = resolve_scale_factor(args.velocity_scale_factor, cfg)
+    # v -> v/sqrt(R) inside condition_phase_space. The windows below are sized from
+    # the RAW phase spaces, which the pipeline has not rescaled yet, so they must be
+    # divided by the same sqrt(R) or they end up sqrt(R) too wide.
+    vscale = 1.0 if R is None else float(np.sqrt(R))
+    if R is not None:
+        print(f"  velocity scale factor R = {R:.4g}  ->  v / sqrt(R) = v / {vscale:.4g}")
+        print("    (mass-ratio reduction: puts velocities on real-m_p scales. Note it "
+              "does NOT undo the reduced-c temperature offset.)")
+
     e_sigma = peak_sigma(pt, electrons)
     i_sigma = peak_sigma(pt, ions)
-    print(f"  electron sigma {e_sigma:.4g} m/s ({e_sigma / c:.3f} c)")
-    print(f"  ion      sigma {i_sigma:.4g} m/s ({i_sigma / c:.4f} c)")
+    print(f"  electron sigma {e_sigma:.4g} m/s ({e_sigma / c:.3f} c)"
+          + (f"  ->  {e_sigma / vscale:.4g} ({e_sigma / vscale / c:.4f} c)" if R else ""))
+    print(f"  ion      sigma {i_sigma:.4g} m/s ({i_sigma / c:.4f} c)"
+          + (f"  ->  {i_sigma / vscale:.4g} ({i_sigma / vscale / c:.5f} c)" if R else ""))
 
-    epw_half = 2.0 * doppler_nm(e_sigma, args.probe_wavelength, angle, c)
+    epw_half = 2.0 * doppler_nm(e_sigma / vscale, args.probe_wavelength, angle, c)
     # Size the IAW window from the ion-acoustic speed, NOT the ion thermal sigma:
     # the piston drift dominates that sigma, and using it widens the window ~6x
     # until the doublet spans 2-3 pixels.
-    cs_shift = doppler_nm(scales.Cs_ab, args.probe_wavelength, angle, c)
+    cs_shift = doppler_nm(scales.Cs_ab / vscale, args.probe_wavelength, angle, c)
     iaw_half = args.iaw_halfwidths * cs_shift
-    print(f"  C_s,ab {scales.Cs_ab:.4g} m/s -> IAW doublet at +/-{cs_shift:.1f} nm")
+    print(f"  C_s,ab {scales.Cs_ab / vscale:.4g} m/s -> IAW doublet at +/-{cs_shift:.1f} nm")
     print(f"  EPW window +/-{min(epw_half, args.probe_wavelength - 40):.1f} nm")
     print(f"  IAW window +/-{min(iaw_half, args.probe_wavelength - 40):.1f} nm")
+
+    # Stray-light notch on the EPW window. A real diagnostic blocks the probe line,
+    # or the unshifted light and the ion feature swamp the far weaker EPW satellites.
+    # Default it to exactly the IAW window, so the two figures are complementary:
+    # what the EPW panel blanks is what the IAW panel resolves.
+    if args.no_notch:
+        epw_notches = None
+        print("  EPW notch: none (--no-notch)")
+    else:
+        lo, hi = (args.notch if args.notch is not None
+                  else (args.probe_wavelength - iaw_half, args.probe_wavelength + iaw_half))
+        epw_notches = [[lo, hi]] * u.nm
+        how = "explicit" if args.notch is not None else "= IAW window"
+        print(f"  EPW notch: {lo:.1f} - {hi:.1f} nm ({how})")
 
     position = args.position
     if position is None:
@@ -186,14 +226,19 @@ def model(pt, electrons, ions, cfg, scales, args):
         probe_wavelength=args.probe_wavelength * u.nm,
         epw_wavelengths=window(epw_half, args.probe_wavelength, args.wavelength_bins) * u.nm,
         iaw_wavelengths=window(iaw_half, args.probe_wavelength, args.wavelength_bins) * u.nm,
+        epw_notches=epw_notches,
+        # No IAW notch: the ion feature is the whole point of that window.
+        iaw_notches=None,
         probe_vec=(1.0, 0.0, 0.0),
         scatter_vec=(0.0, 1.0, 0.0),
         electron_conditioning=conditioning,
         ion_conditioning=conditioning,
+        # Top-level, NOT inside the conditioning dicts -- the pipeline rejects it there.
+        velocity_scale_factor=R,
         # S(k, omega) rather than power per unit wavelength.
         scattered_power=False,
         progress=True,
-    )
+    ), R
 
 
 def panel(out_dir, kind, data, wavelengths_m, alpha, t, probe_nm, title, fname):
@@ -269,6 +314,24 @@ def main():
                     help="physical species the simulation ions stand for")
     ap.add_argument("--iaw-halfwidths", type=float, default=2.5, metavar="N",
                     help="IAW window half-width in units of the C_s Doppler shift")
+    ap.add_argument("--velocity-scale-factor", default=None, metavar="R",
+                    help="mass-ratio reduction factor R: velocities are divided by "
+                         "sqrt(R), putting the spectra on real-ion-mass scales instead "
+                         "of the simulation's. 'physical' derives it from the config as "
+                         "(m_p/m_e)/mass_ratio (= 18.36 at mass_ratio 100). Omitted by "
+                         "default, so velocities are the simulation's own. NB this is a "
+                         "PARTIAL physical correction: it does not undo the reduced-c "
+                         "temperature offset (T_e,ab = 47 keV here vs Table I's 470 eV).")
+    ap.add_argument("--notch", nargs=2, type=float, default=None, metavar=("LO", "HI"),
+                    help="stray-light notch on the EPW window, in nm. Defaults to the "
+                         "IAW window, so the EPW panel blanks exactly what the IAW panel "
+                         "resolves — as a real diagnostic does, blocking the probe line "
+                         "so it does not swamp the far weaker EPW satellites.")
+    ap.add_argument("--no-notch", action="store_true",
+                    help="disable the EPW notch entirely")
+    ap.add_argument("--tag", default=None,
+                    help="filename suffix, so variants do not overwrite each other. "
+                         "Defaults to 'scaled' when --velocity-scale-factor is given.")
     ap.add_argument("--wavelength-bins", type=int, default=400)
     ap.add_argument("--velocity-bins", type=int, default=512)
     ap.add_argument("--position-bins", type=int, default=256)
@@ -312,7 +375,7 @@ def main():
               f"  /opt/anaconda3/envs/tsnn/bin/python scripts/make_thomson.py {args.run_dir}")
         return
 
-    spec = model(pt, electrons, ions, cfg, scales, args)
+    spec, R = model(pt, electrons, ions, cfg, scales, args)
 
     print(f"\n  alpha_epw: {np.nanmin(spec.alpha_epw):.3e} to {np.nanmax(spec.alpha_epw):.3e}")
     if spec.alpha_iaw is not None:
@@ -327,15 +390,20 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     probe = args.probe_wavelength
     stamp = f"{probe:.0f} nm probe, {args.angle:.0f} deg"
+    if R is not None:
+        stamp += f", v/sqrt({R:.4g})"
+    tag = args.tag if args.tag is not None else ("scaled" if R is not None else "")
+    suffix = f"_{tag}" if tag else ""
 
     panel(out_dir, "epw", spec.epw, spec.epw_wavelengths, spec.alpha_epw, spec.t,
-          probe, f"{run_id} — Thomson EPW (electron feature), {stamp}", "thomson_epw.png")
+          probe, f"{run_id} — Thomson EPW (electron feature), {stamp}",
+          f"thomson_epw{suffix}.png")
     if spec.iaw is not None:
         panel(out_dir, "iaw", spec.iaw, spec.iaw_wavelengths, spec.alpha_iaw, spec.t,
               probe, f"{run_id} — Thomson IAW (ion-acoustic feature), {stamp}",
-              "thomson_iaw.png")
+              f"thomson_iaw{suffix}.png")
 
-    npz = os.path.join(out_dir, "thomson_spectra.npz")
+    npz = os.path.join(out_dir, f"thomson_spectra{suffix}.npz")
     np.savez_compressed(
         npz,
         t=np.asarray(spec.t),
@@ -351,6 +419,8 @@ def main():
         position=float(spec.position),
         probe_wavelength_nm=probe,
         scattering_angle_deg=args.angle,
+        # np.nan, not 0, so an unscaled file cannot be misread as R = 0.
+        velocity_scale_factor=(np.nan if R is None else float(R)),
     )
     print(f"  wrote {npz}")
 

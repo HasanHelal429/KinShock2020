@@ -1533,3 +1533,42 @@ signature embeds astropy's `m_e`, which differs between astropy 8.0.0 (`physics`
 Also note `spectra_from_phase_spaces` returns its wavelength axis in **metres**, not the nm
 the window was given in, and `reference_density` must be `1 * u.m**-3` because the reader has
 already scaled f to m^-3 -- passing the real density drives n_e to ~1e51 and alpha to NaN.
+
+### 2026-08-03 (addendum) — the velocity scale factor decides whether the run is collective
+
+`scripts/make_thomson.py` now takes `--velocity-scale-factor R` (divide velocities by
+sqrt(R)) and `--notch LO HI`. Both variants are committed for R1_paper:
+
+| | unscaled (default) | `--velocity-scale-factor physical` |
+|---|---|---|
+| R | none | 18.36 = (m_p/m_e)/mass_ratio, so v/4.285 |
+| alpha_epw | 0.219 - 0.895 (median 0.45) | **1.040 - 4.246 (median 2.12)** |
+| electron sigma | 1.358e8 m/s = 0.453 c | 3.170e7 m/s = 0.106 c |
+| C_s,ab | 9.093e6 m/s | 2.122e6 m/s |
+| IAW doublet | +/-22.8 nm | +/-5.3 nm |
+| EPW window | +/-492 nm | +/-159 nm |
+| files | `thomson_{epw,iaw}.png` | `thomson_{epw,iaw}_scaled.png` |
+
+**This is not cosmetic.** alpha = 1/(k lambda_D) and lambda_D ~ v_te, so dividing
+velocities by 4.285 multiplies alpha by the same factor and carries the run across
+alpha = 1. The scaled EPW figure therefore shows **Langmuir satellites at ~420 and ~640 nm**
+which cannot exist in the unscaled version: they are a collective-regime feature, and their
+offset from the probe goes as sqrt(n_e), i.e. a density diagnostic. The scaled IAW feature
+likewise collapses from a 114 nm-wide smear to a 27 nm window around the probe.
+
+Which one is "right" depends on the question. Unscaled is what the simulation actually did
+and is self-consistent with the rest of the repo (mu_p = 100 at real c throughout). Scaled
+is what a real 532 nm system would see off hydrogen, but it is a PARTIAL correction: it
+fixes the mass ratio and not the reduced-c temperature offset (T_e,ab = 47 keV vs Table I's
+470 eV), so it should not be read as "the physical answer". Hence both are kept, with R
+recorded in each npz (`velocity_scale_factor`, NaN when unscaled) rather than one silently
+replacing the other.
+
+Sizing note: the windows are measured from the RAW phase spaces, which the pipeline has not
+yet rescaled, so they are divided by sqrt(R) explicitly. Omitting that leaves every window
+sqrt(R) = 4.285x too wide.
+
+The EPW notch defaults to exactly the IAW window (518.7-545.3 nm scaled, 474.9-589.1 nm
+unscaled), so the two panels are complementary: the EPW figure blanks what the IAW figure
+resolves. Without it the unshifted probe light and the ion feature dominate the colour
+scale and the satellites are invisible.

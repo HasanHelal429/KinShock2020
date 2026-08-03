@@ -278,6 +278,21 @@ The IAW window is sized from C_s,ab (via `units.derive`), *not* from the ion the
 spread, which the piston drift dominates — using the latter widens the window ~6× and
 leaves the doublet spanning 2–3 pixels. Adjust with `--iaw-halfwidths`.
 
+**`--velocity-scale-factor R`** divides all velocities by √R, putting the spectra on
+real-ion-mass scales rather than the simulation's reduced-µ_p ones. `physical` derives it
+from the config as (m_p/m_e)/mass_ratio — 18.36 at µ_p = 100, so v/4.285. Omitted by
+default, leaving velocities as the simulation reports them. It matters more than a
+relabelling: α ∝ 1/v_te, so on R1_paper it lifts α from 0.22–0.89 to **1.04–4.25**,
+crossing into the collective regime where EPW satellites appear (RESULTS 2026-08-03).
+Treat it as a *partial* physical correction — it does not undo the reduced-c temperature
+offset (T_e,ab = 47 keV here against Table I's 470 eV). Outputs are suffixed `_scaled`
+(or `--tag`) so the two variants never overwrite each other, and R is recorded in the npz.
+
+**`--notch LO HI`** blanks a stray-light band in the EPW window, as a real diagnostic does
+— without it the unshifted probe light and the ion feature swamp the far weaker EPW
+satellites. Defaults to exactly the IAW window, so the two figures are complementary: what
+the EPW panel blanks is what the IAW panel resolves. `--no-notch` disables it.
+
 Useful options: `--probe-wavelength` (nm, default 532), `--angle` (deg, default 90),
 `--position` (m, default domain centre), `--smoothing-window` / `--smoothing-iterations`
 (defaults 31/2, well above the pipeline's own 9/1: above α ~ 1 the spectrum carries
