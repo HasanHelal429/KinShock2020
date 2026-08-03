@@ -1464,3 +1464,72 @@ does not transfer: mfp_ii/d_i0 ~ T_i^2/(n_amb^(1/2) lnLambda), and R1_paper's am
 
 **Caveat: pre-shock only.** These runs say nothing about whether the physical lnLambda
 still yields a collisionless *shock* — that needs t*wci0 >~ 1, i.e. ~50k steps.
+
+## 2026-08-03 — R1_paper complete at the corrected density; and `io.load_frame` was silently returning B = 0
+
+R1_paper finished 322400/322400 in **17h45m** (mean 0.1982 s/step; contention x1.19 late,
+because the R1_paper_phys/dial pair shared the box). `--verify` clean, `run_checks` OK.
+
+**THE BUG: every B-derived diagnostic in this repo has been reading zeros.**
+`io.load_frame` builds `ds.covering_grid(0, ds.domain_left_edge, dims)` spanning the whole
+domain. That can round up one ULP past `domain_right_edge` (here region 0.001952522542456239
+vs dataset 0.0019525225424562387), and yt raises
+
+    RuntimeError: yt attempted to read outside the boundaries of a non-periodic domain
+
+`comp_opt` caught it with a bare `except Exception: return None`, and `comp` turned that into
+`np.zeros(nz)`. **A read failure was laundered into a plausible physics result:** B = 0 in all
+51 frames, so `B_compression = 0.0`, `ramp_scale = inf`, and criteria 4 (field compression)
+and 5 (steep ramp) FAILED in every frame of every run analysed this way.
+
+Fixed by calling `ds.force_periodicity()` before the covering grid (it only affects
+ghost-cell lookups at the edge, never cell values) and by restricting the None path to fields
+genuinely absent from `ds.field_list`, so read errors now raise instead of returning zeros.
+
+**What R1_paper actually shows, once the fields are read:**
+
+| criterion | frames passing | first t*wci0 |
+|---|---|---|
+| 1 super-magnetosonic | 51/51 | 0.00 |
+| 2 collisionless | **0/51** | never |
+| 3 density compression | 51/51 | 0.00 |
+| 4 field compression | 50/51 | 0.13 |
+| 5 steep ramp | 50/51 | 0.13 |
+| 6 reflected ions | 50/51 | 0.13 |
+| 7 piston separation | 49/51 | 0.26 |
+
+49 of 51 frames pass everything **except** criterion 2, from t*wci0 = 0.26. So the shock forms
+and the earlier "first shock = None" was the zero-field artifact; what blocks the verdict now
+is criterion 2 alone, which is the lnLambda dial (mfp_ii/d_i0 = 0.0150) and is read from the
+config, not measured. B_compression peaks at **14.31 at t*wci0 = 3.37** inside the clean
+window, against the paper's ~4x and this repo's documented 15-19 range; the last frame's 61.5
+is the known open-boundary artifact past t*wci0 ~ 5.5, not the shock.
+
+**Synthetic Thomson scattering (EPW + IAW).** Ran `Schaeffer_PlasmaPy`
+(branch `feature/pic-thomson-pipeline`, which already carries a WarpX reader) on the 51
+particle frames, sampling the domain centre with a 532 nm probe at 90 deg. Figures and arrays
+are in `media/R1_paper/thomson_{epw,iaw}.png` and `thomson_spectra.npz`.
+
+* **alpha = 0.22 to 0.89 (EPW), median 0.45** — the run is sub-collective to marginally
+  collective, reaching alpha ~ 1 only at the end. This is entirely a consequence of the
+  2026-08-02 density fix: the pipeline's own docstring notes the same deck gives alpha ~ 1e-5
+  at n0 = 1e18 and ~0.2 at 6e26. At the old placeholder density there would be no ion feature
+  to model at all.
+* n_e at the sampling point climbs 4.744e24 -> 1.610e26 m^-3, with piston arrival at ~26 ps.
+* The EPW feature is Doppler-broadened by the 0.453 c electron sigma (window +/-492 nm); the
+  IAW window is sized from C_s,ab = 9.093e6 m/s = 0.0303 c, whose doublet sits at +/-22.8 nm.
+  Sizing the IAW window from the ion *thermal* sigma instead (0.0911 c) gives +/-147 nm and
+  buries the doublet in 2-3 pixels -- that spread is the piston drift, not the acoustic scale.
+* Because alpha < 1 for most of the run, the ion feature is NOT a sharp doublet; the IAW panel
+  is dominated by the broad electron feature and by the blue-shifted piston drift growing
+  after ~40 ps. A genuinely collective ion feature would need alpha > 1, i.e. a longer probe
+  wavelength or a denser sampling point.
+
+Three environment notes for reproducing the Thomson run (none require changing any env):
+the fork needs PyTorch, absent from `physics` but present in `tsnn`; the phase-space cache
+signature embeds astropy's `m_e`, which differs between astropy 8.0.0 (`physics`) and 7.0.1
+(`tsnn`), so a cache built by one env is rejected by the other; and the fork calls
+`np.trapezoid`, which needs numpy >= 2 (`tsnn` has 1.26, so it needs an `np.trapz` alias).
+Also note `spectra_from_phase_spaces` returns its wavelength axis in **metres**, not the nm
+the window was given in, and `reference_density` must be `1 * u.m**-3` because the reader has
+already scaled f to m^-3 -- passing the real density drives n_e to ~1e51 and alpha to NaN.

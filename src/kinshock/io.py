@@ -83,13 +83,26 @@ def load_frame(path, fields=()) -> Frame:
     hi = float(ds.domain_right_edge[0])
     edges = np.linspace(lo, hi, nz + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
+    # A covering_grid spanning the full domain can round up to one ULP past
+    # domain_right_edge, and yt refuses to read outside a NON-PERIODIC domain
+    # (RuntimeError, "attempted to read outside the boundaries"). That silently
+    # zeroed Bx/By/Bz for every run whose right edge happened to round that way
+    # -- and a zero B field looks like a physics result, not a read failure
+    # (RESULTS 2026-08-03). force_periodicity only affects ghost-cell lookups at
+    # the edge, never the cell values themselves.
+    ds.force_periodicity()
     cg = ds.covering_grid(0, ds.domain_left_edge, dims)
 
     def comp_opt(name):
-        try:
-            return np.asarray(cg["boxlib", name]).reshape(nz)
-        except Exception:
+        """The component, or None if the plotfile genuinely does not carry it.
+
+        Only a missing-field error may fall through to None. Anything else --
+        notably the boundary RuntimeError above -- must raise, or a read failure
+        gets laundered into a plausible-looking array of zeros.
+        """
+        if not any(f[1] == name for f in ds.field_list):
             return None
+        return np.asarray(cg["boxlib", name]).reshape(nz)
 
     def comp(name):
         a = comp_opt(name)
