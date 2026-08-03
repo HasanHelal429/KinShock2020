@@ -28,6 +28,7 @@ The `run_dir` positional argument defaults to `runs/R1` for every script.
 | `run_checks.py` | Bring-up / progress checks (works before any sim output exists) | `config.yaml`, plotfiles, reduced diags | `media/testing/*.png` |
 | `make_figures.py` | Reproduce the paper's shock diagnostics (analyses A–D) | `config.yaml`, plotfiles | `media/<run_id>/*.png`, `criteria.json` |
 | `make_movies.py` | Animated density + phase-space movies | `config.yaml`, plotfiles | `media/<run_id>/*.mp4` |
+| `make_thomson.py` | Synthetic Thomson spectra: EPW + IAW spectrograms | `config.yaml`, plotfiles | `media/<run_id>/thomson_{epw,iaw}.png`, `thomson_spectra.npz` |
 | `run_progress_logger.py` | Sidecar: real wall-clock progress/ETA log at %-checkpoints | `run.log`, input deck | `<run_dir>/progress.log` |
 | `bfield_diagnostic.py` | B-field fluctuation: physical vs numerical (spectra, polarization, particle-response) | `config.yaml`, plotfiles | `media/<run_id>/bfield_diagnostic.png` |
 
@@ -237,6 +238,50 @@ measured one is passed with `--vsh-c`.
 python scripts/make_movies.py runs/R1 --fps 8 --vsh-c 0.14
 ```
 
+
+---
+
+## `make_thomson.py`
+
+Synthetic Thomson scattering spectra from a run's particle plotfiles → `media/<run_id>/`:
+
+- `thomson_epw.png` — electron feature, Doppler-broadened by the electron thermal speed
+- `thomson_iaw.png` — ion-acoustic feature, the ±k·C_s doublet
+- `thomson_spectra.npz` — `t`, both spectrograms and wavelength axes, `alpha_*`, `n_e`
+
+Each figure carries three panels: the absolute spectrogram, one normalised per timestep
+(the scattered power climbs ~2 decades as the piston arrives, which otherwise saturates
+the late frames), and α vs time.
+
+Forward-modelling uses the Schaeffer PlasmaPy fork (branch `feature/pic-thomson-pipeline`),
+found at `$KINSHOCK_PLASMAPY` or `~/Schaeffer_PlasmaPy/src`.
+
+**Two stages, because no single env here has both dependencies** — the reader needs `yt`
+(in `physics`) and the forward model needs `torch` (in `tsnn`). Binned phase spaces are
+cached to `runs/<ID>/thomson_cache/` (gitignored) as the handoff:
+
+```bash
+python scripts/make_thomson.py runs/R1_paper                                  # reads  (physics)
+/opt/anaconda3/envs/tsnn/bin/python scripts/make_thomson.py runs/R1_paper     # models (tsnn)
+```
+
+`--stage auto` (the default) does whichever half the current interpreter supports and
+prints the command for the other. Delete `thomson_cache/` to force a re-read.
+
+**Read the reported α before interpreting the IAW panel.** α = 1/(k λ_D) ∝ √n/T, so
+collectivity is set by the run's absolute density: the same deck gives α ~ 1e-5 at
+n0 = 1e18 m⁻³ and ~0.5 at Table I's 6e26. Below α ~ 1 the electron susceptibility vanishes
+and there is no real ion feature — the IAW panel then shows the broad electron feature and
+any bulk drift, not an acoustic doublet.
+
+The IAW window is sized from C_s,ab (via `units.derive`), *not* from the ion thermal
+spread, which the piston drift dominates — using the latter widens the window ~6× and
+leaves the doublet spanning 2–3 pixels. Adjust with `--iaw-halfwidths`.
+
+Useful options: `--probe-wavelength` (nm, default 532), `--angle` (deg, default 90),
+`--position` (m, default domain centre), `--smoothing-window` / `--smoothing-iterations`
+(defaults 31/2, well above the pipeline's own 9/1: above α ~ 1 the spectrum carries
+|1 − χ_e/ε|², which diverges at the EPW resonance and turns VDF shot noise into speckle).
 
 ---
 

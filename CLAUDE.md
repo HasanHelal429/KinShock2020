@@ -72,6 +72,7 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 | `tune_shock.py` | fit v_sh + front trajectory BY EYE vs the B/n_e streaks → `runs/<ID>/shock_fit.yaml` |
 | `make_figures.py` | paper diagnostics A–D |
 | `make_movies.py` | density + phase-space movies |
+| `make_thomson.py` | synthetic Thomson EPW/IAW spectrograms (two-env: reads under `physics`, models under `tsnn`) |
 | `run_progress_logger.py` | sidecar wall-clock progress/ETA log (`<run_dir>/progress.log`) |
 | `bfield_diagnostic.py` | B-field fluctuation: physical vs numerical (spectra/polarization/particle-response) |
 
@@ -149,6 +150,21 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 - **`B_compression` in `criteria.json` is a GLOBAL max — cut the outer 2 d_i0 before quoting it.**
   From t*ω_ci0 ≈ 5.5 the open hi boundary throws an ~80× B⊥/B0 spike (vs ~15–19 for the real
   ramp) in every run, so late-time values are the artifact, not the shock (RESULTS 2026-07-29).
+- **Synthetic Thomson (`scripts/make_thomson.py`) needs TWO envs, and it is not a bug.**
+  The forward model needs PyTorch and the plotfile reader needs yt; `physics` has yt but no
+  torch, `tsnn` has torch but no yt. So the script caches binned phase spaces to
+  `runs/<ID>/thomson_cache/` (gitignored) and runs in two stages — `--stage auto` does what
+  the current interpreter allows and prints the command for the other half. The cache key
+  embeds the particle mass, taken from `kinshock.units.ME` rather than astropy on purpose:
+  astropy 8.0.0 (`physics`) and 7.0.1 (`tsnn`) ship different CODATA m_e, so an astropy-keyed
+  cache written by one env is silently rejected by the other. **Whether there is an ion
+  feature at all is set by the density**: α = 1/(k λ_D) ∝ √n/T, so the same deck gives
+  α ~ 1e-5 at n0 = 1e18 and ~0.5 at Table I's 6e26 (RESULTS 2026-08-03). Below α ~ 1 the ion
+  feature is weak and the IAW panel shows the electron feature plus bulk drift — read the
+  reported α before interpreting it. Two traps inside the pipeline: `reference_density` must
+  be `1 * u.m**-3` (the reader already scaled f to m^-3; passing the real density gives
+  n_e ~ 1e51 and α = NaN), and the returned wavelength axis is in **metres**, not the nm the
+  window was specified in.
 - **Env.** conda env at `/opt/anaconda3/envs/physics`; WarpX binary
   `/home/hhelal/warpx-cda/build/bin/warpx.1d` (OMP/CPU, double precision).
 
