@@ -199,6 +199,20 @@ python scripts/make_figures.py runs/R1 --nframes 5
 Prints derived scales, the frame count and time span, the measured v_sh / M_A /
 M_ms, and the first-precursor / first-shock times from the criteria table.
 
+**Fig. 7 velocity axes** are pinnable per row, in units of v_z/v_sh:
+
+```bash
+python scripts/make_figures.py runs/R1_paper --only fig7 \
+    --fig7-xunits d_i0 rho_i0 --phase-times 0.15 0.49 0.73 0.98 1.25 \
+    --v-ambient -0.5 2.0 --v-piston -0.2 1.7 --v-electron -6 12
+```
+
+Without them the two ion rows share `fig_phase`'s band (−1 … 3) and the electron row is
+auto-sized **symmetrically** from a percentile of |v_z|/v_sh — which means it differs
+between runs, so pin it whenever panels are to be compared run-to-run. The electron row's
+twin axis (B_x/B₀, n_e/n_e0) keeps its zero aligned with v_z = 0 at any range, including
+asymmetric ones.
+
 ---
 
 ## `make_movies.py`

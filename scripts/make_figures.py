@@ -408,10 +408,16 @@ def _electron_phase_weighted(fr, cfg, sc):
     return np.concatenate(zs), np.concatenate(us), np.concatenate(ws)
 
 
-def fig_fig7(frames, cfg, sc, shock, nframes, times=None, xunits="d_i0"):
+def fig_fig7(frames, cfg, sc, shock, nframes, times=None, xunits="d_i0", vranges=None):
     """Fig. 7 (3 rows x N times). ``xunits`` selects the horizontal normalization from
     :data:`FIG7_XUNITS` ("d_i0" -> shock_fig7.png, "rho_i0" -> shock_fig7_rho_i0.png);
-    only the x scaling/label/filename change, so the panels stay directly comparable."""
+    only the x scaling/label/filename change, so the panels stay directly comparable.
+
+    ``vranges`` optionally pins the v_z/v_sh axis of each row, as a dict with any of
+    ``ambient`` / ``piston`` / ``electron`` -> ``(lo, hi)``. Rows left out keep their
+    defaults: the two ion rows share fig_phase's band, and the electron row is sized
+    symmetrically from a percentile of |v_z|/v_sh. Pinning them makes panels comparable
+    across runs, which the auto-sized electron axis cannot be."""
     xu = FIG7_XUNITS[xunits]
     xf = sc.di0 / getattr(sc, xu["attr"])      # d_i0-valued windows -> requested units
     idx = _select_times(frames, times, sc) if times else _select_nonzero(frames, nframes, sc)
@@ -421,17 +427,24 @@ def fig_fig7(frames, cfg, sc, shock, nframes, times=None, xunits="d_i0"):
     ncol = len(idx)
     wins = {i: _shock_window(frames[i], cfg, sc, shock) for i in idx}
 
-    v_ion = np.linspace(PHASE_V_LO, PHASE_V_HI, 201)   # ion rows: same band as fig_phase
+    vr = vranges or {}
 
-    # electron v-axis: symmetric range from a high percentile of |v_z|/v_sh over the
-    # selected frames (electrons are hot and not a directed beam), clipped to a band.
-    evabs = []
-    for i in idx:
-        _, uz, _ = _electron_phase_weighted(frames[i], cfg, sc)
-        if len(uz):
-            evabs.append(np.nanpercentile(np.abs(uz * C / vnorm), FIG7_E_VPCTL))
-    ve = float(np.clip(max(evabs) if evabs else FIG7_E_VMIN, FIG7_E_VMIN, FIG7_E_VMAX))
-    v_e = np.linspace(-ve, ve, 201)
+    # Ion rows default to fig_phase's shared band; each may be pinned separately.
+    v_amb = np.linspace(*vr.get("ambient", (PHASE_V_LO, PHASE_V_HI)), 201)
+    v_pis = np.linspace(*vr.get("piston", (PHASE_V_LO, PHASE_V_HI)), 201)
+
+    if "electron" in vr:
+        v_e = np.linspace(*vr["electron"], 201)
+    else:
+        # electron v-axis: symmetric range from a high percentile of |v_z|/v_sh over the
+        # selected frames (electrons are hot and not a directed beam), clipped to a band.
+        evabs = []
+        for i in idx:
+            _, uz, _ = _electron_phase_weighted(frames[i], cfg, sc)
+            if len(uz):
+                evabs.append(np.nanpercentile(np.abs(uz * C / vnorm), FIG7_E_VPCTL))
+        ve = float(np.clip(max(evabs) if evabs else FIG7_E_VMIN, FIG7_E_VMIN, FIG7_E_VMAX))
+        v_e = np.linspace(-ve, ve, 201)
 
     # electron-row profile (B_x/B0, n_e/n_e0) scale: anchor on the smoothed magnetic ramp
     # in windows that have cleared the dense piston (same recipe as fig_phase).
@@ -464,10 +477,10 @@ def fig_fig7(frames, cfg, sc, shock, nframes, times=None, xunits="d_i0"):
         z_edges = np.linspace(lo * xf, hi * xf, 241)
 
         # Row 1: ambient ions ; Row 2: piston ions  (v_z / v_sh)
-        for r, (sp, key) in enumerate((("amb_ions", "ambient"), ("piston_ions", "piston"))):
+        for r, (sp, v_row) in enumerate((("amb_ions", v_amb), ("piston_ions", v_pis))):
             z, uz, w = io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
             axc = axes[r][c]
-            _phase_hist_cmap(axc, z / sc.di0 * xf, uz * C / vnorm, w, z_edges, v_ion)
+            _phase_hist_cmap(axc, z / sc.di0 * xf, uz * C / vnorm, w, z_edges, v_row)
             axc.axhline(1.0, color="0.25", ls=":", lw=0.9)          # v_z = v_sh
 
         # Row 3: total electron phase space + B_x (black) & n_e (red) overlays
@@ -627,6 +640,15 @@ def main():
                     help="horizontal-axis normalization(s) for Fig. 7: d_i0 (default, "
                          "-> shock_fig7.png) and/or rho_i0, the upstream ion gyroradius "
                          "v_p/omega_ci0 (-> shock_fig7_rho_i0.png).")
+    ap.add_argument("--v-ambient", nargs=2, type=float, default=None, metavar=("LO", "HI"),
+                    help="fig7 ambient-ion row v_z/v_sh limits (default: the fig_phase "
+                         "band %g %g)" % (PHASE_V_LO, PHASE_V_HI))
+    ap.add_argument("--v-piston", nargs=2, type=float, default=None, metavar=("LO", "HI"),
+                    help="fig7 piston-ion row v_z/v_sh limits (default: same band)")
+    ap.add_argument("--v-electron", nargs=2, type=float, default=None, metavar=("LO", "HI"),
+                    help="fig7 electron row v_z/v_sh limits. Default is auto-sized and "
+                         "SYMMETRIC, from a percentile of |v_z|/v_sh, so it varies between "
+                         "runs; pin it to compare runs panel-for-panel.")
     ap.add_argument("--only", nargs="+", default=None, metavar="FIG",
                     choices=["streak", "trajectory", "lineouts", "phase", "fig7",
                              "reflected", "criteria"],
@@ -668,9 +690,12 @@ def main():
     if want("phase"):
         fig_phase(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
     if want("fig7"):
+        vranges = {k: tuple(v) for k, v in (("ambient", args.v_ambient),
+                                            ("piston", args.v_piston),
+                                            ("electron", args.v_electron)) if v}
         for xu in args.fig7_xunits:
             fig_fig7(frames, cfg, sc, shock, args.nframes, times=args.phase_times,
-                     xunits=xu)
+                     xunits=xu, vranges=vranges)
     if want("reflected"):
         fig_reflected(frames, cfg, sc, shock)
     if want("criteria"):

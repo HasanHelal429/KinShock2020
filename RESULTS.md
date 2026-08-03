@@ -1627,3 +1627,21 @@ convention applies only to fig7. Running the suite with those times would have s
 retimed shock_phase.png; running it without them would have re-triggered the fig7
 default-times trap. So: `--only streak trajectory lineouts phase reflected criteria` first,
 then `--only fig7` with the convention times.
+
+### 2026-08-03 (addendum 4) — Fig. 7 velocity axes pinned per row
+
+`make_figures.py` gained `--v-ambient`, `--v-piston` and `--v-electron` (each LO HI, in
+v_z/v_sh). Previously the two ion rows shared fig_phase's band (-1 ... 3) and the electron
+row was auto-sized SYMMETRICALLY from the 99.5th percentile of |v_z|/v_sh, clipped to
+[3, 10] — so it varied from run to run and no two runs' Fig. 7 electron rows were directly
+comparable. R1_paper's Fig. 7 is now drawn on:
+
+    --v-ambient -0.5 2.0   --v-piston -0.2 1.7   --v-electron -6 12
+
+The ion bands are tightened to the populated region (the shared -1 ... 3 wasted the top
+third on both rows), and the electron range is deliberately ASYMMETRIC, which the old
+auto-sizing could not express. The twin axis carrying B_x/B_0 and n_e/n_e0 still aligns its
+zero with v_z = 0 at any range: the alignment is computed from the actual v-axis endpoints,
+so at -6 ... 12 the zero sits a third of the way up and the right-hand scale runs -4 ... 8.
+
+Defaults are unchanged when the flags are omitted.
