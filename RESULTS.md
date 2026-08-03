@@ -1600,3 +1600,30 @@ by-eye v_sh rather than the config model value of 0.1395 c.
 
 Still stale in `media/R1_paper/`: `tune_trajectory.png` (08-01 21:54). That one comes from
 `tune_shock.py`, which is a BY-EYE fit and deliberately not auto-run.
+
+### 2026-08-03 (addendum 3) — by-eye shock fit for R1_paper: v_sh = 0.143 c
+
+`runs/R1_paper/shock_fit.yaml` re-fitted by eye against the new run's streaks:
+**v_sh 0.148 -> 0.143 c** (-3.4%), z0 = 0, no per-time overrides. Derived Mach numbers
+move with it: **M_A 14.80 -> 14.30**, **M_ms 13.51 -> 13.05**.
+
+That lands closer to Table I's M_A = 14 and M_ms = 13 than the previous fit (now +2.1% and
++0.4%, against +5.7% and +3.9% before), and closer than the config's own model value
+(vsh_over_Csab = 4.6 -> 0.1395 c, M_A = 13.95).
+
+Every v_sh consumer regenerated: `shock_{streak,trajectory,lineouts,phase,reflected}.png`,
+`criteria.json`, both `shock_fig7*` and `shock_phase.mp4` (`--vsh-c 0.143`).
+
+The criteria verdict is unchanged by the refit -- 49/51 frames still pass everything except
+criterion 2, first at t*wci0 = 0.26, and peak B_compression is still 14.31 at t*wci0 = 3.37
+(a field quantity, independent of v_sh). What does move is `reflected_fraction_G`, 0.1132 ->
+0.1243 at the last frame, since the reflected-ion threshold is v_z > v_sh and a slower shock
+admits more particles.
+
+Two conventions had to be honoured in the same pass, so it was split in two:
+`args.phase_times` feeds BOTH `fig_phase` (shock_phase.png) and `fig_fig7`
+(`make_figures.py:669,672`), but the documented `--phase-times 0.15 0.49 0.73 0.98 1.25`
+convention applies only to fig7. Running the suite with those times would have silently
+retimed shock_phase.png; running it without them would have re-triggered the fig7
+default-times trap. So: `--only streak trajectory lineouts phase reflected criteria` first,
+then `--only fig7` with the convention times.
