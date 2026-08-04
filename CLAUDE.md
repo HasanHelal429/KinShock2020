@@ -113,7 +113,17 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   Pick `quantity: lambda_ab` vs `mfp_over_de` deliberately. Since n0 is a pure scale factor, a
   collisional run is the only reason to pin an absolute density.
   (3) **λ_ab and the upstream λ_ii/d_i0 cannot both match the paper — and the paper says so.**
-  Table I quotes λ_ab = 20 *and* λ_mfp/d_i0 = 350; one lnΛ can only hit one. §II states the
+  ⚠ REVISED 2026-08-03 (`scripts/table1.py`): the two were never the same quantity, so the
+  "one lnΛ can only hit one" framing below overstates the conflict. Table I's λ_mfp/d_i0 = 350
+  is the **directed**-ion mfp (Rutherford momentum transfer, ∝v⁴) of piston/shocked ions
+  streaming into the ambient — 4πε₀²m_i²v⁴/(nZ⁴e⁴lnΛ) gives 261 d_i0 at v_p and 845 d_i0 at
+  v_sh, bracketing 350, i.e. ≈3.6 cm. The **thermal** upstream ion-ion mfp at T_0 = 10 eV is
+  8.9×10⁻⁴ d_i0 — six orders down, and no lnΛ bridges that. So the 350 row is the statement
+  "the experiment is globally collisionless", and comparing it to `Scales.mfp_ii_amb` (thermal
+  NRL ion-ion) is a category error. **Criterion 2 still uses that thermal comparison against a
+  350 threshold; it is therefore measuring the wrong quantity and its verdicts should not be
+  trusted until reworked** — see RESULTS 2026-08-03. Table I quotes λ_ab = 20 *and*
+  λ_mfp/d_i0 = 350; the λ_ab side of the story below still holds. §II states the
   reason outright: the λ_ab scaling "ensures that dimensionless quantities such as the magnetic
   Reynolds number are correct, but electron collisionality relative to global scales (e.g.
   ν_ei,ab t_ab) is only quantitatively matched **at physical mass ratios**." So the knob that
@@ -137,10 +147,15 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   is **ω_ci0⁻¹ = 27.93 t_ab vs the paper's 33.9 — 1.218× short**. That biases every t·ω_ci0
   observable *late* by the same factor and is the leading candidate for the onset t*₁ = 1.35–1.41
   vs the paper's ≈1 that RESULTS had pinned on the half-domain wall artifact.
-- **β convention: the paper tabulates β = µ₀nT/B², despite its own text saying 2µ₀nT/B².**
-  `units.py:222-223` uses the factor-2 form, so `derive()` reports β_0 = 0.4 against the
-  `targets:` value of 0.2 and β_ab = 1560 against 1150. The no-factor-2 form reproduces Table I
-  exactly (β_0 = 0.201, β_ab = 1158). Don't "fix" the physics chasing that 2×.
+- **β convention: β = µ₀nT/B², no factor of 2 — PINNED 2026-08-03, and now what `units.py` does.**
+  Two exact identities fix it, so this is a definition and not a taste call: (a) in PSC's
+  normalization µ₀nkT/B² = θ·n_code/B_code², and Table I's own code primaries give
+  0.092·1.25/0.01² = **1150** and 0.002·0.01/0.01² = **0.2**, both exactly the quoted values;
+  (b) §II's ω_ci0⁻¹ = (Z_ab/Z_0)·√β_ab·t_ab needs √1150 = **33.9**, which is Table I's
+  ω_ci0⁻¹ row (a factor-2 β would give 48.0). `derive()` now returns 1150.0000 / 0.20000 for
+  R1_paper. Earlier notes here said to leave the 2× alone — that advice is superseded; β is
+  diagnostic only (reported + `check_factor`), never fed to a deck, so the change is inert
+  for physics. Regenerate run READMEs if their β lines look stale.
 - **Performance.** Launch with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
   — near-linear to 8 cores (~1.8× vs 4), memory-bandwidth-bound beyond. `max_grid_size`,
   tiling, and `sort_intervals` were **benchmarked as neutral-to-negative** here — don't bother.

@@ -1645,3 +1645,89 @@ zero with v_z = 0 at any range: the alignment is computed from the actual v-axis
 so at -6 ... 12 the zero sits a third of the way up and the right-hand scale runs -4 ... 8.
 
 Defaults are unchanged when the flags are omitted.
+
+---
+
+## 2026-08-03 — The three free parameters: Table I reproduced in PSC / physical / WarpX units
+
+Re-derived the whole setup from first principles at the user's direction, and built
+`scripts/table1.py` to render Table I in all three unit systems at once with the paper's own
+values in a check column. **Every Table I row now reproduces**, several of them exactly, and
+three long-standing "cannot match" items in this log turn out to have been comparisons
+between different quantities.
+
+### The framework: exactly three free choices
+A run of this problem is a set of dimensionless numbers; it corresponds to a *family* of real
+plasmas. One member is picked by choosing three things — everything else follows:
+
+1. **ablation density** `n_e,ab` (real 6e20 cm⁻³; code O(1), PSC uses 1.25)
+2. **ablation temperature** `T_e,ab` (real 470 eV; code 0.092, O(0.1) to stay
+   non-relativistic). This **is** the reduced speed of light: §II sets
+   `c = sqrt(mu_p/T_e,ab)·C_s,ab`, so θ_e,ab and c_sim are the same choice.
+3. **collisionality** `lambda_ab = mfp_e,ab/d_e,ab = 20`
+
+Order of operations: pick the three real values → pick the code values → derive the rest of
+the code column → derive the rest of the physical column, where **β_ab sets B₀**.
+
+### Table I, checked (physical column, real c and real proton mass)
+| row | derived | Table I |
+|---|---|---|
+| d_i,ab | 9.30 µm | 9.31 µm |
+| C_s,ab | 212 km/s | 210 km/s |
+| v_p / v_sh | 728 / 976 km/s | 730 / 980 km/s |
+| **B₀ (from β_ab)** | **7.03 T** | **7 T** |
+| T_0 | 10.2 eV | 10 eV |
+| d_i0 | 104 µm | 104 µm |
+| 1/ω_ci0 | 1.49 ns | 1.5 ns |
+| M_A / M_ms | 13.95 / 12.74 | 14 / 13 |
+| **β_ab / β_0** | **1150.0000 / 0.20000** | **1150 / 0.2** |
+| τ_ei,ab | 477 fs = 0.0109 t_ab | 0.43 ps = 0.009 t_ab |
+| c_sim/c_phys | 0.0233 | 0.02 |
+
+### Three items previously logged as unmatchable — all resolved
+**(1) The β convention is `mu0·n·T/B²`, no factor of 2 — now pinned, not a taste call.**
+Two exact identities: (a) in PSC's normalization `mu0·n·kT/B² = θ·n_code/B_code²`, and Table
+I's own code primaries give `0.092·1.25/0.01² = 1150` and `0.002·0.01/0.01² = 0.2`, both
+*exactly*; (b) §II's `1/ω_ci0 = (Z_ab/Z_0)·sqrt(β_ab)·t_ab` needs `sqrt(1150) = 33.9`, which
+is Table I's own ω_ci0 row (a factor-2 β gives 48.0). `units.py` now drops the 2 and reports
+1150.0000 / 0.20000 for R1_paper. β is diagnostic only (reported + `check_factor`), never fed
+to a deck, so this is inert for physics. CLAUDE.md's earlier "don't fix that 2×" note is
+superseded. This also independently re-confirms `density_over_n0: 0.008` and `n_e,ab = 1.25`.
+
+**(2) `λ_mfp/d_i0 = 350` is the DIRECTED-ion mfp, not the thermal one.** Rutherford
+momentum transfer, ∝v⁴: `4πε₀²m_i²v⁴/(nZ⁴e⁴lnΛ)` gives **261 d_i0 at v_p and 845 d_i0 at
+v_sh**, bracketing 350 (≈3.6 cm). The thermal upstream ion-ion mfp at T_0 = 10 eV is
+**8.9e-4 d_i0** — six orders down, and no lnΛ bridges that gap. So `λ_ab = 20` and 350 were
+never competing for one lnΛ; the 350 row is the statement "the experiment is globally
+collisionless". ⚠ **Criterion 2 still compares the thermal `mfp_ii_amb` against a 350
+threshold, which is a category error — its verdicts should not be trusted until reworked.**
+That also explains the 2026-07-29 R1_coll finding that criterion 2 "FAILS in all 51 frames".
+
+**(3) The physical Coulomb logarithm is ≈10, and λ_ab = 20 needs no dial physically.**
+Deriving through `lambda_ab` (a pure electron-scale ratio, so mass-ratio-safe):
+v_te,ab = 9.09 Mm/s, d_e,ab = 217 nm, mfp = 20·d_e,ab = 4.34 µm, ν_ei = 2.095e12 s⁻¹,
+τ_ei = 477 fs = 0.0109 t_ab — against Table I's own **0.009 t_ab / 0.43 ps**. Inverting
+`ν_ei = C·n·lnΛ·T^-3/2` gives **lnΛ = 9.0** at C = 3.95e-6, or 12.2 at NRL's 2.91e-6;
+NRL's `24 - ln(sqrt(n)/T)` gives 6.2 at the same (n, T). Table I's 0.43 ps is reproduced
+exactly by C = 3.95e-6 with lnΛ = 10, which is strong evidence the paper used that
+coefficient and a physical lnΛ of 10.
+
+### The 18.4× trap (why an earlier hand-derivation gave lnΛ = 0.5)
+`ν_ei,ab·t_ab = (v_te/mfp)(d_i/C_s) = mu/lambda_ab`, which carries the ion mass explicitly:
+**5.0** at mu_p = 100 but **91.8** at mu = 1836. §II flags exactly this quantity: the λ_ab
+scaling "ensures that dimensionless quantities such as the magnetic Reynolds number are
+correct, but electron collisionality relative to global scales (e.g. ν_ei,ab t_ab) is only
+quantitatively matched at physical mass ratios." Routing the physical lnΛ through
+ν_ei t_ab = 5 (the *code* value) with the *real* t_ab gives ν_ei = 1.14e11 s⁻¹ and
+**lnΛ = 0.49**, low by exactly mu_phys/mu_p = 18.36. A lnΛ below 1 is also outside the
+validity of the Coulomb logarithm itself. Reproduced both routes in `--show-work` so the
+distinction is checkable rather than asserted.
+
+### What did NOT change
+The **deck is untouched and remains correct.** WarpX has no reduced-c option, so it must run
+PSC's dimensionless problem at real c: θ_e,ab = 0.092 → T_e,ab = 47 keV, B₀ = 70.27 T
+(= β_ab 1150 at *that* T, verified), and lnΛ = 1.22e5 as an unavoidable dial (at 47 keV the
+plasma is genuinely collisionless; making lnΛ physical would need n0 ≈ 9e34 m⁻³). The
+physical column's 7 T and the WarpX column's 70.27 T differ by the reduced-c factor
+√100.8 ≈ 10, exactly as `field.B0_tesla`'s comment already said. Confirmed the deck's clock
+too: 220 t_ab = 52.6 ps = 6.50/ω_ci0, matching `max_step`'s comment. 11/11 tests pass.

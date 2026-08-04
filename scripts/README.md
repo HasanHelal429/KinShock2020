@@ -383,3 +383,50 @@ inversion exists to prevent (RESULTS 2026-07-31).
 | `run_dir ...` | — | One or more run directories. |
 | `--all` | off | Every `runs/*/` that has a `config.yaml`. |
 | `-n, --dry-run` | off | Report the B0 each config would get; write nothing. |
+
+## `table1.py`
+
+Renders Schaeffer 2020 Table I in **three unit systems side by side** — PSC code units, the
+physical HED plasma, and our WarpX SI deck — plus the paper's own quoted value in a fourth
+column for checking. It is the answer to "what exactly are we free to choose, and what
+follows from that?"
+
+```bash
+python scripts/table1.py                       # runs/R1_paper, Table I's free parameters
+python scripts/table1.py --show-work           # + the Coulomb-logarithm algebra
+python scripts/table1.py runs/R1_paper_phys    # any run dir
+python scripts/table1.py --Te-ab-eV 300 --n-ab-cm3 1e21 --lambda-ab 30
+python scripts/table1.py --nu-coeff 2.91e-6    # NRL coefficient instead of the paper's
+```
+
+**Three free parameters, and only three.** A PIC run of this problem is a set of
+dimensionless numbers and corresponds to a whole *family* of real plasmas. You pick one
+member by choosing (1) the ablation density `n_e,ab`, (2) the ablation temperature
+`T_e,ab` — which *is* the reduced speed of light, since §II sets
+`c = sqrt(mu_p/T_e,ab)·C_s,ab` — and (3) the collisionality `lambda_ab`. Everything else in
+Table I follows. Order of operations: pick the three real values → pick the corresponding
+code values (density O(1), temperature O(0.1) to stay non-relativistic) → derive the rest of
+the code column → derive the rest of the physical column, where **beta_ab sets B0**.
+
+**The mass-ratio trap.** The code runs at `mu_p = 100`, the real plasma at 1836, so a
+dimensionless number transfers between columns only if it is insensitive to that. §II says
+which are not: the `lambda_ab` scaling "ensures that dimensionless quantities such as the
+magnetic Reynolds number are correct, but electron collisionality relative to global scales
+(e.g. `nu_ei,ab t_ab`) is only quantitatively matched at physical mass ratios." Concretely
+`nu_ei,ab·t_ab = mu/lambda_ab`, which is **5.0** in code units and **91.8** physically. So
+the physical Coulomb logarithm must be derived through `lambda_ab` (a pure electron-scale
+ratio, `mfp/d_e`), never through `nu_ei t_ab` — the latter route lands 18.4× low
+(lnΛ = 0.49 instead of 9.0, and below 1 the Coulomb logarithm is not even valid).
+
+**What the columns are for.** The *physical* column is the real experiment (real c, real
+proton mass) and needs no dial: `lambda_ab = 20` there corresponds to lnΛ ≈ 9, against 6.2
+from NRL's `24 - ln(sqrt(n)/T)` at the same (n, T). The *WarpX* column is our deck, which
+has no reduced-c option, so it runs PSC's dimensionless problem at real c — exact in every
+dimensionless row, at the price of absolute values that look unphysical (T_e,ab = 47 keV,
+B0 = 70.3 T, lnΛ = 1.22e5 as a dial). Both are correct; they are answers to different
+questions, and conflating them is what produced several of the false leads in RESULTS.
+
+`--nu-coeff` defaults to `3.95e-6`, which is what reproduces Table I's own
+`tau_ei,ab = 0.43 ps` at lnΛ = 10 — strong evidence the paper used that coefficient and a
+physical lnΛ of 10. `units.py` uses NRL's `2.91e-6`, so the script prints the dial under
+both (they differ by 1.36×).

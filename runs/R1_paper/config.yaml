@@ -43,23 +43,25 @@
 # WarpX's pairwisecoulomb (Perez 2012, UpdateMomentumPerezElastic.H) is the same
 # small-angle operator but fully DIMENSIONAL: it builds b0 from real q, eps0, reduced
 # mass and relative velocity, so collisionality is an OUTCOME of the SI state and the
-# only way in is lnLambda. Inverting PSC's dial therefore gives lnLambda ~ 3e9. That is
+# only way in is lnLambda. Inverting PSC's dial therefore gives lnLambda = 1.22e5. That is
 # not a hack -- PSC's lambda0 = 20 is equally unphysical at the sim's own (n, T); the
-# two codes just expose the same knob differently. Checked safe: sigma/sigma_max = 5e-6
+# two codes just expose the same knob differently. Checked safe: sigma/sigma_max = 2.5e-4
 # (WarpX's cross-section clamp never engages) and nu_ei*dt = 3.4e-3 << 1.
 #
-# WHAT STILL CANNOT MATCH: Table I also quotes lambda_mfp/d_i0 = 350, but lambda_ab = 20
-# gives upstream mfp_ii/d_i0 = 0.015. The RATIO of those two is independent of lnLambda
-# (both mfps ~ 1/lnLambda) AND of c (both normalizing lengths ~ c), so the 2.3e4x gap
-# exists inside PSC too at mu_p = 100 -- it is not a real-c artifact. Sec. II says why:
-# global-scale collisionality is "only quantitatively matched at physical mass ratios".
-# The 350 row describes the EXPERIMENT, not the run. Criterion 2's 350 threshold is
-# therefore not applicable here; lambda_ab = 20 is what PSC actually did.
+# THE lambda_mfp/d_i0 = 350 ROW IS A DIFFERENT QUANTITY (resolved 2026-08-03,
+# scripts/table1.py). It is the DIRECTED-ion mfp of piston/shocked ions streaming into
+# the ambient -- Rutherford momentum transfer, ~v^4:
+#     mfp = 4 pi eps0^2 mi^2 v^4 / (n Z^4 e^4 lnLambda)
+# which gives 261 d_i0 at v_p and 845 d_i0 at v_sh, bracketing 350 (~3.6 cm). The
+# THERMAL upstream ion-ion mfp at T_0 = 10 eV is 8.9e-4 d_i0 -- six orders below, and no
+# lnLambda bridges it. So 350 and lambda_ab = 20 were never competing for one lnLambda;
+# the 350 row just says the EXPERIMENT is globally collisionless. NB criterion 2 still
+# compares the thermal mfp_ii_amb against 350, which is a category error -- do not trust
+# its verdicts until it is reworked (RESULTS 2026-08-03).
 #
-# TWO KNOWN RESIDUAL DEVIATIONS (both unavoidable here, see README.md):
-#   - beta rows read 2x Table I: units.py uses beta = 2*mu0*n*T/B^2 while Table I's
-#     1150 / 0.2 only reproduce under mu0*n*T/B^2. Convention, not physics.
-#   - mass ratio 100 and real c are the paper's own approximations, inherited.
+# ONE KNOWN RESIDUAL DEVIATION: mass ratio 100 and real c are the paper's own
+# approximations, inherited. (The beta rows are no longer a deviation -- units.py now uses
+# Table I's own convention beta = mu0*n*T/B^2 and reports 1150.0000 / 0.20000 exactly.)
 
 meta:
   run_id: R1_paper
@@ -69,8 +71,8 @@ meta:
     0.008 n_e,ab, target 2.0 n_e,ab, B0 from Table I's own code units, 30000 cells
     over 9000 d_e,ab one-sided, 220 t_ab, and PSC's collisionality lambda_ab = 20
     translated into WarpX's lnLambda. Every Table I dimensionless row reproduces to
-    <=2% (beta convention aside); only lambda_mfp/d_i0 cannot match, and it cannot in
-    PSC either at mu_p = 100.
+    <=2%, beta_ab/beta_0 now exactly (2026-08-03). Run scripts/table1.py for the
+    full PSC / physical / WarpX three-column comparison.
   reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
   deck: inputs_kinshock_R1_paper
 
@@ -189,5 +191,6 @@ model:
 targets:
   M_A: 14                     # [-] Table I
   M_ms: 13                    # [-] Table I
-  beta_ab: 1150               # [-] Table I (units.py reports 2x; validate() allows it)
-  beta_0: 0.2                 # [-] Table I (ditto)
+  beta_ab: 1150               # [-] Table I. Convention beta = mu0*n*T/B^2 (pinned
+                              # 2026-08-03); units.py now reproduces this exactly.
+  beta_0: 0.2                 # [-] Table I (ditto)  -- also exact

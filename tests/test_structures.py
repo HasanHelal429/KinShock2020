@@ -245,9 +245,6 @@ def _run_all():
     return npass == len(tests)
 
 
-if __name__ == "__main__":
-    print("KinShock2020 structure tests\n" + "=" * 40)
-    sys.exit(0 if _run_all() else 1)
 
 
 def test_B0_is_primary_and_vA_is_derived():
@@ -304,9 +301,9 @@ def test_R1_paper_hits_table_I():
     assert abs(sc.wci0_inv / sc.t_ab - 33.9) < 0.1, f"1/wci0 = {sc.wci0_inv/sc.t_ab} t_ab"
     assert abs(sc.MA - 14.0) / 14.0 < 0.01, f"M_A = {sc.MA}"
     assert abs(sc.Cs_ab / C - 0.0303) < 1e-4, f"C_s,ab/c = {sc.Cs_ab/C}"
-    # betas: units.py carries the 2x convention, so compare against 2x Table I
-    assert abs(sc.beta_ab - 2300.0) / 2300.0 < 0.01, f"beta_ab = {sc.beta_ab}"
-    assert abs(sc.beta_0 - 0.4) < 1e-3, f"beta_0 = {sc.beta_0}"
+    # betas: Table I's convention beta = mu0*n*T/B^2 (no factor 2), pinned 2026-08-03
+    assert abs(sc.beta_ab - 1150.0) / 1150.0 < 0.01, f"beta_ab = {sc.beta_ab}"
+    assert abs(sc.beta_0 - 0.2) < 1e-3, f"beta_0 = {sc.beta_0}"
     assert sc.n_cell == 30000, f"n_cell = {sc.n_cell}"
     # collisions: PSC's lambda_ab = 20 dial, translated
     assert abs(sc.lambda_ab - 20.0) < 1e-9, f"lambda_ab = {sc.lambda_ab}"
@@ -318,3 +315,63 @@ def test_R1_paper_hits_table_I():
     b0 = units.QE ** 2 / (2 * math.pi * units.EPS0 * units.ME * v * v)
     rmin = 1.0 / (4.0 * math.pi / 3.0 * sc.n0) ** (1 / 3)
     assert math.pi * b0 * b0 * sc.coulomb_log < 1.0 / (sc.n0 * rmin), "sigma clamped"
+
+
+def test_table1_beta_convention_and_three_columns():
+    """Table I's beta convention and the physical column, both pinned (2026-08-03).
+
+    beta = mu0*n*T/B^2 with NO factor of 2 is fixed by two exact identities, so this
+    guards against the factor-2 form creeping back in:
+      (a) in PSC's normalization mu0*n*kT/B^2 = theta*n_code/B_code^2, and Table I's own
+          code primaries give 0.092*1.25/0.01^2 = 1150 and 0.002*0.01/0.01^2 = 0.2;
+      (b) Sec. II's 1/w_ci0 = sqrt(beta_ab)*t_ab needs sqrt(1150) = 33.9, Table I's row.
+    Also checks that scripts/table1.py's physical column reproduces Table I, including
+    B0 = 7 T derived from beta_ab, and lnLambda ~ 9-12 rather than the 0.5 that the
+    (mass-ratio-unsafe) nu_ei*t_ab route produces.
+    """
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import table1
+
+    cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_paper"))
+
+    # (a) the code column reproduces Table I's betas exactly from code primaries
+    co = table1.code_column(cfg, 20.0)
+    assert abs(co["beta_ab"] - 1150.0) < 0.5, f"code beta_ab = {co['beta_ab']}"
+    assert abs(co["beta_0"] - 0.2) < 1e-6, f"code beta_0 = {co['beta_0']}"
+    assert abs(co["B"] - 0.01) < 1e-5, f"B_code = {co['B']}"       # Table I's 0.01
+    # (b) the sqrt(beta_ab) identity -- only holds without the factor of 2
+    assert abs(co["wci0_inv"] / co["t_ab"] - 33.9) < 0.1
+    assert abs(math.sqrt(co["beta_ab"]) - 33.9) < 0.1
+    # nu_ei t_ab = mu/lambda_ab in code units
+    assert abs(co["nu_t_ab"] - 100.0 / 20.0) < 1e-9, f"nu_ei t_ab = {co['nu_t_ab']}"
+
+    # the physical column: real c, real proton mass -> Table I's SI values
+    ph = table1.phys_column(co, 6.0e20, 470.0, 3.95e-6)
+    for name, got, want, tol in (
+        ("d_i,ab [um]", ph["di_ab"] * 1e6, 9.31, 0.05),
+        ("C_s,ab [km/s]", ph["Cs_ab"] / 1e3, 210.0, 0.05),
+        ("B0 [T]", ph["B0"], 7.0, 0.05),
+        ("T_0 [eV]", ph["Te_0"], 10.0, 0.05),
+        ("d_i0 [um]", ph["di_0"] * 1e6, 104.0, 0.02),
+        ("1/w_ci0 [ns]", ph["wci0_inv"] * 1e9, 1.5, 0.02),
+        ("M_A", ph["MA"], 14.0, 0.01),
+        ("v_sh [km/s]", ph["vsh"] / 1e3, 980.0, 0.01),
+    ):
+        assert abs(got - want) / want < tol, f"physical {name} = {got}, Table I {want}"
+    # nu_ei t_ab is NOT transferable: mu_phys/lambda_ab, ~18.4x the code value
+    assert abs(ph["nu_t_ab"] - table1.MU_PHYS / 20.0) < 0.1
+    # and the Coulomb logarithm is physical, not the 0.5 the nu_ei*t_ab route gives
+    assert 8.0 < ph["lnL"] < 14.0, f"physical lnLambda = {ph['lnL']}"
+    assert 5.0 < ph["lnL_nrl"] < 8.0, f"NRL lnLambda = {ph['lnL_nrl']}"
+
+    # the WarpX column must agree with what the deck actually gets from units.derive
+    wx = table1.warpx_column(cfg, co, kinshock.units.NU_EI_NRL)
+    sc = kinshock.units.derive(cfg)
+    assert abs(wx["lnL"] / sc.coulomb_log - 1.0) < 1e-6, (
+        f"table1 WarpX lnLambda {wx['lnL']} != deck {sc.coulomb_log}")
+    assert abs(wx["B0"] - sc.B0) < 1e-9
+
+
+if __name__ == "__main__":
+    print("KinShock2020 structure tests\n" + "=" * 40)
+    sys.exit(0 if _run_all() else 1)

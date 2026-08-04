@@ -37,8 +37,8 @@ TABLE_I = {
     # units.py reports beta = 2*mu0*n*T/B^2; Table I tabulates mu0*n*T/B^2 (its own
     # text says 2x, but 1150/0.2 only reproduce without the 2). Compare like with
     # like by doubling the paper value rather than silently flagging every run.
-    "beta_ab":           (2300.0,  "ablation beta (Table I 1150, x2 convention)"),
-    "beta_0":            (0.4,     "upstream beta (Table I 0.2, x2 convention)"),
+    "beta_ab":           (1150.0,  "ablation beta, mu0*n*T/B^2 (Table I 1150)"),
+    "beta_0":            (0.2,     "upstream beta, mu0*n*T/B^2 (Table I 0.2)"),
     "di0_over_di_ab":    (11.18,   "d_i0 / d_i,ab"),
     "wci0_inv_over_tab": (33.9,    "gyroperiod in ablation times"),
     "lambda_ab":         (20.0,    "collisionality mfp/d_e,ab"),
@@ -147,8 +147,8 @@ def _derived(sc: units.Scales, rep: dict, max_step: float) -> list[tuple[str, st
         ("v_sh / c (model)", _fmt(rep["vsh_model_over_c"]), "model.vsh_over_Csab * C_s,ab"),
         ("M_A", _fmt(sc.MA), "v_sh/v_A"),
         ("M_ms", _fmt(sc.Mms), "v_sh/sqrt(v_A^2+C_s0^2)"),
-        ("beta_ab", _fmt(sc.beta_ab), "2*mu0*n0*T_e,ab/B0^2"),
-        ("beta_0", _fmt(sc.beta_0), "2*mu0*n_amb*T_0/B0^2"),
+        ("beta_ab", _fmt(sc.beta_ab), "mu0*n0*T_e,ab/B0^2"),
+        ("beta_0", _fmt(sc.beta_0), "mu0*n_amb*T_0/B0^2"),
         ("dz [m]", _fmt(sc.dz), "dz_over_de * d_e"),
         ("dt [s]", _fmt(sc.dt), "CFL-limited"),
         ("dt*omega_pe", _fmt(sc.dt_wpe), "dt * omega_pe"),

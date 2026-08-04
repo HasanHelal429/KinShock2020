@@ -251,8 +251,17 @@ def derive(cfg: dict) -> Scales:
 
     MA = vsh_model / vA
     Mms = vsh_model / math.sqrt(vA * vA + Cs0 * Cs0)
-    beta_ab = 2.0 * MU0 * n0 * theta_e * ME_C2_J / (B0 * B0)
-    beta_0 = 2.0 * MU0 * namb * theta_0 * ME_C2_J / (B0 * B0)
+    # Table I's beta convention, PINNED 2026-08-03 (scripts/table1.py): beta = mu0 n kT/B^2,
+    # with NO factor of 2. Two independent exact identities fix it:
+    #   (a) in PSC's normalization mu0 n kT/B^2 = theta * n_code/B_code^2, and Table I's own
+    #       code-unit primaries give 0.092*1.25/0.01^2 = 1150 and 0.002*0.01/0.01^2 = 0.2,
+    #       both EXACTLY the quoted values;
+    #   (b) Sec. II's 1/w_ci0 = (Z_ab/Z_0) sqrt(beta_ab) t_ab needs sqrt(1150) = 33.9,
+    #       which is Table I's 1/w_ci0 row. Under a factor-2 beta it would be 48.0.
+    # This was previously carried as "a convention difference, not physics" and reported
+    # at 2x; it is now a definition, so the 2 is gone and every beta row matches Table I.
+    beta_ab = MU0 * n0 * theta_e * ME_C2_J / (B0 * B0)
+    beta_0 = MU0 * namb * theta_0 * ME_C2_J / (B0 * B0)
 
     # ablation electron kinetics (used by the collision block below)
     Te_ab_eV = theta_e * ME_C2_EV
