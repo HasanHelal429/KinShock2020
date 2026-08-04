@@ -203,7 +203,7 @@ def _b0_tesla(cfg: dict) -> float:
 
 
 def derive(cfg: dict) -> Scales:
-    """Compute all derived scales from a loaded config dict (see runs/R1/config.yaml)."""
+    """Compute all derived scales from a loaded config dict (see runs/R1_phase/R1/config.yaml)."""
     ref = cfg["reference"]
     pis = cfg["plasma"]["piston"]
     amb = cfg["plasma"]["ambient"]
@@ -382,7 +382,7 @@ def coulomb_log_for(coll: dict, n0: float, Te_ab_eV: float, vte_ab: float,
 
         CORRECTED 2026-08-01: this branch used omega_ce at **B0**, which is larger by
         sqrt(beta_ab) (~34x here), so it silently targeted a ~28-34x longer mean free
-        path. runs/R1_coll was built against the old meaning and is pinned to an
+        path. runs/R1_phase/R1_coll was built against the old meaning and is pinned to an
         explicit ``coulomb_log`` so its deck is unchanged; see its README.
     ``coulomb_log``
         set lnLambda directly (``value: physical`` uses the NRL formula).

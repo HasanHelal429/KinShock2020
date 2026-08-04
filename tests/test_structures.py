@@ -20,11 +20,11 @@ import numpy as np
 import kinshock
 from kinshock import metrics
 
-R1 = os.path.join(ROOT, "runs", "R1")
-R0 = os.path.join(ROOT, "runs", "R0")
-R0_HALF = os.path.join(ROOT, "runs", "R0_half")
-R1_WARM = os.path.join(ROOT, "runs", "R1_warm")
-R1_COLL = os.path.join(ROOT, "runs", "R1_coll")
+R1 = os.path.join(ROOT, "runs", "R1_phase", "R1")
+R0 = os.path.join(ROOT, "runs", "R0_phase", "R0")
+R0_HALF = os.path.join(ROOT, "runs", "R0_phase", "R0_half")
+R1_WARM = os.path.join(ROOT, "runs", "R1_phase", "R1_warm")
+R1_COLL = os.path.join(ROOT, "runs", "R1_phase", "R1_coll")
 
 
 # --------------------------------------------------------------------------- #
@@ -98,7 +98,7 @@ def test_make_inputs_roundtrip():
 
 
 def test_one_sided_half_domain():
-    """The one-sided layout (runs/R0_half) must: halve the cell count, put the
+    """The one-sided layout (runs/R0_phase/R0_half) must: halve the cell count, put the
     domain at [0, half] with a reflecting z=0 wall + open far boundary, and KEEP
     the foil at [-slab, +slab] so the PSC heating rate (H ~ 1/width) matches the
     full-domain rate — the domain then clips the heated region to [0, slab]. It
@@ -183,7 +183,7 @@ def test_collisional_twin_of_R1_warm():
     B_ab), so it targets mfp = 559 d_e,ab -- ~28x LESS collisional than Table I's
     lambda_ab = 20. Its config is now pinned to the literal lnLambda it ran, so the
     deck still round-trips; this test locks in that it is NOT the paper's
-    collisionality. runs/R1_paper is. nu_ei*dt must stay well under 1 for Takizuka-Abe.
+    collisionality. runs/R1_phase/R1_paper is. nu_ei*dt must stay well under 1 for Takizuka-Abe.
     """
     from kinshock import deck, units
     warm, coll = kinshock.load(R1_WARM), kinshock.load(R1_COLL)
@@ -282,7 +282,7 @@ def test_legacy_vA_over_c_is_refused():
 
 
 def test_R1_paper_hits_table_I():
-    """runs/R1_paper is the faithful Table I run: every dimensionless row must land.
+    """runs/R1_phase/R1_paper is the faithful Table I run: every dimensionless row must land.
 
     Guards the four unit errors found on 2026-07-31 (RESULTS) from creeping back:
     the ambient is 0.008 n_e,ab (not 0.01), theta_e,ab is the paper's 0.092, B0 comes
@@ -291,7 +291,7 @@ def test_R1_paper_hits_table_I():
     import math
     from kinshock import units
 
-    cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_paper"))
+    cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_phase", "R1_paper"))
     sc = units.derive(cfg)
     C = units.C
 
@@ -333,7 +333,7 @@ def test_table1_self_consistent_physical_scales():
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
     import table1
 
-    cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_paper"))
+    cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_phase", "R1_paper"))
     mu, theta_e_psc = 100.0, 0.092
     P = dict(n_ab=6.0e26, Te_ab_eV=470.0, T_0_eV=10.0, mu=mu, beta_ab=1150.0,
              n0_frac=0.008, lambda_ab=20.0, n_ab_code=1.25,

@@ -9,7 +9,7 @@ plotfiles / reduced diagnostics, also emits:
   * operator balance: energy-conservation and piston-inventory histories (heater
     <-> injector balance), inherited from the flatfoil validation.
 
-Usage:  python scripts/run_checks.py [runs/R1]
+Usage:  python scripts/run_checks.py [runs/R1_phase/R1]
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ def operator_balance_figure(cfg, sc, run_dir):
 
 
 def main():
-    run_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "runs", "R1")
+    run_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "runs", "R1_phase", "R1")
     cfg = kinshock.load(run_dir)
     sc = kinshock.units.derive(cfg)
     warns = kinshock.config.validate(cfg, sc)

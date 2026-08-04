@@ -1,0 +1,96 @@
+# R1_core_half_sym — one-sided (half-domain) R1_core with the CORRECTED z=0 wall.
+# IDENTICAL to runs/R1_phase/R1_core_half/config.yaml in every physics primary, resolution,
+# step count, and diagnostic cadence — the ONLY change is the z=0 boundary:
+#   R1_core_half     : lo: reflecting  (specular; flips only v_z)
+#   R1_core_half_sym : lo: symmetry    (pi-rotation about B0/x: flips v_z AND v_perp)
+# so any difference isolates the effect of the specular-wall artifact fix
+# (see RESULTS.md 2026-07-23 "Half-domain z=0 wall artifact: root cause + fix").
+#
+# The 'symmetry' boundary emits the fork-only input boundary.reflect_symmetry_axis = x
+# (warpx-cda ParticleBoundaries change). Purpose: 3-way validation of the shock
+# front trajectory / compression / onset against the full-domain R1_core (z>=0)
+# and the previous specular half-domain R1_core_half.
+
+meta:
+  run_id: R1_core_half_sym
+  tier: Core
+  description: >
+    One-sided R1_core with the rotational-symmetry (pi-rotation about B0) wall at
+    z=0 instead of specular reflection. Full R1 physics on the +z half
+    [0, 3600 d_e] (12000 cells, 125000 steps ~ 2.8 wci0^-1). Controlled A/B vs
+    R1_core_half (specular) and R1_core (full domain).
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I"
+  deck: inputs_kinshock_R1_core_half_sym
+  warpx_build: "warpx-cda/build/bin/warpx.1d (rebuilt 2026-07-23: reflect_symmetry_axis)"
+  generated_from: "Authored from R1_core_half; z=0 wall changed reflecting -> symmetry."
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.092
+    theta_e_init: 0.001
+    theta_i_init: 1.0e-5
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: perpendicular
+  B0_tesla: 0.0032075256118468715        # PRIMARY [T]. Migrated from vA_over_c = 0.01 (identical B0).
+  # v_A is DERIVED: B0/sqrt(mu0*namb*m_i) = 0.01 c
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 3600.0    # +z extent; one-sided domain is [0, 3600 d_e]
+  dz_over_de: 0.3                # Table I resolution
+  layout: one_sided             # [0, half] instead of symmetric [-half, +half]
+  boundary:
+    lo: symmetry                 # z=0: pi-rotation-about-B0 wall (pec fields + rotational particles)
+    hi: open                     # far upstream: absorbing particles + pec fields (div-cleaner-safe with B0)
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 125000               # ~2.8 wci0^-1 (covers t*_1 ~1, t*_2 ~2.5)
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+diagnostics:
+  plotfile_intervals: 2500       # Full plotfiles (fields + raw particles) -> ~50 frames
+  reduced_intervals: 500         # EP/PN reduced diags (energy balance, particle count)
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

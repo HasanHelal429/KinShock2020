@@ -201,7 +201,7 @@ def eng(x, unit, digits=4):
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Table I from a self-consistent set of physical scales.")
-    ap.add_argument("run", nargs="?", default="runs/R1_paper")
+    ap.add_argument("run", nargs="?", default="runs/R1_phase/R1_paper")
     ap.add_argument("--n-ab", type=float, default=6.0e26, help="[m^-3] (6e26)")
     ap.add_argument("--Te-ab-eV", type=float, default=470.0, help="[eV] (470)")
     ap.add_argument("--T0-eV", type=float, default=10.0, help="[eV] (10)")

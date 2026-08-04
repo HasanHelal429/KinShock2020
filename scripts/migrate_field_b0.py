@@ -6,7 +6,7 @@ exactly that map and rewrites the key in place, so the resulting deck is numeric
 identical and ``make_inputs.py --verify`` still passes against an existing
 ``warpx_used_inputs``.
 
-    python scripts/migrate_field_b0.py runs/R1_warm [runs/... ]
+    python scripts/migrate_field_b0.py runs/R1_phase/R1_warm [runs/... ]
     python scripts/migrate_field_b0.py --all
     python scripts/migrate_field_b0.py --all -n      # dry run
 
@@ -16,7 +16,6 @@ formatting survive untouched.
 from __future__ import annotations
 
 import argparse
-import glob
 import os
 import re
 import sys
@@ -25,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import yaml  # noqa: E402
 
-from kinshock import units  # noqa: E402
+from kinshock import config, units  # noqa: E402
 
 _KEY = re.compile(r"^(\s*)vA_over_c\s*:\s*([0-9eE.+-]+)\s*(#.*)?$")
 
@@ -81,14 +80,19 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir", nargs="*")
-    ap.add_argument("--all", action="store_true", help="every runs/*/ with a config.yaml")
+    ap.add_argument("--all", action="store_true",
+                    help="every run dir under runs/ (runs/<phase>_phase/<run_id>/)")
     ap.add_argument("-n", "--dry-run", action="store_true")
     args = ap.parse_args()
 
     dirs = list(args.run_dir)
     if args.all:
         root = os.path.join(os.path.dirname(__file__), "..", "runs")
-        dirs += sorted(os.path.dirname(p) for p in glob.glob(os.path.join(root, "*", "config.yaml")))
+        dirs += config.find_runs(root)
+        stray = config.unphased_runs(root)
+        if stray:
+            print("note: not filed under a <phase>_phase/ folder: "
+                  + ", ".join(os.path.basename(d) for d in stray), file=sys.stderr)
     if not dirs:
         ap.error("give one or more run dirs, or --all")
     for d in dirs:

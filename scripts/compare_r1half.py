@@ -5,7 +5,7 @@ import kinshock
 from kinshock import io, metrics
 from kinshock.units import C
 
-run=os.path.join(ROOT,"runs","R1_core_half")
+run=os.path.join(ROOT,"runs", "R1_phase", "R1_core_half")
 cfg=kinshock.load(run); sc=kinshock.units.derive(cfg)
 
 # --- scales / paper references ---

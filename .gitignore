@@ -5,6 +5,10 @@ runs/**/diags_movie/
 
 # --- studies scratch (WarpX variant runs, regenerable from the runner) ---
 studies/**/scratch/
+# benchmark points written by studies/speedup/bench.sh (run.log + plotfiles).
+# The findings live in runs/opt_phase/SUMMARY.md and RESULTS.md, not here.
+studies/**/out/
+studies/**/*.out
 
 # --- any media ---
 media/

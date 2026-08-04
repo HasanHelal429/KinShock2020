@@ -10,11 +10,11 @@ and runs can be paced/scheduled without babysitting them.
 Launch it right after starting WarpX (it waits for run.log to appear):
 
     # foreground WarpX writing run.log, logger in the background:
-    OMP_NUM_THREADS=8 warpx.1d inputs > runs/R1_core/run.log 2>&1 &
-    python scripts/run_progress_logger.py runs/R1_core &
+    OMP_NUM_THREADS=8 warpx.1d inputs > runs/R1_phase/R1_core/run.log 2>&1 &
+    python scripts/run_progress_logger.py runs/R1_phase/R1_core &
 
-    python scripts/run_progress_logger.py runs/R1_core --every-pct 5 --poll 20
-    python scripts/run_progress_logger.py runs/R1_core --total 125000 --log run.log
+    python scripts/run_progress_logger.py runs/R1_phase/R1_core --every-pct 5 --poll 20
+    python scripts/run_progress_logger.py runs/R1_phase/R1_core --total 125000 --log run.log
 
 --total is auto-detected from warpx_used_inputs / the input deck (last ``max_step``
 wins, matching ParmParse), so appended overrides are respected. The logger stops when

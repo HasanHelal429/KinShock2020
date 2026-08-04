@@ -26,12 +26,18 @@ The paper PDF is **not** included (copyrighted); get it from
 ```
 src/kinshock/     reusable analysis library (config, units, deck, io, metrics, plotting)
 scripts/          thin drivers: make_inputs, run_checks, make_figures, make_movies
-runs/RXX/         per-run config.yaml (single source of truth) + generated WarpX deck (inputs_*)
+runs/<phase>_phase/<ID>/   per-run config.yaml (single source of truth) + generated deck (inputs_*)
 tests/            structure tests (config/units/deck-generation/metrics), no WarpX needed
-media/            figures & movies (testing/ = bring-up, RXX/ = per-run results)
+media/            figures & movies, mirroring runs/ (testing/ = cross-study bring-up)
 ```
-Simulation output (`runs/*/diags/`) and run logs are git-ignored — regenerate by running the
-decks. Per-run parameters live in `runs/RXX/config.yaml`; **no physical constants are
+Runs are grouped by phase and a run dir is always at **depth 2** — `runs/R0_phase/R0`,
+`runs/R1_phase/R1_warm`, `runs/R2_phase/R2`, plus `runs/xcheck_phase/` and `runs/opt_phase/`
+(performance sweeps, which carry no `config.yaml`). The `_phase` suffix is there because `R1` is
+itself a run id, so a bare `runs/R1/` would be both a run and a container. Enumerate run dirs
+with `kinshock.find_runs(root)` rather than globbing.
+
+Simulation output (`runs/**/diags/`) and run logs are git-ignored — regenerate by running the
+decks. Per-run parameters live in `runs/<phase>_phase/<ID>/config.yaml`; **no physical constants are
 hard-coded in the scripts** — `src/kinshock/units.py` derives all scales from the config
 primaries, and `scripts/make_inputs.py` generates the WarpX deck from the config (and, with
 `--verify`, confirms `warpx_used_inputs` matches the config after a run).
@@ -211,24 +217,27 @@ env with `yt`, `numpy`, `matplotlib`, `pyyaml`.
 python tests/test_structures.py
 
 # a run (example: R0 smoke)
-python scripts/make_inputs.py runs/R0            # config.yaml -> runs/R0/inputs_kinshock_R0
-cd runs/R0
+python scripts/make_inputs.py runs/R0_phase/R0            # config.yaml -> runs/R0_phase/R0/inputs_kinshock_R0
+cd runs/R0_phase/R0
 MPICH_GPU_SUPPORT_ENABLED=0 mpirun -np <N> <warpx.1d> inputs_kinshock_R0
 
 # verify what actually ran matches the config, then analyze
-python scripts/make_inputs.py runs/R0 --verify   # warpx_used_inputs == config?
-python scripts/run_checks.py  runs/R0            # bring-up / progress figures -> media/testing
-python scripts/make_figures.py runs/R0           # shock diagnostics -> media/R0
-python scripts/make_movies.py  runs/R0           # movies -> media/R0
+python scripts/make_inputs.py runs/R0_phase/R0 --verify   # warpx_used_inputs == config?
+python scripts/run_checks.py  runs/R0_phase/R0            # bring-up / progress figures -> media/testing
+python scripts/make_figures.py runs/R0_phase/R0           # shock diagnostics -> media/R0_phase/R0
+python scripts/make_movies.py  runs/R0_phase/R0           # movies -> media/R0_phase/R0
 ```
 
 ## Runs
-| id | tier | purpose |
+| path | tier | purpose |
 |----|------|---------|
-| `R0` | smoke | structure / pipeline verification (tiny grid) |
-| `R1_core` | core | full R1 physics on a moderate domain (→ t*₂), calibration check |
-| `R1` | full | Schaeffer 2020 Table I representative run (M_A ≈ 14), → t*₃ |
-| `xcheck_flatfoil_1d` | — | 1D-vs-2D heater-saturation cross-check |
+| `R0_phase/R0` | smoke | structure / pipeline verification (tiny grid) |
+| `R1_phase/R1_core` | core | full R1 physics on a moderate domain (→ t*₂), calibration check |
+| `R1_phase/R1` | full | Schaeffer 2020 Table I representative run (M_A ≈ 14), → t*₃ |
+| `R1_phase/R1_warm` | full | current reference run (warm ablative piston ions, M_A ≈ 14) |
+| `R1_phase/R1_paper_470eV` | full | µ=100-self-consistent 470 eV rebuild — **staged, not cleared** |
+| `xcheck_phase/xcheck_flatfoil_1d` | — | 1D-vs-2D heater-saturation cross-check |
+| `opt_phase/` | — | performance sweeps (no `config.yaml`); harness in `studies/speedup/` |
 
 See `REPLICATION_PLAN.md` §3 for the full run matrix (controls, Mach scan, multi-species).
 

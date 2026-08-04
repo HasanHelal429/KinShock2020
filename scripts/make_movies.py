@@ -9,7 +9,7 @@ Frames are rendered to $MOVIE_SCRATCH (default the session scratchpad) then
 encoded. Uses the same shock speed the figures use (model value, unless a
 measured one is passed with --vsh-c).
 
-Usage:  python scripts/make_movies.py [runs/R1] [--fps 8] [--vsh-c 0.14]
+Usage:  python scripts/make_movies.py [runs/R1_phase/R1] [--fps 8] [--vsh-c 0.14]
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ def movie_phase(pfs, cfg, sc, vsh, fps):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1"))
+    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_phase", "R1"))
     ap.add_argument("--fps", type=int, default=8)
     ap.add_argument("--vsh-c", type=float, default=None,
                     help="shock speed in units of c (default: model value from config)")

@@ -31,7 +31,7 @@ COL = {"full": "#8a8a8a", "spec": "#d55e00", "sym": "#0072b2"}
 NAME = {"full": "full R1_core (ref)", "spec": "half: specular", "sym": "half: symmetry (fix)"}
 ORDER = ["full", "spec", "sym"]
 
-R0_RUNS = {"full": "runs/R0", "spec": "runs/R0_half", "sym": "runs/R0_half_sym"}
+R0_RUNS = {"full": "runs/R0_phase/R0", "spec": "runs/R0_phase/R0_half", "sym": "runs/R0_phase/R0_half_sym"}
 
 
 def _style(ax):

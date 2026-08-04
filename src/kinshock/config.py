@@ -8,12 +8,37 @@ mismatch — the deck may legitimately explore off-Table-I points).
 
 from __future__ import annotations
 
+import glob
 import os
 from typing import Any
 
 import yaml
 
 from . import units
+
+
+def find_runs(runs_root: str) -> list[str]:
+    """Every run directory under ``runs_root`` — i.e. every dir holding a ``config.yaml``.
+
+    LAYOUT (2026-08-04): runs are grouped by phase, ``runs/<phase>_phase/<run_id>/``, so a
+    run dir sits at exactly **depth 2**. This used to be a bare ``runs/*/config.yaml`` glob
+    duplicated in `make_run_readme.py` and `migrate_field_b0.py`; after the regrouping that
+    pattern matches nothing, and because both call sites feed it to a `for` loop the failure
+    mode is a silent "processed 0 runs" rather than an error. One definition here instead.
+
+    Depth 1 is searched as well, so a run that has not been filed into a phase folder is
+    still found. Use :func:`unphased_runs` to report those separately rather than letting
+    them quietly bypass the convention.
+    """
+    hits = (glob.glob(os.path.join(runs_root, "*", "*", "config.yaml"))
+            + glob.glob(os.path.join(runs_root, "*", "config.yaml")))
+    return sorted({os.path.normpath(os.path.dirname(p)) for p in hits})
+
+
+def unphased_runs(runs_root: str) -> list[str]:
+    """Run dirs still at depth 1, i.e. not yet filed under a ``<phase>_phase/`` folder."""
+    return sorted(os.path.normpath(os.path.dirname(p))
+                  for p in glob.glob(os.path.join(runs_root, "*", "config.yaml")))
 
 
 def load(path: str) -> dict:

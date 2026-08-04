@@ -40,16 +40,45 @@ rewritten from config. Run `--check` to fail on a stale one. Read it before touc
 - `scripts/` — analysis/driver CLIs (see table below). All take a `run_dir`, are config-driven.
 - `studies/` — heavier experiments that *launch* WarpX (benchmarks, convergence tests).
 - `tests/` — fast pytest checks (`test_structures.py`).
-- `runs/<ID>/` — `README.md` (generated, read it first) + config + deck + `warpx_used_inputs`
-  (tracked); `diags/`, `*.log` gitignored.
-- `media/<ID>/`, `media/testing/` — figures/movies (gitignored, regenerable).
+- `runs/<phase>_phase/<ID>/` — `README.md` (generated, read it first) + config + deck +
+  `warpx_used_inputs` (tracked); `diags/`, `*.log` gitignored.
+- `media/<phase>_phase/<ID>/`, `media/testing/` — figures/movies (gitignored, regenerable).
+
+**Runs are grouped by phase, and a run dir is always at depth 2** (regrouped 2026-08-04):
+`runs/R0_phase/`, `runs/R1_phase/`, `runs/R2_phase/`, `runs/R3_phase/`, `runs/xcheck_phase/`,
+`runs/opt_phase/`. The `_phase` suffix exists because `R1` is itself a run id — a bare `runs/R1/`
+container would be both a run and a folder of runs, which is what makes tooling need two globs.
+`media/` mirrors it. **Discover run dirs with `kinshock.find_runs(root)`, never a raw glob**:
+`make_run_readme.py --all` and `migrate_field_b0.py --all` both used to hard-code
+`runs/*/config.yaml`, which after the regrouping matches *nothing* — and since both feed the
+result straight into a `for` loop, the failure mode is a silent "processed 0 runs", not an error.
+`kinshock.unphased_runs(root)` reports any run still sitting at depth 1 so strays stay visible
+instead of quietly bypassing the convention. `.gitignore` needs no change: its patterns are all
+`runs/**/…`, which is depth-agnostic.
 
 ## Runs
-- `R0`, `R0_half` — smoke tests (short, pre-shock).
+Paths below are relative to `runs/`; each id also has a `media/<phase>_phase/<id>/`.
+
+**`R0_phase/`** — `R0`, `R0_half`, `R0_half_sym`: smoke tests (short, pre-shock).
+
+**`R1_phase/`** — the physics phase.
 - `R1_core`, `R1_core_half` — physics runs (dz=0.3 d_e; `_half` = one-sided z≥0 domain).
 - `R1_warm` — the current full reference run (warm ablative piston ions, settled M_A≈14).
 - `R1_coll` — R1_warm's collisional twin: same dimensionless setup, ambient pinned to
   10¹⁸ cm⁻³, pairwise Coulomb collisions (see the collisions gotcha below).
+- `R1_paper`, `R1_paper_phys`, `R1_paper_dial`, `R1_cal`, `R1_recal`, `R1`, `R1_half`,
+  `R1_core_half_sym` — Table I targeting and calibration offshoots.
+- `R1_paper_470eV`, `R1_paper_470eV_pilot` — the µ=100-self-consistent 470 eV rebuild; the
+  pilot found real grid heating and the production run is **staged but not cleared**
+  (RESULTS 2026-08-04).
+
+**`R2_phase/`**, **`R3_phase/`** — `R2`, `R3` controls.
+**`xcheck_phase/`** — `xcheck_flatfoil_1d`, a PSC cross-check deck (no `config.yaml`, so it is
+absent from `--all` by design).
+**`opt_phase/`** — performance sweeps, not physics runs: no `config.yaml`, one dir per
+benchmark point (`run.log` + `meta.txt` + `result.txt`) plus `SUMMARY.md`. Harness lives in
+`studies/speedup/`.
+
 - Scales: mᵢ/mₑ=100, d_i0=100 d_e, ρ_i0≈1040 d_e, B0 along x (perpendicular shock).
 
 ## Typical workflow
@@ -98,7 +127,7 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   the progress logger is **on by default** (`--no-logger` to suppress; every run must leave a
   `progress.log`), `-n` dry-runs, and anything after `--` is passed to WarpX
   as ParmParse overrides (smoke tests only — they will trip `make_inputs.py --verify`).
-- **Collisions (`collisions:` block, `runs/R1_coll`).** Three traps. (1) **lnΛ is a knob, not a
+- **Collisions (`collisions:` block, `runs/R1_phase/R1_coll`).** Three traps. (1) **lnΛ is a knob, not a
   physical value**: at real c, θ_e = 0.078 ⇒ T_e,ab = 39.9 keV, so ν_ei ∝ n T^(−3/2) keeps the
   plasma collisionless (physical lnΛ → mfp ≈ 4×10⁵ d_e,ab) at *any* attainable density. Set
   `collisions.target` to the physics you want and let `units.coulomb_log_for` invert it.

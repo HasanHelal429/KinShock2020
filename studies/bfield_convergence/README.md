@@ -28,7 +28,7 @@ noise but not physical waves at resolved scales**, so:
 
 ```bash
 WARPX=/path/to/warpx.1d studies/bfield_convergence/run_variants.sh \
-    runs/R1_core_half/inputs_kinshock_R1_core_half     # -> ./scratch/{baseline,filt8,shape3,finer_dz}
+    runs/R1_phase/R1_core_half/inputs_kinshock_R1_core_half     # -> ./scratch/{baseline,filt8,shape3,finer_dz}
 python studies/bfield_convergence/analyze.py studies/bfield_convergence/scratch
 python scripts/bfield_diagnostic.py studies/bfield_convergence/scratch/finer_dz --twci 0.5
 ```

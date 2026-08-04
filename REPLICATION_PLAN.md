@@ -144,7 +144,7 @@ collisionless at the high flow speeds (λ_mfp/d_i0 ≈ 350). **Plan:** run R1 co
 binary Coulomb collisions on the (H⁺, e⁻) pairs, tuned to λ_ab ≈ 20, to confirm formation is
 unchanged and to get realistic electron isotropy/heating in the downstream.
 
-**Status: `runs/R1_coll/` fills the R6 slot** (config + deck done 2026-07-27, not yet launched)
+**Status: `runs/R1_phase/R1_coll/` fills the R6 slot** (config + deck done 2026-07-27, not yet launched)
 — R1_warm's collisional twin, every dimensionless primary identical, pinned to an absolute
 ambient n_e0 = 10¹⁸ cm⁻³ (`reference.n0 = 1e26` m⁻³). Config-driven via a `collisions:` block
 (`model`, `pairs`, `target`, `ndt_supercycle`) rendered by `kinshock.deck`; `--verify` covers it.
@@ -363,7 +363,7 @@ tiers, a short Core-tier or R0 run locally for bring-up).
 ## 9. Sequencing checklist
 
 - [ ] Scaffold `KinShock2020/{src/kinshock,scripts,runs,media/testing}/`
-- [ ] `src/kinshock/{config,units}.py` + a first `runs/R1/config.yaml`; unit test that
+- [ ] `src/kinshock/{config,units}.py` + a first `runs/R1_phase/R1/config.yaml`; unit test that
       `units.py` reproduces Table I targets (M_A≈14, M_ms≈13, β₀≈0.2) from the config primaries
 - [ ] R0 smoke test — `scripts/make_inputs.py` generates the deck from `config.yaml`; deck
       loads, heater+injector active, no NaN, dt·ω_pe sane; `make_inputs.py --verify` confirms
@@ -371,9 +371,9 @@ tiers, a short Core-tier or R0 run locally for bring-up).
 - [ ] `scripts/run_checks.py` + R1 Core-tier short run — loaded-state sanity figures to
       `media/testing/`; confirm C_s,ab, v_A, M_A, β₀ (read from config) match Table I
 - [ ] `src/kinshock/{io,metrics,plotting}.py` + analyses A–F wired into `scripts/make_figures.py`
-      and `make_movies.py`, validated on R1 (Core) output, figures to `media/R1/`
+      and `make_movies.py`, validated on R1 (Core) output, figures to `media/R1_phase/R1/`
 - [ ] **R1 Full run (→ t\*₃, ~730 ch / ~2.9 h @256 cores)** — acceptance criteria (§6) evaluated
-- [x] R2, R3 negative controls (Core tier), 2026-07-26 → `media/R2`, `media/R3` (RESULTS 2026-07-26):
+- [x] R2, R3 negative controls (Core tier), 2026-07-26 → `media/R2_phase/R2`, `media/R3_phase/R3` (RESULTS 2026-07-26):
       R3 (n_e0=0) clean null (G=0, empty ambient, no shock); R2 (B₀=0) no *magnetized* shock (no
       coherent B ramp), though ambient ions are electrostatically piston-accelerated and the coded
       7-criteria false-positive (mechanism-blind G>v_sh + B_comp/B₀ with self-fields ≫ weak B₀)

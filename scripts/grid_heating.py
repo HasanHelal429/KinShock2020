@@ -4,7 +4,7 @@
 WHY NOT JUST USE EP.txt. The reduced ParticleEnergy diagnostic reports one mean
 energy per species over the WHOLE domain, and that number is dominated by real
 physical heating of the ambient plasma the piston has already swept up -- in
-runs/R1_paper it rises 2.2x within the first 3.4 t_ab, long before the shock forms.
+runs/R1_phase/R1_paper it rises 2.2x within the first 3.4 t_ab, long before the shock forms.
 It is therefore useless as a grid-heating diagnostic. Numerical heating has to be
 read where nothing physical has happened yet: far ahead of the piston.
 
@@ -23,8 +23,8 @@ It also reports how far the piston has actually reached (from the piston-ion den
 so you can confirm the "far upstream" window really is pristine. If `piston reach`
 ever approaches `window lo`, the measurement is contaminated and the window must move.
 
-    python scripts/grid_heating.py runs/R1_paper_470eV_pilot runs/R1_paper
-    python scripts/grid_heating.py runs/R1_paper --species amb_ions --upstream-frac 0.85
+    python scripts/grid_heating.py runs/R1_phase/R1_paper_470eV_pilot runs/R1_phase/R1_paper
+    python scripts/grid_heating.py runs/R1_phase/R1_paper --species amb_ions --upstream-frac 0.85
 """
 
 from __future__ import annotations

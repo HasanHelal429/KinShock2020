@@ -23,7 +23,7 @@ env (yt 4.4.2, numpy, matplotlib, PyYAML).
 - metrics: Eq. 1 expansion speed, Eq. 2 RH ratio (→ ~3.9, strong-shock ~4×), reflected
   fraction G, front tracking, and the 7-criteria evaluator all correct.
 
-### R0 smoke run — PASS (structure) (`runs/R0/`, 2000 cells, 2000 steps, ~exit 0)
+### R0 smoke run — PASS (structure) (`runs/R0_phase/R0/`, 2000 cells, 2000 steps, ~exit 0)
 Verified the deck + operators + full analysis pipeline:
 - **No NaN / no recorded warnings**; all fields finite (checked Bx,By,Bz,Ex,Ey,Ez on the
   last plotfile). The "114 error matches" in a naive grep were all `INFO` lines (`inf`).
@@ -34,7 +34,7 @@ Verified the deck + operators + full analysis pipeline:
   begins, as expected.
 - **Analysis pipeline** runs end-to-end on real data and writes all artifacts:
   - `media/testing/`: `R0_config_summary.png`, `R0_loaded_state.png`, `R0_operator_balance.png`
-  - `media/R0/`: `shock_streak.png`, `shock_trajectory.png`, `shock_lineouts.png`,
+  - `media/R0_phase/R0/`: `shock_streak.png`, `shock_trajectory.png`, `shock_lineouts.png`,
     `shock_phase.png`, `shock_reflected.png`, `criteria.json`, `shock_ni.mp4`, `shock_phase.mp4`
   - Criteria correctly report **no shock** at t·ω_ci0 ∈ [0, 0.08] (`is_shock: None`); the
     trajectory's "M_A = 31" is the meaningless early piston-edge transient (expected: R0 is
@@ -82,7 +82,7 @@ Ran while R1_core was in progress. Two things settled:
    heated-electron θ_thermal (drift-subtracted) at fixed validated params (θ_heat=0.04,
    slab 10 d_e, bg 0.002 n₀, `foil.n0=n0`):
    - **2D flatfoil (validated vs PSC), Gaussian spot:** saturates at **0.031 = 0.77 θ_heat** (stable).
-   - **1D analog (`runs/xcheck_flatfoil_1d/`), same params, uniform slab:** saturates at
+   - **1D analog (`runs/xcheck_phase/xcheck_flatfoil_1d/`), same params, uniform slab:** saturates at
      **0.096 = 2.4 θ_heat** (stable by t·ω_pe≈1000).
    - R0 (1D, θ_heat=0.092) heads to the same ~2.4× (0.19 = 2.07× and rising at t·ω_pe=675).
 
@@ -157,7 +157,7 @@ valid because z=0 sits inside the dense, driven piston — far from where the sh
   don't-care beyond being stable. `config.validate` warns on periodic-on-one-face and on
   `absorbing` with a background field.
 
-**Two bugs found and fixed during R0 validation** (`runs/R0_half`, 1000 cells vs R0's 2000):
+**Two bugs found and fixed during R0 validation** (`runs/R0_phase/R0_half`, 1000 cells vs R0's 2000):
 1. **Far-boundary field BC** — first attempt used Silver-Mueller at the far edge → WarpX abort
    ("div cleaner requires periodic/PEC/PMC/neumann"). Fixed by the `open`→pec mapping above.
 2. **Heater foil width** — the PSC foil heating rate is **H ∝ 1/width**, `width = foil.hi −
@@ -199,9 +199,9 @@ gains `test_one_sided_half_domain` (10/10 pass).
 
 ## R1_core half-domain cross-check (2026-07-23) — physics-resolution validation
 
-`runs/R1_core_half`: `layout: one_sided`, wall@z=0, `0..3600 d_e`, dz=0.3 d_e, 12000 cells,
+`runs/R1_phase/R1_core_half`: `layout: one_sided`, wall@z=0, `0..3600 d_e`, dz=0.3 d_e, 12000 cells,
 100 ppc, 125000 steps (~180 min, tmux `wxr1half`). Compared frame-for-frame against the
-complete full-domain `runs/R1_core` on z≥0 (same dt & diagnostic cadence).
+complete full-domain `runs/R1_phase/R1_core` on z≥0 (same dt & diagnostic cadence).
 Figure: `media/testing/R1_core_half_crosscheck.png`. Scripts: `tmp/crosscheck_r1core.py`
 (raw) + `tmp/crosscheck_r1core_v2.py` (refined: ambient-only compression measured in a
 [front−400, front−50] d_e window, edge-contaminated frames excluded).
@@ -486,12 +486,12 @@ tokens **plus** the `boundary.reflect_symmetry_axis = x` line (x = B₀ axis for
 geometry). `_boundaries()` returns a third `sym_axis` value; `_SYMMETRY_BCS` gates it. Use
 `boundary.lo: symmetry` in place of `reflecting` for a faithful one-sided wall.
 
-**New run `runs/R1_core_half_sym`.** Byte-identical deck to `R1_core_half` except the single
+**New run `runs/R1_phase/R1_core_half_sym`.** Byte-identical deck to `R1_core_half` except the single
 added line `boundary.reflect_symmetry_axis = x` (verified by diff) — a clean one-variable A/B.
 `filter_npass` deliberately left unchanged (that is a separate physics-quality knob; changing
 it too would confound the wall comparison). Launched with the benchmarked optimization
 `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores` (~1.8× vs 4 threads; ETA ~1h36m);
-no `max_grid_size`/tiling/sort tweaks (benchmarked neutral-to-negative). `runs/R1_core_half_sym/`
+no `max_grid_size`/tiling/sort tweaks (benchmarked neutral-to-negative). `runs/R1_phase/R1_core_half_sym/`
 `launch.sh` + `finalize.log` (auto-runs verify + figures + 3-way compare on completion).
 
 **Validation harness `scripts/crosscheck_3way.py`.** Compares full=`R1_core` (z≥0),
@@ -576,7 +576,7 @@ spec=vermillion, sym=blue), direct-labeled.
 - [ ] (Optional) Implement fix 2 (per-component field symmetry BC) if sub-few-% fidelity needed.
 - [ ] Adopt `boundary.lo: symmetry` as the default one-sided wall in future half-domain runs.
 
-**R0_half_sym early confirmation (DONE — `runs/R0_half_sym`, smoke tier, seconds).** Ran the
+**R0_half_sym early confirmation (DONE — `runs/R0_phase/R0_half_sym`, smoke tier, seconds).** Ran the
 cheap A/B/C first. Near-wall B_perp peak (z<3·slab, z≥0, last frame t·ω_pe=750), full R0 = ref:
 
 | near-wall peak /B0 | full R0 | spec (R0_half) | sym (R0_half_sym) |
@@ -600,7 +600,7 @@ from R0_half by only `reflect_symmetry_axis = x`.
 
 ## Full R1 (half-domain, symmetry wall) — Table I reproduction (2026-07-24)
 
-`runs/R1_half`: the Full-tier Table I run as a one-sided half-domain with the validated
+`runs/R1_phase/R1_half`: the Full-tier Table I run as a one-sided half-domain with the validated
 π-rotation symmetry wall at z=0 + 8-thread optimization. 25000 cells (0..7500 d_e, dz=0.3 d_e),
 250000 steps (→ t·ω_ci0 = 5.63), θ_heat=0.092 (Table I), 100 ppc/species, θ_Bn=90°.
 **Ran 6h19m wall @ 8 threads** (mean 0.091 s/step; matched the ~7.4h pre-run estimate — lighter
@@ -635,7 +635,7 @@ t·ω_ci0 ≈ 5). Also note derived β_ab=1840, β_0=0.4 vs Table I 1150/0.2 (pr
 not one of the shock-formation acceptance signatures).
 
 **Optimizations delivered:** half-domain (25k vs 50k cells) + 8 threads → **6h19m vs ~27h** for the
-naive symmetric/4-thread reproduction, at faithful M_A=14. Figures: `media/R1_half/` (shock_streak,
+naive symmetric/4-thread reproduction, at faithful M_A=14. Figures: `media/R1_phase/R1_half/` (shock_streak,
 trajectory, lineouts, phase, reflected, criteria.json) + `media/testing/R1_half_*`.
 
 ### Verdict
@@ -646,9 +646,9 @@ naive compute. Remaining: R2 (B₀=0) and R3 (n_e0=0) negative controls.
 
 ---
 
-## R2 (B₀=0) + R3 (n_e0=0) negative controls (2026-07-26) — `runs/R2`, `runs/R3`
+## R2 (B₀=0) + R3 (n_e0=0) negative controls (2026-07-26) — `runs/R2_phase/R2`, `runs/R3_phase/R3`
 
-Built as **exact single-knob clones of the calibrated production run `runs/R1_warm`** (warm
+Built as **exact single-knob clones of the calibrated production run `runs/R1_phase/R1_warm`** (warm
 piston ions θ_e_heat=0.078, θ_i=7.8e-4; 25000 cells, dz=0.3 d_e, 250000 steps → t·ω_ci0=5.63,
 100 ppc). One line changed per control, nothing else, so any difference isolates that ingredient:
 - **R2:** `field.orientation: perpendicular → unmagnetized` → deck applies Bx=0 (`kinshock.deck`
@@ -662,7 +662,7 @@ piston ions θ_e_heat=0.078, θ_i=7.8e-4; 25000 cells, dz=0.3 d_e, 250000 steps 
 Reference threshold for the reflected-ion / front metrics: R1_warm's by-eye **v_sh=0.1285 c
 (M_A=12.85)** copied into each control's `shock_fit.yaml` (scales identical → same cutoff → fair
 side-by-side). R2 ran 6h49m, R3 ran 1h48m (both under 2-run core contention; R3 is ~10× cheaper
-per step with no ambient particles). Figures in `media/R2/`, `media/R3/`.
+per step with no ambient particles). Figures in `media/R2_phase/R2/`, `media/R3_phase/R3/`.
 
 **Gotcha fixed (cost one restart):** the generated deck sets **no `diag*.file_prefix`**, so WarpX
 writes to `diags/` *relative to the launch CWD*. R1_warm worked because it was launched from
@@ -754,7 +754,7 @@ distinct things were pinning the tool to the coarse series:
   missing components are simply absent, so callers can probe and fall back. One-arg calls unchanged.
 - `io.field_species_density(frame, species, charge_states)` + `io.rho_field_names(species)`.
 - `tune_shock` prefers `field_plotfiles`, and falls back to `plotfiles` + macroparticle histograms
-  when the plotfiles carry no per-species rho (verified on `runs/R1_core`: **`diag1` has only 9
+  when the plotfiles carry no per-species rho (verified on `runs/R1_phase/R1_core`: **`diag1` has only 9
   components — Ex..Bz, jx..jz — no rho at all**, so pre-`diag_fields` runs behave exactly as before).
 
 **Validation** (`diag_fields020000` vs `diag1020000`, both at t = 7.976658e-08 s):
@@ -829,7 +829,7 @@ the default-times imposter. **Always re-render fig7 with the flags above after a
 
 ## R1_coll — collisional twin of R1_warm at n_e0 = 10¹⁸ cm⁻³ (2026-07-27) — setup
 
-New run `runs/R1_coll/`: R1_warm's **collisional** comparison run (the plan's R6 slot,
+New run `runs/R1_phase/R1_coll/`: R1_warm's **collisional** comparison run (the plan's R6 slot,
 `REPLICATION_PLAN.md` §4). Config + deck only — **not launched yet.**
 
 **What changed vs R1_warm — exactly two things.** `diff` of the two decks (comments stripped)
@@ -881,9 +881,9 @@ comparison. A `mfp_over_de: 20` target would be a different, ~28× more collisio
 needed and `ndt_supercycle: 1`.
 
 ### Verification done (no shock physics yet)
-- `make_inputs.py runs/R1_coll` → deck round-trips to the config; `--check` still clean for
+- `make_inputs.py runs/R1_phase/R1_coll` → deck round-trips to the config; `--check` still clean for
   R1_warm/R1_recal/R1_cal/R2/R3/R1_core_half (no regression from the new code paths).
-- `run_checks.py runs/R1_coll` → **validation OK**, λ_ab = 20.000 exactly (mfp = 558.6 d_e,ab).
+- `run_checks.py runs/R1_phase/R1_coll` → **validation OK**, λ_ab = 20.000 exactly (mfp = 558.6 d_e,ab).
 - `tests/test_structures.py` → **11/11 PASS** (new collisional-twin test included).
 - **WarpX smoke** (20 steps, 2000 cells, 8 ppc, throwaway CWD): exit 0, no errors, and
   `warpx_used_inputs` shows all 10 collisions with `CoulombLog = 7713.304243059874`.
@@ -897,7 +897,7 @@ leaves ν_ei·dt_coll ≈ 9×10⁻⁴ and cuts the cost ~8×.
 
 Launch with:
 ```bash
-scripts/launch.sh -b -L runs/R1_coll
+scripts/launch.sh -b -L runs/R1_phase/R1_coll
 ```
 
 ---
@@ -933,10 +933,10 @@ rate, not the cadence.
 | 4 | 0.132 | ~11.5 h |
 | **8 (chosen)** | ~0.11–0.14 | **~10 h** |
 
-**Launched** 2026-07-28 10:08 (`scripts/launch.sh -b -L runs/R1_coll`, pid 1233159, logger
+**Launched** 2026-07-28 10:08 (`scripts/launch.sh -b -L runs/R1_phase/R1_coll`, pid 1233159, logger
 1233161). Early logged rate 0.143 s/step(warpx) cumulative / 0.114 instantaneous at step
 200; with R1_warm's 1.34× growth over the run that lands at **~10–11 h**, finishing ~21:00.
-Watch `runs/R1_coll/progress.log`.
+Watch `runs/R1_phase/R1_coll/progress.log`.
 
 **Caveat to revisit if the twin comparison ever disagrees with R1_warm:** the supercycle is
 unvalidated here — no ndt=1 vs ndt=8 convergence check was run (that would cost the 24 h
@@ -1255,7 +1255,7 @@ have seeded prose; the other 12 carry the placeholder.
 
 ## R1_paper finished + analysed: M_A lands at 14.8, but θ_e,ab is a *rate*, not a temperature (2026-08-01)
 
-`runs/R1_paper` ran to completion: **322,400 steps in 16h09m** @ 8 threads (mean 0.180 s/step),
+`runs/R1_phase/R1_paper` ran to completion: **322,400 steps in 16h09m** @ 8 threads (mean 0.180 s/step),
 51 particle frames + 1291 field-only frames, t·ω_ci0 ∈ [0, 6.49]. `make_inputs --verify` →
 `OK (WarpX ran exactly this config)`; `run_checks` validation OK; `make_run_readme --check` clean.
 
@@ -1357,7 +1357,7 @@ designed) and macroparticles 6.00×10⁶ → 7.65×10⁶, with a rollover at t·
 
 ## 2026-08-02 — R1_paper's reference density was 6e8x low; corrected to Table I's 6e20 cm^-3
 
-`runs/R1_paper/config.yaml` carried `reference.n0 = 1.0e18 m^-3` — R1_warm's arbitrary
+`runs/R1_phase/R1_paper/config.yaml` carried `reference.n0 = 1.0e18 m^-3` — R1_warm's arbitrary
 placeholder, inherited by every run in the repo. Table I's own SI column gives
 **n_e,ab = 6e20 cm^-3 = 6.0e26 m^-3**, so the config was low by 6e8. Corrected today,
 together with the B0 it controls.
@@ -1404,8 +1404,8 @@ is absolute); it sits at 1.0e26, still 6x below Table I.
 Two runs, identical in every key except `collisions.target`, both 19344 steps (t*wci0 =
 0.389, pre-shock) at ppc 25, 1h01m each:
 
-* `runs/R1_paper_dial` — `lambda_ab: 20.0`      -> lnLambda = 1.2235e5 (the dial)
-* `runs/R1_paper_phys` — `coulomb_log: physical` -> lnLambda = 10.836 (NRL at this n,T)
+* `runs/R1_phase/R1_paper_dial` — `lambda_ab: 20.0`      -> lnLambda = 1.2235e5 (the dial)
+* `runs/R1_phase/R1_paper_phys` — `coulomb_log: physical` -> lnLambda = 10.836 (NRL at this n,T)
 
 Verified single-variable by diffing the parsed YAML; both give MA = 13.952, Mms = 12.737,
 dt = 1.6282e-16, 30000 cells, B0 = 70.273 T. A matched control was needed rather than
@@ -1508,7 +1508,7 @@ is the known open-boundary artifact past t*wci0 ~ 5.5, not the shock.
 **Synthetic Thomson scattering (EPW + IAW).** Ran `Schaeffer_PlasmaPy`
 (branch `feature/pic-thomson-pipeline`, which already carries a WarpX reader) on the 51
 particle frames, sampling the domain centre with a 532 nm probe at 90 deg. Figures and arrays
-are in `media/R1_paper/thomson_{epw,iaw}.png` and `thomson_spectra.npz`.
+are in `media/R1_phase/R1_paper/thomson_{epw,iaw}.png` and `thomson_spectra.npz`.
 
 * **alpha = 0.22 to 0.89 (EPW), median 0.45** — the run is sub-collective to marginally
   collective, reaching alpha ~ 1 only at the end. This is entirely a consequence of the
@@ -1575,7 +1575,7 @@ scale and the satellites are invisible.
 
 ### 2026-08-03 (addendum 2) — the fig7 default-times trap caught R1_paper too
 
-The bare `make_figures.py runs/R1_paper` passes run earlier today silently rebuilt
+The bare `make_figures.py runs/R1_phase/R1_paper` passes run earlier today silently rebuilt
 `shock_fig7.png` on the **default** `--nframes 5` spread instead of the convention times,
 exactly as documented on 2026-07-27 and as happened to R1_warm on 2026-07-29. The tell was
 again the mtime mismatch: `shock_fig7.png` freshly written while `shock_fig7_rho_i0.png`
@@ -1583,7 +1583,7 @@ still carried an 08-01 date, because the default pass does not write the rho_i0 
 
 Rebuilt both on the convention times:
 
-    python scripts/make_figures.py runs/R1_paper --only fig7 \
+    python scripts/make_figures.py runs/R1_phase/R1_paper --only fig7 \
         --fig7-xunits d_i0 rho_i0 --phase-times 0.15 0.49 0.73 0.98 1.25
 
 which snap to t*wci0 = **0.13 / 0.52 / 0.78 / 1.04 / 1.30** at this run's 51-frame cadence
@@ -1598,12 +1598,12 @@ superseded run, and rendered while `io.load_frame` was still returning B = 0. Re
 the new plotfiles with `--vsh-c 0.148` so its reflected-ion threshold uses `shock_fit.yaml`'s
 by-eye v_sh rather than the config model value of 0.1395 c.
 
-Still stale in `media/R1_paper/`: `tune_trajectory.png` (08-01 21:54). That one comes from
+Still stale in `media/R1_phase/R1_paper/`: `tune_trajectory.png` (08-01 21:54). That one comes from
 `tune_shock.py`, which is a BY-EYE fit and deliberately not auto-run.
 
 ### 2026-08-03 (addendum 3) — by-eye shock fit for R1_paper: v_sh = 0.143 c
 
-`runs/R1_paper/shock_fit.yaml` re-fitted by eye against the new run's streaks:
+`runs/R1_phase/R1_paper/shock_fit.yaml` re-fitted by eye against the new run's streaks:
 **v_sh 0.148 -> 0.143 c** (-3.4%), z0 = 0, no per-time overrides. Derived Mach numbers
 move with it: **M_A 14.80 -> 14.30**, **M_ms 13.51 -> 13.05**.
 
@@ -1798,7 +1798,7 @@ and the Debye-resolution consequence are the user's call. 15/15 tests pass.
 
 ## 2026-08-04 — Pilot of R1_paper_470eV: grid heating is REAL. Full run NOT cleared.
 
-`runs/R1_paper_470eV_pilot`, 50,000 steps = 3.41 t_ab = 0.101/ω_ci0, completed clean in
+`runs/R1_phase/R1_paper_470eV_pilot`, 50,000 steps = 3.41 t_ab = 0.101/ω_ci0, completed clean in
 **1h33m** at 0.1117 s/step (load ~7, 8 threads), zero failure signatures. Physics primaries
 bit-identical to the parent. **Verdict: do not launch the 6-day run as configured.**
 
@@ -1867,3 +1867,52 @@ Raising ppc cuts heating ~1/ppc but multiplies an already-10× cost. Halving dz 
 **Recommended next step, not taken:** a ~250k-step (17 t_ab, ~8 h) pilot with filtering on,
 which both pins the trajectory past the ambiguous window and tests the cheap fix at once.
 Committing 5–7 days before knowing which of the two columns above applies would be premature.
+
+---
+
+## 2026-08-04 — `runs/` and `media/` regrouped by phase; run discovery centralised
+
+`runs/` had grown to 20 flat directories (14 of them R1 offshoots) and `media/` mirrored it.
+Both are now grouped by phase, with a run dir always at **depth 2**:
+
+```
+runs/R0_phase/{R0, R0_half, R0_half_sym}
+runs/R1_phase/{R1, R1_cal, R1_coll, R1_core, R1_core_half, R1_core_half_sym, R1_half,
+               R1_paper, R1_paper_470eV, R1_paper_470eV_pilot, R1_paper_dial,
+               R1_paper_phys, R1_recal, R1_warm}
+runs/R2_phase/R2   runs/R3_phase/R3   runs/xcheck_phase/xcheck_flatfoil_1d
+runs/opt_phase/    <- performance sweeps, no config.yaml
+```
+
+The `_phase` suffix is not cosmetic: `R1` is itself a run id, so a bare `runs/R1/` container
+would be simultaneously a run and a folder of runs, which is exactly what forces tooling to
+handle two depths. `media/` mirrors this; `media/testing/` stays put as cross-study figures.
+
+### The trap this created, and the fix
+`make_run_readme.py --all` and `migrate_field_b0.py --all` both hard-coded
+`glob.glob(runs/*/config.yaml)`. After the regrouping that pattern matches **nothing**, and
+because both feed the result straight into a `for` loop the failure mode is a silent
+"processed 0 runs" — no error, no output, looks like success. Replaced with one definition,
+`kinshock.find_runs(root)` (searches depth 2 *and* depth 1), plus `kinshock.unphased_runs(root)`
+so a run not yet filed into a phase is reported rather than quietly bypassing the convention.
+`.gitignore` needed no change — its patterns are all `runs/**/…`, already depth-agnostic.
+
+131 lines across 72 tracked files plus 43 lines across the run dirs' own README/config
+comments were repathed by exact-id regex (longest id first, so `R1_core_half_sym` is not
+mangled by an `R1` rule; idempotent, so `runs/R1_phase/R1` cannot become
+`runs/R1_phase/R1_phase/R1`). Placeholders (`runs/<ID>`) and gitignore globs are untouched.
+
+Verified: 15/15 tests pass; `make_inputs.py --check` clean on R1_warm, R1_paper, R0, R2;
+`make_run_readme.py --all` discovers all 19 runs.
+
+### Incidental: the β-convention regeneration finally landed
+`--all --check` flagged 17 run READMEs stale. The diff is **entirely** β lines — the
+2026-08-03 convention fix (`2*mu0*n*T/B^2` → `mu0*n*T/B^2`) had never been regenerated, as
+CLAUDE.md had noted. Values halve, targets halve, every ratio is unchanged (R1_warm stays
+0.800×, R1_recal 0.678×), so this is inert for physics and only the printed labels move.
+
+### One media wrinkle worth knowing
+8 tracked files under `media/R0/` read as pure deletions after the move, because `media/` is
+gitignored and so `git add -A` cannot stage the destination. The files were on disk the whole
+time; `git add -f` at the new path preserved tracking. Anything force-added under `media/`
+will do this on every future move.

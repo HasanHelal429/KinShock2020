@@ -17,7 +17,7 @@ All scripts are run from the repository root:
 python scripts/<script>.py [run_dir] [options]
 ```
 
-The `run_dir` positional argument defaults to `runs/R1` for every script.
+The `run_dir` positional argument defaults to `runs/R1_phase/R1` for every script.
 
 | Script | Purpose | Reads | Writes |
 |---|---|---|---|
@@ -35,12 +35,12 @@ The `run_dir` positional argument defaults to `runs/R1` for every script.
 Typical workflow for a run:
 
 ```bash
-python scripts/make_inputs.py  runs/R1          # config.yaml -> inputs_kinshock_R1
-scripts/launch.sh -b -L        runs/R1          # start WarpX + the progress logger
-python scripts/make_inputs.py  runs/R1 --verify # confirm warpx_used_inputs == config
-python scripts/run_checks.py   runs/R1          # sanity: scales vs Table I, conservation
-python scripts/make_figures.py runs/R1          # A–D diagnostics + criteria table
-python scripts/make_movies.py  runs/R1          # optional animations
+python scripts/make_inputs.py  runs/R1_phase/R1          # config.yaml -> inputs_kinshock_R1
+scripts/launch.sh -b -L        runs/R1_phase/R1          # start WarpX + the progress logger
+python scripts/make_inputs.py  runs/R1_phase/R1 --verify # confirm warpx_used_inputs == config
+python scripts/run_checks.py   runs/R1_phase/R1          # sanity: scales vs Table I, conservation
+python scripts/make_figures.py runs/R1_phase/R1          # A–D diagnostics + criteria table
+python scripts/make_movies.py  runs/R1_phase/R1          # optional animations
 ```
 
 ---
@@ -58,10 +58,10 @@ sends stdout/stderr to `<run_dir>/run.log`, and **refuses to start when `diags/`
 output**, since relaunching overwrites a finished run's plotfiles in place.
 
 ```bash
-scripts/launch.sh runs/R1                    # foreground, logs to runs/R1/run.log
-scripts/launch.sh -b -L runs/R1              # detach + start the progress logger
-scripts/launch.sh -n runs/R1                 # dry run: print the command, change nothing
-scripts/launch.sh runs/R0 -- max_step=20     # ParmParse overrides (smoke tests)
+scripts/launch.sh runs/R1_phase/R1                    # foreground, logs to runs/R1_phase/R1/run.log
+scripts/launch.sh -b -L runs/R1_phase/R1              # detach + start the progress logger
+scripts/launch.sh -n runs/R1_phase/R1                 # dry run: print the command, change nothing
+scripts/launch.sh runs/R0_phase/R0 -- max_step=20     # ParmParse overrides (smoke tests)
 ```
 
 | Flag | Default | Description |
@@ -95,7 +95,7 @@ self-checks that the deck resolves back to the config primaries.
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `run_dir` | no | `runs/R1` | Run directory containing `config.yaml`. The deck is written to `<run_dir>/<meta.deck>` (default `inputs_kinshock_<run_id>`). |
+| `run_dir` | no | `runs/R1_phase/R1` | Run directory containing `config.yaml`. The deck is written to `<run_dir>/<meta.deck>` (default `inputs_kinshock_<run_id>`). |
 
 **Options**
 
@@ -126,10 +126,10 @@ present and falls back to `diag1` otherwise.
 **Examples**
 
 ```bash
-python scripts/make_inputs.py runs/R1_core            # write the deck (+ self-check)
-python scripts/make_inputs.py runs/R1_core --stdout   # preview without writing
-python scripts/make_inputs.py runs/R1_core --check    # is the existing deck still in sync?
-python scripts/make_inputs.py runs/R1_core --verify   # after a run: did WarpX run this config?
+python scripts/make_inputs.py runs/R1_phase/R1_core            # write the deck (+ self-check)
+python scripts/make_inputs.py runs/R1_phase/R1_core --stdout   # preview without writing
+python scripts/make_inputs.py runs/R1_phase/R1_core --check    # is the existing deck still in sync?
+python scripts/make_inputs.py runs/R1_phase/R1_core --verify   # after a run: did WarpX run this config?
 ```
 
 ---
@@ -151,12 +151,12 @@ plotfiles / reduced diagnostics, it also emits:
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `run_dir` | no | `runs/R1` | Run directory to check (parsed positionally via `sys.argv`; no flags). |
+| `run_dir` | no | `runs/R1_phase/R1` | Run directory to check (parsed positionally via `sys.argv`; no flags). |
 
 **Example**
 
 ```bash
-python scripts/run_checks.py runs/R1
+python scripts/run_checks.py runs/R1_phase/R1
 ```
 
 Prints the derived-scales table and validation status to stdout. If no plotfiles
@@ -182,7 +182,7 @@ Reproduce the Schaeffer 2020 shock diagnostics for a run. Config-driven; writes 
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `run_dir` | no | `runs/R1` | Run directory to analyze. |
+| `run_dir` | no | `runs/R1_phase/R1` | Run directory to analyze. |
 
 **Options**
 
@@ -193,7 +193,7 @@ Reproduce the Schaeffer 2020 shock diagnostics for a run. Config-driven; writes 
 **Example**
 
 ```bash
-python scripts/make_figures.py runs/R1 --nframes 5
+python scripts/make_figures.py runs/R1_phase/R1 --nframes 5
 ```
 
 Prints derived scales, the frame count and time span, the measured v_sh / M_A /
@@ -202,7 +202,7 @@ M_ms, and the first-precursor / first-shock times from the criteria table.
 **Fig. 7 velocity axes** are pinnable per row, in units of v_z/v_sh:
 
 ```bash
-python scripts/make_figures.py runs/R1_paper --only fig7 \
+python scripts/make_figures.py runs/R1_phase/R1_paper --only fig7 \
     --fig7-xunits d_i0 rho_i0 --phase-times 0.15 0.49 0.73 0.98 1.25 \
     --v-ambient -0.5 2.0 --v-piston -0.2 1.7 --v-electron -6 12
 ```
@@ -231,7 +231,7 @@ measured one is passed with `--vsh-c`.
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
-| `run_dir` | no | `runs/R1` | Run directory to animate. |
+| `run_dir` | no | `runs/R1_phase/R1` | Run directory to animate. |
 
 **Options**
 
@@ -249,7 +249,7 @@ measured one is passed with `--vsh-c`.
 **Example**
 
 ```bash
-python scripts/make_movies.py runs/R1 --fps 8 --vsh-c 0.14
+python scripts/make_movies.py runs/R1_phase/R1 --fps 8 --vsh-c 0.14
 ```
 
 
@@ -275,8 +275,8 @@ found at `$KINSHOCK_PLASMAPY` or `~/Schaeffer_PlasmaPy/src`.
 cached to `runs/<ID>/thomson_cache/` (gitignored) as the handoff:
 
 ```bash
-python scripts/make_thomson.py runs/R1_paper                                  # reads  (physics)
-/opt/anaconda3/envs/tsnn/bin/python scripts/make_thomson.py runs/R1_paper     # models (tsnn)
+python scripts/make_thomson.py runs/R1_phase/R1_paper                                  # reads  (physics)
+/opt/anaconda3/envs/tsnn/bin/python scripts/make_thomson.py runs/R1_phase/R1_paper     # models (tsnn)
 ```
 
 `--stage auto` (the default) does whichever half the current interpreter supports and
@@ -327,9 +327,9 @@ deck (last `max_step` wins, matching ParmParse), so appended overrides are honor
 Launch it right after starting WarpX (it waits for `run.log` to appear):
 
 ```bash
-OMP_NUM_THREADS=8 warpx.1d inputs > runs/R1_core/run.log 2>&1 &
-python scripts/run_progress_logger.py runs/R1_core &          # every 10%, 30s poll
-python scripts/run_progress_logger.py runs/R1_core --every-pct 5 --poll 20
+OMP_NUM_THREADS=8 warpx.1d inputs > runs/R1_phase/R1_core/run.log 2>&1 &
+python scripts/run_progress_logger.py runs/R1_phase/R1_core &          # every 10%, 30s poll
+python scripts/run_progress_logger.py runs/R1_phase/R1_core --every-pct 5 --poll 20
 ```
 
 Example `progress.log` line:
@@ -357,7 +357,7 @@ from?" is answerable without re-deriving anything:
 | Argument | Default | Meaning |
 |---|---|---|
 | `run_dir ...` | — | One or more run directories. |
-| `--all` | off | Every `runs/*/` that has a `config.yaml`. |
+| `--all` | off | Every run dir under `runs/` — `runs/<phase>_phase/<ID>/` with a `config.yaml`, via `kinshock.find_runs`. |
 | `--check` | off | Do not write; exit 1 if any README is stale. Use in CI / before a commit. |
 
 **Prose is preserved.** Anything between `<!-- prose:begin -->` and `<!-- prose:end -->` is
@@ -381,7 +381,7 @@ inversion exists to prevent (RESULTS 2026-07-31).
 | Argument | Default | Meaning |
 |---|---|---|
 | `run_dir ...` | — | One or more run directories. |
-| `--all` | off | Every `runs/*/` that has a `config.yaml`. |
+| `--all` | off | Every run dir under `runs/` — `runs/<phase>_phase/<ID>/` with a `config.yaml`, via `kinshock.find_runs`. |
 | `-n, --dry-run` | off | Report the B0 each config would get; write nothing. |
 
 ## `table1.py`

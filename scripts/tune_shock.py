@@ -33,8 +33,8 @@ regions -- refine the front position at ONE time against its ion phase space + l
         q           quit
 
 Examples:
-    python scripts/tune_shock.py runs/R1_warm
-    python scripts/tune_shock.py runs/R1_warm --mode regions --time 2.4
+    python scripts/tune_shock.py runs/R1_phase/R1_warm
+    python scripts/tune_shock.py runs/R1_phase/R1_warm --mode regions --time 2.4
 """
 
 from __future__ import annotations

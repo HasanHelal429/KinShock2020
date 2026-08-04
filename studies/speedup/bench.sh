@@ -58,14 +58,21 @@ export OMP_NUM_THREADS="$THREADS" OMP_PROC_BIND=spread OMP_PLACES=cores
     echo "load_before $(cut -d' ' -f1 /proc/loadavg)"
 } > meta.txt
 
-# diag*.intervals=0 kills the 277 MiB plotfiles; the EP/PN reduced diags stay (they
-# cost 11 s per 50k steps and are what the GPU-vs-CPU agreement check compares).
+# Killing the 277 MiB plotfiles takes BOTH knobs. intervals=0 alone is not enough:
+# <diag>.dump_last_timestep defaults to 1, and parameters.rst:4702 spells it out --
+# "by default the last timestep is dumped regardless of this parameter". With only
+# intervals=0 every point still wrote one full plotfile at max_step, which put 1.7 GiB
+# into studies/speedup/out/ before this was caught (disk here is at 94%).
+# The EP/PN reduced diags stay: they cost 11 s per 50k steps and are what the
+# GPU-vs-CPU agreement check compares.
 T0=$(date +%s.%N)
-timeout --signal=INT "$CAP" \
+# --kill-after: if WarpX does not honour SIGINT, escalate to SIGKILL 30 s later rather
+# than letting one wedged point stall the whole scan.
+timeout --signal=INT --kill-after=30 "$CAP" \
     "$BIN" "$DECK" \
     max_step="$MAX_STEP" \
-    diag1.intervals=0 \
-    diag_fields.intervals=0 \
+    diag1.intervals=0 diag1.dump_last_timestep=0 \
+    diag_fields.intervals=0 diag_fields.dump_last_timestep=0 \
     ${EXTRA[@]+"${EXTRA[@]}"} > run.log 2>&1
 RC=$?
 T1=$(date +%s.%N)

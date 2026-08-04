@@ -1,0 +1,96 @@
+# R0_half — half-domain (one-sided) version of the R0 smoke test. IDENTICAL
+# physics primaries to runs/R0_phase/R0/config.yaml, but exploits the z -> -z symmetry of
+# the centered-slab problem: instead of the symmetric domain [-half, +half] with
+# two counter-propagating shocks, simulate only the +z half [0, half] with a
+# reflecting (symmetry / foil) wall at z=0. Half the cells and particles for the
+# same physics on z >= 0. See REPLICATION_PLAN.md §7 (one-sided ablation) and
+# RESULTS.md for the R0_half-vs-R0 validation.
+#
+# The z=0 wall uses approach (a) — the physical foil model: specular reflecting
+# particles + pec fields. This is valid because z=0 sits inside the dense,
+# continuously heated/replenished piston slab, so the specular approximation
+# (which reflects only the normal v_z, not the gyro-coupled v_y) is buried in the
+# foil, far from where the shock forms out in the ambient.
+
+meta:
+  run_id: R0_half
+  tier: Smoke
+  description: >
+    Half-domain (one-sided) smoke test: same R0 physics on [0, 500 d_e] with a
+    reflecting wall at z=0 (1000 cells vs R0's 2000). Validation target: reproduce
+    R0's z>=0 loaded state + operator balance at half the cost.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020)"
+  deck: inputs_kinshock_R0_half
+  warpx_build: "warpx-cda/build/bin/warpx.1d (prebuilt, heater+injector modules)"
+  generated_from: "Authored from R0 with a one-sided half-domain (wall at z=0)."
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.092
+    theta_e_init: 0.001
+    theta_i_init: 1.0e-5
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: perpendicular
+  B0_tesla: 0.0032075256118468715        # PRIMARY [T]. Migrated from vA_over_c = 0.01 (identical B0).
+  # v_A is DERIVED: B0/sqrt(mu0*namb*m_i) = 0.01 c
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 500.0     # +z extent; one-sided domain is [0, 500 d_e]
+  dz_over_de: 0.5                # coarse (vs 0.3) — smoke only
+  layout: one_sided             # [0, half] instead of symmetric [-half, +half]
+  boundary:
+    lo: reflecting               # z=0: symmetry / foil wall (pec fields + specular particles)
+    hi: open                     # far upstream: absorbing particles + pec fields (div-cleaner-safe with B0)
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 2000                 # ~0.075 wci0^-1: piston just begins to expand
+  ppc:
+    piston: 50
+    ambient: 50
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+diagnostics:
+  plotfile_intervals: 200        # Full plotfiles (fields + raw particles) -> ~10 frames (smoke)
+  reduced_intervals: 50          # EP/PN reduced diags (energy balance, particle count)
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

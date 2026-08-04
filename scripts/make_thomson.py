@@ -29,8 +29,8 @@ So the binned phase spaces are cached to ``runs/<ID>/thomson_cache/`` and the tw
 halves run separately. ``--stage`` defaults to ``auto``, which does as much as the
 current interpreter allows and prints the exact command for the other half:
 
-    python scripts/make_thomson.py runs/R1_paper                    # in physics: reads
-    /opt/anaconda3/envs/tsnn/bin/python scripts/make_thomson.py runs/R1_paper   # models
+    python scripts/make_thomson.py runs/R1_phase/R1_paper                    # in physics: reads
+    /opt/anaconda3/envs/tsnn/bin/python scripts/make_thomson.py runs/R1_phase/R1_paper   # models
 
 The cache key includes the particle mass, so it is deliberately taken from
 ``kinshock.units`` rather than from astropy: astropy 8.0.0 (physics) and 7.0.1 (tsnn)
@@ -301,7 +301,7 @@ def panel(out_dir, kind, data, wavelengths_m, alpha, t, probe_nm, title, fname):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1"))
+    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_phase", "R1"))
     ap.add_argument("--stage", choices=["auto", "read", "model"], default="auto",
                     help="'read' bins the plotfiles (needs yt), 'model' forward-models "
                          "them (needs torch). Default 'auto' does what this interpreter can.")

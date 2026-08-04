@@ -24,7 +24,7 @@
 #   -n, --dry-run      print what would run, change nothing
 #
 # Anything after `--` is appended as ParmParse overrides, e.g.
-#   scripts/launch.sh runs/R0 -- max_step=20
+#   scripts/launch.sh runs/R0_phase/R0 -- max_step=20
 # NOTE overrides are not reflected in config.yaml, so `make_inputs.py --verify` will
 # flag them afterwards. Use them for smoke tests, not for physics.
 #

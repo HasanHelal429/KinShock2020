@@ -13,7 +13,7 @@ to media/<run_id>/. Implements analyses A–E of REPLICATION_PLAN.md §6:
   C. seven shock-formation criteria per frame                -> criteria.json (+ stdout)
   D. reflected-ambient-ion fraction G(t), F(z), t*_1, z*_1   -> shock_reflected.png
 
-Usage:  python scripts/make_figures.py [runs/R1] [--nframes 5]
+Usage:  python scripts/make_figures.py [runs/R1_phase/R1] [--nframes 5]
 """
 
 from __future__ import annotations
@@ -630,7 +630,7 @@ def criteria_table(frames, cfg, sc, shock):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1"))
+    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_phase", "R1"))
     ap.add_argument("--nframes", type=int, default=5)
     ap.add_argument("--phase-times", type=float, nargs="+", default=None, metavar="T",
                     help="times (in t*wci0) for the ion phase-space panels; snaps to the "

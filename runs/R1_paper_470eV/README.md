@@ -1,6 +1,6 @@
 # Run `R1_paper_470eV`
 
-> R1_paper re-anchored on physical units: T_e,ab = 470 eV and B0 = 7.026 T (from beta_ab = 1150) at m_i/m_e = 100, instead of theta_e,ab = 0.092 at real c. Every Table I dimensionless row is preserved, and lambda_ab = 20 now resolves to a PHYSICAL lnLambda = 12.23 rather than a 1.22e5 dial. Costs 10x the timesteps and under-resolves the Debye length by ~10x (dz/lambda_D = 9.9), so grid heating must be monitored. Direct counterpart of runs/R1_paper.
+> R1_paper re-anchored on physical units: T_e,ab = 470 eV and B0 = 7.026 T (from beta_ab = 1150) at m_i/m_e = 100, instead of theta_e,ab = 0.092 at real c. Every Table I dimensionless row is preserved, and lambda_ab = 20 now resolves to a PHYSICAL lnLambda = 12.23 rather than a 1.22e5 dial. Costs 10x the timesteps and under-resolves the Debye length by ~10x (dz/lambda_D = 9.9), so grid heating must be monitored. Direct counterpart of runs/R1_phase/R1_paper.
 
 **tier** Full · **deck** `inputs_kinshock_R1_paper_470eV` · **paper** Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II
 

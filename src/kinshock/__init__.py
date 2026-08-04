@@ -21,11 +21,14 @@ from __future__ import annotations
 
 from . import units, deck, config, metrics  # light deps; safe to import eagerly
 
-__all__ = ["units", "deck", "config", "metrics", "io", "plotting", "load"]
+__all__ = ["units", "deck", "config", "metrics", "io", "plotting", "load",
+           "find_runs", "unphased_runs"]
 __version__ = "0.1.0"
 
-# convenience re-export
+# convenience re-exports
 load = config.load
+find_runs = config.find_runs            # runs/<phase>_phase/<run_id>/ discovery
+unphased_runs = config.unphased_runs
 
 
 def __getattr__(name):

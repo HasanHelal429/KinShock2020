@@ -8,7 +8,7 @@
 #
 # Usage:
 #   studies/bfield_convergence/run_variants.sh <base_deck> [out_dir] [max_step] [threads]
-#   WARPX=/path/to/warpx.1d studies/bfield_convergence/run_variants.sh runs/R1_core_half/inputs_kinshock_R1_core_half
+#   WARPX=/path/to/warpx.1d studies/bfield_convergence/run_variants.sh runs/R1_phase/R1_core_half/inputs_kinshock_R1_core_half
 #
 # Scratch WarpX output goes to out_dir (default ./scratch, gitignored).
 set -euo pipefail

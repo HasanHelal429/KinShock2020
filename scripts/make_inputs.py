@@ -7,11 +7,11 @@ deck never has to be hand-edited — edit config.yaml and regenerate. See
 REPLICATION_PLAN.md §6.0a and kinshock.deck.
 
 Usage:
-    python scripts/make_inputs.py runs/R1_core            # write runs/R1_core/inputs_kinshock_R1_core
-    python scripts/make_inputs.py runs/R1_core --stdout   # print the deck, don't write
-    python scripts/make_inputs.py runs/R1_core --check     # diff vs the existing deck, don't write
-    python scripts/make_inputs.py runs/R1_core --verify    # after a run: check warpx_used_inputs vs config
-    python scripts/make_inputs.py runs/R1_core -o path     # write to an explicit path
+    python scripts/make_inputs.py runs/R1_phase/R1_core            # write runs/R1_phase/R1_core/inputs_kinshock_R1_core
+    python scripts/make_inputs.py runs/R1_phase/R1_core --stdout   # print the deck, don't write
+    python scripts/make_inputs.py runs/R1_phase/R1_core --check     # diff vs the existing deck, don't write
+    python scripts/make_inputs.py runs/R1_phase/R1_core --verify    # after a run: check warpx_used_inputs vs config
+    python scripts/make_inputs.py runs/R1_phase/R1_core -o path     # write to an explicit path
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _deck_path(cfg: dict, run_dir: str) -> str:
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1"),
+    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_phase", "R1"),
                     help="run directory containing config.yaml")
     ap.add_argument("-o", "--output", help="write the deck here instead of the default path")
     ap.add_argument("--stdout", action="store_true", help="print the deck to stdout, do not write")

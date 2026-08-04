@@ -2,9 +2,9 @@
 """3-way half-domain wall validation (RESULTS.md 2026-07-23).
 
 Compares the shock diagnostics of three runs on z >= 0:
-  full  = runs/R1_core           (symmetric domain, the reference)
-  spec  = runs/R1_core_half      (one-sided, SPECULAR wall -- old, artifact)
-  sym   = runs/R1_core_half_sym  (one-sided, pi-rotation SYMMETRY wall -- the fix)
+  full  = runs/R1_phase/R1_core           (symmetric domain, the reference)
+  spec  = runs/R1_phase/R1_core_half      (one-sided, SPECULAR wall -- old, artifact)
+  sym   = runs/R1_phase/R1_core_half_sym  (one-sided, pi-rotation SYMMETRY wall -- the fix)
 
 Question: does the symmetry wall move the half-domain shock kinematics
 (front speed, compression, onset) closer to the full-domain reference than the
@@ -23,9 +23,9 @@ from kinshock import io, metrics
 from kinshock.units import C
 
 RUNS = {
-    "full": "runs/R1_core",
-    "spec": "runs/R1_core_half",
-    "sym":  "runs/R1_core_half_sym",
+    "full": "runs/R1_phase/R1_core",
+    "spec": "runs/R1_phase/R1_core_half",
+    "sym":  "runs/R1_phase/R1_core_half_sym",
 }
 T_CLEAN_MAX = 2.25          # exclude boundary-contaminated frames (shock hits edge ~2.5)
 AMB_WIN_DE = (-400.0, -50.0)  # ambient shock window rel. to front [d_e]: [front-400, front-50]

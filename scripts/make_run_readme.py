@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Write ``runs/<ID>/README.md`` — the run's own page, with a source for every number.
 
-    python scripts/make_run_readme.py runs/R1_warm
+    python scripts/make_run_readme.py runs/R1_phase/R1_warm
     python scripts/make_run_readme.py --all
     python scripts/make_run_readme.py --all --check    # CI: fail if any is stale
 
@@ -11,7 +11,6 @@ is preserved across regeneration; the tables are always rewritten from ``config.
 from __future__ import annotations
 
 import argparse
-import glob
 import os
 import sys
 
@@ -41,7 +40,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_dir", nargs="*")
-    ap.add_argument("--all", action="store_true", help="every runs/*/ with a config.yaml")
+    ap.add_argument("--all", action="store_true",
+                    help="every run dir under runs/ (runs/<phase>_phase/<run_id>/)")
     ap.add_argument("--check", action="store_true",
                     help="do not write; exit 1 if any README is stale")
     args = ap.parse_args()
@@ -49,8 +49,11 @@ def main() -> int:
     dirs = list(args.run_dir)
     if args.all:
         root = os.path.join(os.path.dirname(__file__), "..", "runs")
-        dirs += sorted(os.path.dirname(p)
-                       for p in glob.glob(os.path.join(root, "*", "config.yaml")))
+        dirs += kinshock.find_runs(root)
+        stray = kinshock.unphased_runs(root)
+        if stray:
+            print("note: not filed under a <phase>_phase/ folder: "
+                  + ", ".join(os.path.basename(d) for d in stray), file=sys.stderr)
     if not dirs:
         ap.error("give one or more run dirs, or --all")
 

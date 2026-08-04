@@ -17,9 +17,9 @@ multi-panel figure to ``media/<run_id>/bfield_diagnostic.png``:
   4. Debye resolution — reports dz/lambda_D (the enabling condition for grid heating).
 
 Usage:
-    python scripts/bfield_diagnostic.py runs/R1_core            # last frame
-    python scripts/bfield_diagnostic.py runs/R1_core --twci 1.4 # nearest frame to t*wci
-    python scripts/bfield_diagnostic.py runs/R1_core --frame 25 --out media/testing/bf.png
+    python scripts/bfield_diagnostic.py runs/R1_phase/R1_core            # last frame
+    python scripts/bfield_diagnostic.py runs/R1_phase/R1_core --twci 1.4 # nearest frame to t*wci
+    python scripts/bfield_diagnostic.py runs/R1_phase/R1_core --frame 25 --out media/testing/bf.png
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ def _spread_in(frame, sp, de, me, zlo, zhi):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_core"))
+    ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_phase", "R1_core"))
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--frame", type=int, help="plotfile index (default: last)")
     g.add_argument("--twci", type=float, help="use frame nearest this t*wci0")

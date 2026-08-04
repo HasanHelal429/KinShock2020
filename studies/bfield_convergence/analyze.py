@@ -5,7 +5,7 @@ Reads the variant run dirs produced by run_variants.sh, measures RMS(dBx) in the
 cold far-upstream zone at matched physical time, and writes a bar+spectrum figure.
 Collapse under filter/shape/finer-dz => numerical; invariance => physical.
 
-Usage: python studies/bfield_convergence/analyze.py <out_dir> [--ref-run runs/R1_core]
+Usage: python studies/bfield_convergence/analyze.py <out_dir> [--ref-run runs/R1_phase/R1_core]
 """
 from __future__ import annotations
 import argparse, os, sys
@@ -21,8 +21,8 @@ def smooth(a, k=15): return np.convolve(a, np.ones(k)/k, mode="same")
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("out_dir", help="scratch dir with baseline/filt8/shape3/finer_dz run subdirs")
-    ap.add_argument("--config", default=os.path.join(ROOT, "runs", "R1_core"),
-                    help="run dir to derive scales from (default runs/R1_core)")
+    ap.add_argument("--config", default=os.path.join(ROOT, "runs", "R1_phase", "R1_core"),
+                    help="run dir to derive scales from (default runs/R1_phase/R1_core)")
     ap.add_argument("--out", default=os.path.join(ROOT, "media", "testing", "bfield_convergence.png"))
     args = ap.parse_args()
     sc = kinshock.units.derive(kinshock.load(args.config)); de = sc.de

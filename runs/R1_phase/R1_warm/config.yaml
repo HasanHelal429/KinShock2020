@@ -1,0 +1,101 @@
+# R1_warm — Full R1 (Table I, M_A~14) with the ABLATIVE piston-ion warmth retune.
+#
+# Identical to runs/R1_phase/R1_half EXCEPT for two coupled primaries:
+#   plasma.piston.theta_e_heat : 0.092 -> 0.078   (recalibrated so settled M_A ~ 14)
+#   plasma.piston.theta_i_init : 1.0e-5 -> 7.8e-4  (= theta_e_heat/mass_ratio: T_i = T_e,ab)
+#
+# Motivation (RESULTS.md 2026-07-24): R1_half's piston ions were a delta-function ridge
+# (v_th ~ 0.27 C_s,ab) because the surrogate injector loads them ice-cold, whereas the
+# paper's ablated ions carry a thermal spread ~C_s,ab from the ablation. Warming them to
+# T_i = T_e,ab gives v_th,i = C_s,ab (the broad Fig. 7 row-2 ridge), but the extra ion
+# pressure adds piston push -> M_A rose to ~17. Since v_sh ~ sqrt(theta_e) (whole warm
+# system) while v_A is theta_e-independent, M_A ~ sqrt(theta_e); theta_e = 0.092*(14/17)^2
+# ~= 0.062 restores M_A ~ 14. Confirmed at coarse dz in runs/R1_phase/R1_recal (M_A ~ 13.8, v_th,i
+# = 0.97-0.99 C_s,ab). Collisions were considered and dropped (our real-c/free-n0 units
+# make lambda_ab ~ 1e8 vs the paper's ~20; faithful collisions are numerically inert).
+
+meta:
+  run_id: R1_warm
+  tier: Full
+  description: >
+    Full R1 (Schaeffer 2020 Table I, M_A~14 perpendicular) with warm ablative piston ions
+    (T_i = T_e,ab -> v_th,i = C_s,ab) and theta_e recalibrated to 0.062 to hold M_A ~ 14.
+    Reproduces the paper's broad piston-ion phase space (Fig. 7) that cold-ion R1_half missed.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I"
+  deck: inputs_kinshock_R1_warm
+
+reference:
+  n0: 1.0e18
+  mass_ratio: 100.0
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.5
+    theta_e_heat: 0.078       # RECAL2: theta_e=0.062 gave settled M_A=12.5 (by-eye full-streak
+                              # fit); v_sh~sqrt(theta_e) -> 0.062*(14/12.5)^2 = 0.078 for M_A~14.
+                              # (0.062 was mis-set from the inflated EARLY-window M_A; the settled
+                              # by-eye value is the honest anchor -- see RESULTS 2026-07-24.)
+    theta_e_init: 0.001
+    theta_i_init: 7.8e-4      # = theta_e_heat/mass_ratio -> T_i = T_e,ab -> v_th,i = C_s,ab
+                              # (PISTON-ion convention: ion-normalized, u_std = sqrt(theta_i_init))
+  ambient:
+    density_over_n0: 0.01
+    theta_0: 0.002
+
+field:
+  orientation: perpendicular
+  B0_tesla: 0.0032075256118468715        # PRIMARY [T]. Migrated from vA_over_c = 0.01 (identical B0).
+  # v_A is DERIVED: B0/sqrt(mu0*namb*m_i) = 0.01 c
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 7500.0
+  dz_over_de: 0.3
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2
+  max_step: 250000
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+diagnostics:
+  plotfile_intervals: 5000
+  reduced_intervals: 500
+  field_intervals: 250
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.104
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2

@@ -11,7 +11,7 @@
 #     n_e0      = 0.008 n_e,ab
 #
 # Everything else is derived. beta_ab SETS B0 = 7.0264 T. Run
-#     python scripts/table1.py runs/R1_paper_470eV --deck --show-work
+#     python scripts/table1.py runs/R1_phase/R1_paper_470eV --deck --show-work
 # for the full PSC / physical / WarpX three-column derivation.
 #
 # NOTE m_i/m_e = 100 is a PHYSICAL choice here, not just a code convenience: the plasma
@@ -92,7 +92,7 @@ meta:
     Table I dimensionless row is preserved, and lambda_ab = 20 now resolves to a
     PHYSICAL lnLambda = 12.23 rather than a 1.22e5 dial. Costs 10x the timesteps and
     under-resolves the Debye length by ~10x (dz/lambda_D = 9.9), so grid heating must
-    be monitored. Direct counterpart of runs/R1_paper.
+    be monitored. Direct counterpart of runs/R1_phase/R1_paper.
   reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
   deck: inputs_kinshock_R1_paper_470eV
 
