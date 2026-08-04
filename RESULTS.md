@@ -1793,3 +1793,77 @@ Two costs, both from real c, neither avoidable in WarpX:
 So this deck is physically faithful where the current one is dimensionally faithful, and the
 choice between them is a real trade, not a bug fix. **Not applied to any config** — the cost
 and the Debye-resolution consequence are the user's call. 15/15 tests pass.
+
+---
+
+## 2026-08-04 — Pilot of R1_paper_470eV: grid heating is REAL. Full run NOT cleared.
+
+`runs/R1_paper_470eV_pilot`, 50,000 steps = 3.41 t_ab = 0.101/ω_ci0, completed clean in
+**1h33m** at 0.1117 s/step (load ~7, 8 threads), zero failure signatures. Physics primaries
+bit-identical to the parent. **Verdict: do not launch the 6-day run as configured.**
+
+### The global ParticleEnergy diagnostic is useless for this — measure spatially
+`EP.txt`'s whole-domain ambient-electron mean rises **5.9×** (10 → 59 eV) in 3.41 t_ab, which
+looks catastrophic and is almost entirely an artifact of averaging. The profile at the final
+frame shows why (12 bins across the domain, matched against R1_paper at 4.40 t_ab):
+
+| z/L | pilot T [eV] | pilot T/T_0 | R1_paper T/T_0 |
+|---|---|---|---|
+| 0.00–0.08 | 604.1 | **60.4** | **21.1** |
+| 0.08–0.17 | 11.36 | 1.136 | 1.148 |
+| 0.42–0.50 | 10.80 | 1.080 | 0.999 |
+| 0.75–0.83 | 10.45 | 1.045 | 0.997 |
+| 0.92–1.00 | 10.39 | **1.039** | **0.991** |
+| GLOBAL | 59.01 | 5.90 | 2.65 |
+
+The inner bin is **physical** piston heating and is present in both runs (60× vs 21× T_0), so
+the global mean is dominated by it. `scripts/grid_heating.py` restricts to the outer 25%.
+
+### The real signal: +3.9% vs −0.9% in the far upstream
+Pilot far upstream: **+3.9% in 3.41 t_ab** (1.14 %T_0/t_ab). R1_paper over the same window:
+**−0.9%**, i.e. statistically zero. With ~62,500 macroparticles/bin the noise floor is ~0.3%,
+so the 4.8% difference is real, not sampling. **R1_paper has no grid heating; this run does.**
+
+Note `grid_heating.py`'s "RATIO" headline is meaningless here (it printed −103×) because the
+baseline slope is ~0 and slightly negative — divide-by-near-zero. Use the absolute fractional
+rate, not the ratio, whenever the baseline is flat.
+
+### Why R1_paper is immune — same √T relation, one line
+The relevant number is the *ambient* Debye resolution, not the ablation one:
+
+| | T_0 | λ_D,amb | dz/λ_D,amb |
+|---|---|---|---|
+| R1_paper | 1022 eV | 108.5 nm | **0.60** |
+| R1_paper_470eV | 10 eV | 10.73 nm | **6.07** |
+
+dz = 65.08 nm is pinned by the density and identical in both. λ_D ∝ √T, so R1_paper's 100×
+hotter upstream already resolves it and sits below threshold; the 470 eV run is 6× under.
+
+### Where it ends up is the open question — and the range spans "fine" to "fatal"
+Grid heating stops when λ_D,amb grows to dz, i.e. at **T_amb = 368 eV = 36.8× T_0**. The shock
+reaches the far boundary at 195.7 t_ab, so the upstream ahead of it heats for that long:
+
+| | T_0 | C_s0 | M_ms | β_0 |
+|---|---|---|---|---|
+| initial | 10.0 eV | 132.6 km/s | 12.76 | 0.196 |
+| linear extrapolation | 32.4 eV (3.2×) | 238.6 km/s | 10.92 | 0.633 |
+| saturation ceiling | 367.9 eV (36.8×) | 804.4 km/s | **4.87** | **7.20** |
+
+Linear is a 14% M_ms degradation — survivable, though β_0 leaves Table I's 0.2. Saturation
+destroys the regime (M_ms 12.8 → 4.9). **3.41 t_ab is 1.5% of the run and cannot distinguish
+these**; the far-upstream points (10, 9.983, 9.964, 10.02, 10.41) even dip before rising, so the
+trajectory is genuinely unconstrained. The t^2.27 power law I first fitted came from the
+*contaminated* global signal and should be ignored.
+
+### Refined cost, and the levers
+0.1117 s/step measured × R1_paper's 1.279 particle-growth drift = 0.1429 s/step mean:
+**5.33 d idle, 7.39 d at R1_paper's load ~24.**
+
+No current filtering is enabled in the deck at all (`warpx.use_filter` absent, only
+`algo.particle_shape = 2`). RESULTS 2026-07-2x measured `filter_npass = 8` cutting far-upstream
+noise 31% for a few percent of runtime — the cheapest available mitigation and untested here.
+Raising ppc cuts heating ~1/ppc but multiplies an already-10× cost. Halving dz is ~100×.
+
+**Recommended next step, not taken:** a ~250k-step (17 t_ab, ~8 h) pilot with filtering on,
+which both pins the trajectory past the ambiguous window and tests the cheap fix at once.
+Committing 5–7 days before knowing which of the two columns above applies would be premature.
