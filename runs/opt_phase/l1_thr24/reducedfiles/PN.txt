@@ -1,0 +1,2 @@
+#[0]step() [1]time(s) [2]total_macroparticles() [3]piston_electrons_macroparticles() [4]piston_ions_macroparticles() [5]amb_electrons_macroparticles() [6]amb_ions_macroparticles() [7]total_weight() [8]piston_electrons_weight() [9]piston_ions_weight() [10]amb_electrons_weight() [11]amb_ions_weight()
+0 0.00000000000000e+00 6.00000000000000e+06 6.66700000000000e+03 6.66700000000000e+03 2.99333300000000e+06 2.99333300000000e+06 2.91165347430946e+22 5.20698711622282e+21 5.20698711622282e+21 9.35128025532448e+21 9.35128025532448e+21

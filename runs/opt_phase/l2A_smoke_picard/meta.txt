@@ -1,0 +1,9 @@
+label      l2A_smoke_picard
+deck       /home/hhelal/KinShock2020/runs/R1_paper_470eV/inputs_kinshock_R1_paper_470eV
+binary     /home/hhelal/warpx-cda/build/bin/warpx.1d
+threads    8
+max_step   100
+cap_s      300
+extra      algo.evolve_scheme=theta_implicit_em implicit_evolve.theta=0.5 implicit_evolve.nonlinear_solver=picard picard.verbose=1 picard.require_convergence=0 picard.max_iterations=100 picard.relative_tolerance=1.0e-6
+started    2026-08-04T15:21:21-07:00
+load_before 2.49

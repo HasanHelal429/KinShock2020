@@ -1,0 +1,9 @@
+label      l3C_cpu_ref
+deck       /home/hhelal/KinShock2020/runs/R1_paper_470eV/inputs_kinshock_R1_paper_470eV
+binary     /home/hhelal/warpx-cda/build/bin/warpx.1d
+threads    8
+max_step   1500
+cap_s      600
+extra      (none)
+started    2026-08-04T16:23:24-07:00
+load_before 1.47

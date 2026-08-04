@@ -1,11 +1,18 @@
 # Speedup study — R1_paper_470eV
 
-Staged 2026-08-04. **Nothing here has been run.** Three levers, tested individually,
-each against the production deck `runs/R1_paper_470eV` so the numbers apply to the run
-we actually care about.
+Staged and **run** 2026-08-04. Three levers, tested individually, each against the
+production deck `runs/R1_phase/R1_paper_470eV` so the numbers apply to the run we actually
+care about.
+
+> **Results are in [`runs/opt_phase/SUMMARY.md`](../../runs/opt_phase/SUMMARY.md)** (generated
+> by `make_summary.py`, never hand-edited) with figures in `media/opt_phase/` and the
+> narrative in `RESULTS.md`. Headline: **GPU 7.89×** with `amr.max_grid_size=30000`,
+> CPU threads **1.82×** at 20, θ-implicit **13.5× slower** and therefore not a speedup.
+> This file documents the *harness and reasoning*; the predictions below are kept as
+> written so they can be checked against what actually happened.
 
 Baseline to beat: **0.1113 s/step** (WarpX's own timer) at 8 OMP threads on an otherwise
-idle chablis, from `runs/R1_paper_470eV_pilot`. The full run is 3,224,046 steps →
+idle chablis, from `runs/R1_phase/R1_paper_470eV_pilot`. The full run is 3,224,046 steps →
 **5.33 d idle / 7.39 d at load 24**.
 
 ## Why these three and not mesh refinement

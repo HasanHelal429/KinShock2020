@@ -64,7 +64,11 @@ export OMP_NUM_THREADS="$THREADS" OMP_PROC_BIND=spread OMP_PLACES=cores
 # intervals=0 every point still wrote one full plotfile at max_step, which put 1.7 GiB
 # into studies/speedup/out/ before this was caught (disk here is at 94%).
 # The EP/PN reduced diags stay: they cost 11 s per 50k steps and are what the
-# GPU-vs-CPU agreement check compares.
+# GPU-vs-CPU agreement check compares. Their interval is RESCALED to the benchmark
+# length: the deck writes them every 5000 steps, so a 1500-step point produced exactly
+# one row (step 0) and the first agreement check silently compared initial conditions
+# only -- "1 common rows, steps 0..0", which reads like a pass. ~30 rows always.
+# Caller extras come after these, so an explicit EP.intervals= still wins.
 T0=$(date +%s.%N)
 # --kill-after: if WarpX does not honour SIGINT, escalate to SIGKILL 30 s later rather
 # than letting one wedged point stall the whole scan.
@@ -73,6 +77,7 @@ timeout --signal=INT --kill-after=30 "$CAP" \
     max_step="$MAX_STEP" \
     diag1.intervals=0 diag1.dump_last_timestep=0 \
     diag_fields.intervals=0 diag_fields.dump_last_timestep=0 \
+    EP.intervals=$(( MAX_STEP / 30 + 1 )) PN.intervals=$(( MAX_STEP / 30 + 1 )) \
     ${EXTRA[@]+"${EXTRA[@]}"} > run.log 2>&1
 RC=$?
 T1=$(date +%s.%N)

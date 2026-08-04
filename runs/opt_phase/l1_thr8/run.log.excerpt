@@ -1,0 +1,303 @@
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Initializing AMReX (26.06-30-g5fbc49bce6cc)...
+MPI initialized with 1 MPI processes
+MPI initialized with thread support level 3
+OMP initialized with 8 OMP threads
+AMReX (26.06-30-g5fbc49bce6cc) initialized
+PICSAR (26.05)
+WarpX (dabf50c130fa-dirty)
+
+                                   ___
+    __        __             ___  /  /
+    \ \      / /_ _ _ __ _ __\  \/  /
+     \ \ /\ / / _` | '__| '_ \\    /
+      \ V  V / (_| | |  | |_) /    \
+       \_/\_/ \__,_|_|  | .__/__/\  \
+                        |_|       \__\
+
+Level 0: dt = 1.628228538e-16 ; dz = 6.508408475e-08
+
+Grids Summary:
+  Level 0   235 grids  30000 cells  100 % of domain
+            smallest grid: 112  biggest grid: 128
+
+-------------------------------------------------------------------------------
+--------------------------- MAIN EM PIC PARAMETERS ----------------------------
+-------------------------------------------------------------------------------
+Precision:            | DOUBLE
+Particle precision:   | DOUBLE
+Geometry:             | 1D (Z)
+Operation mode:       | Electromagnetic
+                      | - vacuum
+-------------------------------------------------------------------------------
+Current Deposition:   | Esirkepov 
+Guard cells           | - ng_alloc_J  = (4)
+ (allocated for J)    | 
+Particle Pusher:      | Boris 
+Charge Deposition:    | standard 
+Field Gathering:      | energy-conserving 
+Particle Shape Factor:| 2
+-------------------------------------------------------------------------------
+Maxwell Solver:       | Yee 
+-------------------------------------------------------------------------------
+For full input parameters, see the file: warpx_used_inputs
+
+--- INFO    : Starting Projection B-Field divergence cleaner.
+MLMG: # of AMR levels: 1
+      # of MG levels on the coarsest AMR level: 5
+MLMG: Initial rhs               = 0
+MLMG: Initial residual (resid0) = 0
+MLMG: No iterations needed
+MLMG: Timers: Solve = 0.002240432 Iter = 0 Bottom = 0
+--- INFO    : Finished Projection B-Field divergence cleaner.
+STEP 1 starts ...
+--- INFO    : target_injector: step 0 added 2 particles
+--- INFO    : particle_heater: generated heating rate for species
+             'piston_electrons':
+             (z>(-4.3389389832360864e-06))*(z<(4.3389389832360864e-06))*(6.9287570315417177e+25)
+
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+
+**** WARNINGS ******************************************************************
+* GLOBAL warning list  after  [ FIRST STEP ]
+*
+* No recorded warnings.
+********************************************************************************
+
+STEP 1 ends. TIME = 1.628228538e-16 DT = 1.628228538e-16
+Evolve time = 0.237996971 s; This step = 0.237996971 s; Avg. per step = 0.237996971 s
+
+STEP 2 starts ...
+STEP 2 ends. TIME = 3.256457076e-16 DT = 1.628228538e-16
+Evolve time = 0.336548717 s; This step = 0.098551746 s; Avg. per step = 0.1682743585 s
+
+STEP 3 starts ...
+STEP 3 ends. TIME = 4.884685614e-16 DT = 1.628228538e-16
+Evolve time = 0.433189418 s; This step = 0.096640701 s; Avg. per step = 0.1443964727 s
+
+STEP 4 starts ...
+STEP 4 ends. TIME = 6.512914152e-16 DT = 1.628228538e-16
+Evolve time = 0.529733131 s; This step = 0.096543713 s; Avg. per step = 0.1324332827 s
+
+STEP 5 starts ...
+STEP 5 ends. TIME = 8.14114269e-16 DT = 1.628228538e-16
+Evolve time = 0.626485939 s; This step = 0.096752808 s; Avg. per step = 0.1252971878 s
+
+STEP 6 starts ...
+STEP 6 ends. TIME = 9.769371228e-16 DT = 1.628228538e-16
+Evolve time = 0.723689071 s; This step = 0.097203132 s; Avg. per step = 0.1206148452 s
+
+STEP 7 starts ...
+STEP 7 ends. TIME = 1.139759977e-15 DT = 1.628228538e-16
+Evolve time = 0.820129836 s; This step = 0.096440765 s; Avg. per step = 0.1171614051 s
+
+STEP 8 starts ...
+STEP 8 ends. TIME = 1.30258283e-15 DT = 1.628228538e-16
+Evolve time = 0.917715049 s; This step = 0.097585213 s; Avg. per step = 0.1147143811 s
+
+STEP 9 starts ...
+STEP 9 ends. TIME = 1.465405684e-15 DT = 1.628228538e-16
+Evolve time = 1.016528934 s; This step = 0.098813885 s; Avg. per step = 0.1129476593 s
+
+STEP 10 starts ...
+STEP 10 ends. TIME = 1.628228538e-15 DT = 1.628228538e-16
+Evolve time = 1.114911733 s; This step = 0.098382799 s; Avg. per step = 0.1114911733 s
+
+STEP 11 starts ...
+STEP 11 ends. TIME = 1.791051392e-15 DT = 1.628228538e-16
+Evolve time = 1.329826789 s; This step = 0.214915056 s; Avg. per step = 0.1208933445 s
+
+STEP 12 starts ...
+STEP 12 ends. TIME = 1.953874246e-15 DT = 1.628228538e-16
+Evolve time = 1.428073775 s; This step = 0.098246986 s; Avg. per step = 0.1190061479 s
+
+STEP 13 starts ...
+STEP 13 ends. TIME = 2.116697099e-15 DT = 1.628228538e-16
+Evolve time = 1.526845368 s; This step = 0.098771593 s; Avg. per step = 0.1174496437 s
+
+STEP 14 starts ...
+STEP 14 ends. TIME = 2.279519953e-15 DT = 1.628228538e-16
+Evolve time = 1.625026196 s; This step = 0.098180828 s; Avg. per step = 0.1160732997 s
+
+STEP 15 starts ...
+STEP 15 ends. TIME = 2.442342807e-15 DT = 1.628228538e-16
+Evolve time = 1.724849207 s; This step = 0.099823011 s; Avg. per step = 0.1149899471 s
+
+STEP 16 starts ...
+STEP 16 ends. TIME = 2.605165661e-15 DT = 1.628228538e-16
+Evolve time = 1.823760682 s; This step = 0.098911475 s; Avg. per step = 0.1139850426 s
+
+STEP 17 starts ...
+STEP 17 ends. TIME = 2.767988515e-15 DT = 1.628228538e-16
+Evolve time = 1.922675403 s; This step = 0.098914721 s; Avg. per step = 0.1130985531 s
+
+STEP 18 starts ...
+STEP 18 ends. TIME = 2.930811369e-15 DT = 1.628228538e-16
+Evolve time = 2.021926436 s; This step = 0.099251033 s; Avg. per step = 0.1123292464 s
+
+STEP 19 starts ...
+STEP 19 ends. TIME = 3.093634222e-15 DT = 1.628228538e-16
+Evolve time = 2.121361957 s; This step = 0.099435521 s; Avg. per step = 0.1116506293 s
+
+
+... [6065 lines elided] ...
+
+ParticleContainer::Redistribute_impl()                                                 6154      20.45      20.45      20.45  12.19%
+MultiParticleContainer::doCollisions()                                                 1500      18.37      18.37      18.37  10.95%
+BinaryCollision::doCollisionsWithinTile                                               31180      18.09      18.09      18.09  10.78%
+Redistribute_partition                                                                 6154      17.21      17.21      17.21  10.26%
+BinaryCollision::doCollisionsWithinTile::LoopOverCollisions                           31180         15         15         15   8.94%
+WarpXParticleContainer::ApplyBoundaryConditions()                                      6000      7.052      7.052      7.052   4.20%
+WarpX::SyncCurrent()                                                                   1500      1.602      1.602      1.602   0.95%
+BinaryCollision::doCollisionsWithinTile::findParticlesInEachCell                      31180      1.566      1.566      1.566   0.93%
+DenseBins<T>::buildOpenMP                                                             52897      1.553      1.553      1.553   0.93%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures                      31180      1.483      1.483      1.483   0.88%
+FillBoundary_nowait()                                                                 22606     0.9222     0.9222     0.9222   0.55%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::shuffle             31180     0.8757     0.8757     0.8757   0.52%
+FabArray<FAB>::SumBoundary()                                                           4575     0.8352     0.8352     0.8352   0.50%
+FabArray<FAB>::SumBoundary_nowait()                                                    4575      0.828      0.828      0.828   0.49%
+ablastr::utils::communication::SumBoundary                                             4500     0.8224     0.8224     0.8224   0.49%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::atomics             31180     0.5967     0.5967     0.5967   0.36%
+amrex::unpackBuffer                                                                    6154     0.4221     0.4221     0.4221   0.25%
+ParticleCopyPlan::build                                                                6154     0.3543     0.3543     0.3543   0.21%
+Diagnostics::FilterComputePackFlush()                                                  3004     0.2952     0.2952     0.2952   0.18%
+FlushFormatPlotfile::WriteToFile()                                                        2     0.2577     0.2577     0.2577   0.15%
+WarpXParticleContainer::DepositCurrent::Accumulate                                    96396     0.2312     0.2312     0.2312   0.14%
+amrex::computeNeighborProcs                                                            6000     0.1914     0.1914     0.1914   0.11%
+ParticleContainer::WritePlotFile()                                                        4     0.1816     0.1816     0.1816   0.11%
+WriteBinaryParticleData()                                                                 4     0.1816     0.1816     0.1816   0.11%
+ParticleContainer::WriteParticles()                                                       4     0.1698     0.1698     0.1698   0.10%
+Filter::ApplyStencil(MultiFab)                                                         4505     0.1486     0.1486     0.1486   0.09%
+Other                                                                                258405      1.637      1.637      1.637   0.98%
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+BEGIN REGION WarpX::Evolve()
+
+------------------------------------------------------------------------------------------------------------------------------------
+Name                                                                                 NCalls  Excl. Min  Excl. Avg  Excl. Max   Max %
+------------------------------------------------------------------------------------------------------------------------------------
+PhysicalParticleContainer::Evolve::GatherAndPush                                     191538      79.83      79.83      79.83  47.58%
+WarpXParticleContainer::DepositCurrent::CurrentDeposition                             96396      37.14      37.14      37.14  22.13%
+Redistribute_partition                                                                 6150      17.19      17.19      17.19  10.25%
+BinaryCollision::doCollisionsWithinTile::LoopOverCollisions                           31180         15         15         15   8.94%
+WarpXParticleContainer::ApplyBoundaryConditions()                                      6000      7.052      7.052      7.052   4.20%
+ParticleContainer::Redistribute_impl()                                                 6150      2.206      2.206      2.206   1.31%
+PhysicalParticleContainer::Evolve()                                                   12000       2.03       2.03       2.03   1.21%
+DenseBins<T>::buildOpenMP                                                             52897      1.553      1.553      1.553   0.93%
+FillBoundary_nowait()                                                                 22597     0.9111     0.9111     0.9111   0.54%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::shuffle             31180     0.8757     0.8757     0.8757   0.52%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::atomics             31180     0.5967     0.5967     0.5967   0.36%
+WarpX::SyncCurrent()                                                                   1500     0.5946     0.5946     0.5946   0.35%
+amrex::unpackBuffer                                                                    6150     0.4219     0.4219     0.4219   0.25%
+MultiParticleContainer::doCollisions()                                                 1500     0.2782     0.2782     0.2782   0.17%
+WarpXParticleContainer::DepositCurrent::Accumulate                                    96396     0.2312     0.2312     0.2312   0.14%
+amrex::computeNeighborProcs                                                            6000     0.1914     0.1914     0.1914   0.11%
+WarpX::Evolve::step                                                                    1500    0.09766    0.09766    0.09766   0.06%
+BinaryCollision::doCollisionsWithinTile                                               31180    0.03165    0.03165    0.03165   0.02%
+Diagnostics::FilterComputePackFlush()                                                  3002    0.03042    0.03042    0.03042   0.02%
+WarpX::OneStep_nosub()                                                                 1500    0.02688    0.02688    0.02688   0.02%
+ParticleCopyPlan::build                                                                6150    0.02228    0.02228    0.02228   0.01%
+BinaryCollision::doCollisionsWithinTile::findParticlesInEachCell                      31180    0.01372    0.01372    0.01372   0.01%
+WriteBinaryParticleData()                                                                 4    0.01182    0.01182    0.01182   0.01%
+FlushFormatPlotfile::WriteToFile()                                                        2      0.011      0.011      0.011   0.01%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures                      31180   0.007221   0.007221   0.007221   0.00%
+FabArray<FAB>::SumBoundary()                                                           4575   0.003675   0.003675   0.003675   0.00%
+FabArray<FAB>::SumBoundary_nowait()                                                    4575    0.00239    0.00239    0.00239   0.00%
+WarpX::OneStep()                                                                       1500   0.001799   0.001799   0.001799   0.00%
+ablastr::utils::communication::SumBoundary                                             4500   0.001602   0.001602   0.001602   0.00%
+WarpX::Evolve()                                                                           1  0.0004878  0.0004878  0.0004878   0.00%
+ParticleContainer::WritePlotFile()                                                        4  1.714e-05  1.714e-05  1.714e-05   0.00%
+REG::WarpX::Evolve()                                                                      1  2.365e-06  2.365e-06  2.365e-06   0.00%
+Other                                                                                262693      1.293      1.293      1.293   0.77%
+------------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------------
+Name                                                                                 NCalls  Incl. Min  Incl. Avg  Incl. Max   Max %
+------------------------------------------------------------------------------------------------------------------------------------
+REG::WarpX::Evolve()                                                                      1      167.7      167.7      167.7  99.91%
+WarpX::Evolve()                                                                           1      167.7      167.7      167.7  99.91%
+WarpX::Evolve::step                                                                    1500      167.4      167.4      167.4  99.75%
+WarpX::OneStep()                                                                       1500      139.5      139.5      139.5  83.16%
+WarpX::OneStep_nosub()                                                                 1500      139.5      139.5      139.5  83.16%
+PhysicalParticleContainer::Evolve()                                                   12000      119.2      119.2      119.2  71.06%
+PhysicalParticleContainer::Evolve::GatherAndPush                                     191538      79.83      79.83      79.83  47.58%
+WarpXParticleContainer::DepositCurrent::CurrentDeposition                             96396      37.14      37.14      37.14  22.13%
+ParticleContainer::Redistribute_impl()                                                 6150      20.43      20.43      20.43  12.18%
+MultiParticleContainer::doCollisions()                                                 1500      18.37      18.37      18.37  10.95%
+BinaryCollision::doCollisionsWithinTile                                               31180      18.09      18.09      18.09  10.78%
+Redistribute_partition                                                                 6150      17.19      17.19      17.19  10.25%
+BinaryCollision::doCollisionsWithinTile::LoopOverCollisions                           31180         15         15         15   8.94%
+WarpXParticleContainer::ApplyBoundaryConditions()                                      6000      7.052      7.052      7.052   4.20%
+WarpX::SyncCurrent()                                                                   1500      1.602      1.602      1.602   0.95%
+BinaryCollision::doCollisionsWithinTile::findParticlesInEachCell                      31180      1.566      1.566      1.566   0.93%
+DenseBins<T>::buildOpenMP                                                             52897      1.553      1.553      1.553   0.93%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures                      31180      1.483      1.483      1.483   0.88%
+FillBoundary_nowait()                                                                 22597     0.9219     0.9219     0.9219   0.55%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::shuffle             31180     0.8757     0.8757     0.8757   0.52%
+FabArray<FAB>::SumBoundary()                                                           4575     0.8352     0.8352     0.8352   0.50%
+FabArray<FAB>::SumBoundary_nowait()                                                    4575      0.828      0.828      0.828   0.49%
+ablastr::utils::communication::SumBoundary                                             4500     0.8224     0.8224     0.8224   0.49%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::atomics             31180     0.5967     0.5967     0.5967   0.36%
+amrex::unpackBuffer                                                                    6150     0.4219     0.4219     0.4219   0.25%
+ParticleCopyPlan::build                                                                6150     0.3542     0.3542     0.3542   0.21%
+Diagnostics::FilterComputePackFlush()                                                  3002     0.2952     0.2952     0.2952   0.18%
+FlushFormatPlotfile::WriteToFile()                                                        2     0.2577     0.2577     0.2577   0.15%
+WarpXParticleContainer::DepositCurrent::Accumulate                                    96396     0.2312     0.2312     0.2312   0.14%
+amrex::computeNeighborProcs                                                            6000     0.1914     0.1914     0.1914   0.11%
+ParticleContainer::WritePlotFile()                                                        4     0.1816     0.1816     0.1816   0.11%
+WriteBinaryParticleData()                                                                 4     0.1816     0.1816     0.1816   0.11%
+Other                                                                                262693       1.58       1.58       1.58   0.94%
+------------------------------------------------------------------------------------------------------------------------------------
+
+END REGION WarpX::Evolve()
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+Pinned Memory Usage:
+-----------------------------------------------------------
+Name                             Nalloc    AvgMem    MaxMem
+-----------------------------------------------------------
+ParticleContainer::addParticles    2832   183 KiB   140 MiB
+WriteBinaryParticleData()           472    12 KiB    11 MiB
+The_Pinned_Arena::Initialize()        1     0   B  8192 KiB
+TargetInjector::applyInjector     18489    63   B   294 KiB
+main()                              255  9471   B  9472   B
+WarpX::InitData()                     7   767   B   768   B
+ParticleHeater::applyHeater           1   255   B   256   B
+Unprofiled                           11     0   B   256   B
+-----------------------------------------------------------
+
+Cpu Memory Usage:
+---------------------------------------------------------------------
+Name                                       Nalloc    AvgMem    MaxMem
+---------------------------------------------------------------------
+PhysicalParticleContainer::AddPlasma()       2832   283 MiB   283 MiB
+WarpX::InitData()                            3290  8896 KiB  8901 KiB
+MLMG::prepareForSolve()                      4935    30   B  2928 KiB
+MLCellLinOp::defineAuxData()                 4700    36   B  1175 KiB
+ParticleContainer::BuildRedistributeMask      940  1167 KiB  1170 KiB
+Diagnostics::FilterComputePackFlush()        3308    29   B   607 KiB
+WarpX::ProjectionDivCleanB()                  470    25   B   585 KiB
+TargetInjector::applyInjector               17625   111   B   292 KiB
+WarpX::SyncCurrent()                      1057500   723   B   292 KiB
+BndryData::define()                           940     6   B   235 KiB
+FillBoundary_nowait()                     2141100   291   B   117 KiB
+PhysicalParticleContainer::Evolve()            54    67 KiB    67 KiB
+DenseBins<T>::buildOpenMP                  564000   315   B    32 KiB
+Filter::ApplyStencil(MultiFab)              36040     4   B    10 KiB
+amrex::packBuffer                            2993     6   B  4608   B
+MLCellLinOp::applyBC()                          1     0   B   256   B
+---------------------------------------------------------------------
+
+AMReX (26.06-30-g5fbc49bce6cc) finalized

@@ -1916,3 +1916,91 @@ CLAUDE.md had noted. Values halve, targets halve, every ratio is unchanged (R1_w
 gitignored and so `git add -A` cannot stage the destination. The files were on disk the whole
 time; `git add -f` at the new path preserved tracking. Anything force-added under `media/`
 will do this on every future move.
+
+---
+
+## 2026-08-04 — optimization sweep: GPU is 7.89x, threads 1.82x, implicit is not a speedup
+
+Three levers tested individually against `runs/R1_phase/R1_paper_470eV`, chosen because the
+pilot's TinyProfiler says **~98% of the run is particle work** (GatherAndPush 49.9%,
+CurrentDeposition 20.9%, collisions 9.9%, Redistribute 8.5%) over 6.0e6 macroparticles,
+99.3% of them ambient at a flat 100 ppc — and **all field/grid work is ~0.9%**. Harness in
+`studies/speedup/`, generated tables in `runs/opt_phase/SUMMARY.md`, figures in
+`media/opt_phase/`.
+
+Baseline 0.11169 s/step at 8 threads → **5.33 d** for the full 3,224,046 steps (incl. the
+1.279 particle-growth drift).
+
+### Lever 3, the winner — GPU, and the decomposition matters more than the hardware
+
+| configuration | s/step (mean) | vs 8 thr | full run |
+|---|---|---|---|
+| GPU, deck default (235 boxes) | 0.09268 | 1.21x | 4.42 d |
+| GPU, 8 boxes | 0.01626 | 6.87x | 0.78 d |
+| **GPU, 1 box (`amr.max_grid_size=30000`)** | **0.01415** | **7.89x** | **0.68 d** |
+
+A 6.5x swing from one ParmParse line. AMReX picks a CPU-friendly 235 grids of 112-128 cells,
+which starves a GPU at ~25k particles per kernel launch. **A GPU benchmark left at the deck
+default reads as "barely worth it" (1.21x)** — the wrong conclusion about the fastest lever
+available. The same knob is neutral-to-negative on CPU. See memory `warpx-gpu-max-grid-size`.
+
+### Lever 1 — OMP threads, and the "cliff" is conditional
+
+4 → 0.53x, 8 → 1.00x, 12 → 1.28x, 16 → 1.58x, **20 → 1.82x**, 24 → 1.91x. Monotonic, no
+cliff, flattening after 20. This does **not** contradict the 2026-07-27 measurement of a ~20x
+collapse above 12 threads; that note's own mechanism (oversubscription against other users)
+is the explanation. Today the box was idle (load 0.79) and the deck is 5x larger (30000 cells
+/ 6.0e6 particles vs 6400 / 1.2e6), so even 24 threads gets ~10 of the 235 boxes each instead
+of spinning on barriers. Rule is now conditional: idle box + production deck → 20 threads;
+busy box or smoke deck → stay at 8-12. `max_grid_size=64` is worse at every thread count.
+
+### Lever 2 — theta_implicit_em: correct, compatible, and 13.5x slower
+
+It **runs**, which was the real risk: `TargetInjector` and `ParticleHeater` are applied in the
+outer Evolve loop (`WarpXEvolve.cpp:286,291`) before the `if (m_implicit_solver)` branch at
+`:299`, so they are scheme-agnostic; `doCollisions()` is called inside the implicit branch
+(`:301`) and that pairing is the scheme's first cited reference (Angus et al. on implicit PIC
+with binary Monte-Carlo Coulomb collisions); and all four assertions at `WarpX.cpp:1372-1395`
+pass for this deck — including field gathering, which must not be momentum-conserving and
+already is not.
+
+Picard: **1.33961 s/step = 13.5x explicit**, 21-23 iterations, every step exiting on relative
+tolerance (zero hit the ceiling). Break-even needs dt past **cfl ~10**. Not a speedup. Its
+value is exact energy conservation at theta = 0.5 — no grid heating *by construction*, which
+is the thing actually blocking this run.
+
+Newton was **misconfigured by me**, twice over, and both are recorded because they are the
+kind of mistake that looks like a result:
+  1. `ImplicitSolver.cpp:811` gates the cheap particle path on
+     `use_mass_matrices_jacobian && skip_particle_picard_init`. I set only the first, so every
+     Newton iteration ran a full 21-iteration particle Picard update — 23.95 s/step at cfl
+     0.75 (241x explicit), with `max particle iterations: 21` printed in the log and ~1680
+     GMRES iterations per step. The retune's N1 point deliberately reproduces this.
+  2. `newton.verbose=0` and `gmres.verbose_int=0` meant the first attempt logged no iteration
+     counts at all, so a 568x cost could not be attributed. Timing verbosity and diagnostic
+     verbosity are different requirements.
+
+### Three harness bugs, all of the "looks like it worked" kind
+- **`diag*.intervals=0` does not suppress plotfiles.** `dump_last_timestep` defaults to 1 and
+  `parameters.rst:4702` says the last step is written "regardless of this parameter". Every
+  point dumped a 277 MiB plotfile: 1.7 GiB on a disk at 94% before it was caught.
+- **The first GPU-vs-CPU agreement check compared nothing.** The deck writes EP/PN every 5000
+  steps and the benchmark is 1500, so it reported "1 common rows, steps 0..0" — which reads
+  like a pass. bench.sh now rescales the reduced-diag interval to the run length (~30 rows).
+- **Benchmark means were contaminated by my own filesystem work.** thr20/thr24 ran during the
+  runs//media/ regrouping (a `find` over 130 GB, `git add -A` across the tree); mean/median
+  was 2.69 against 1.13 for the clean re-run. Diagnostic: external I/O inflates the mean and
+  leaves the median alone, whereas a real scaling collapse moves the median. Both kept.
+
+Corollary on statistics: for *clean* runs prefer the **mean** — this deck's collision
+supercycle (`ndt_supercycle: 10`) makes every 10th step genuinely expensive, and the median
+hides work you pay for. The GPU points show it plainly (median 0.01094 vs mean 0.01415).
+
+### What this changes for R1_paper_470eV
+The 2026-08-04 pilot verdict ("full run NOT cleared") was a judgement about risk per day. At
+**0.68 d instead of 5.33 d** the calculus differs: the grid-heating trajectory that 3.41 t_ab
+could not distinguish — linear (T_0 → 32 eV, survivable) vs saturation (T_0 → 368 eV,
+M_ms 12.8 → 4.9) — becomes cheap to settle by just running far enough to see it, rather than
+by extrapolating. Still gated on the GPU agreement check; the CUDA binary is dated Jul 28 and
+commit `9f981dea2` (Jul 31) fixed an nvcc rejection in `ParticleHeater`, so it predates a fix
+to an operator this deck needs. It runs without aborting, which is necessary, not sufficient.

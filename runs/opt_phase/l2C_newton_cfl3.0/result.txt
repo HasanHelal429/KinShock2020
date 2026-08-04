@@ -1,0 +1,1 @@
+l2C_newton_cfl3.0                  thr=  8  n=    25  s/step=61.17875  median=56.48960  status=aborted wall=1511s

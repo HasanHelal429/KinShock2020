@@ -1,0 +1,1 @@
+l2B_time_picard                    thr=  8  n=  1329  s/step= 1.35713  median= 1.33961  status=capped wall=1800s

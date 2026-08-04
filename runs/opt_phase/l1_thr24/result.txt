@@ -1,0 +1,1 @@
+l1_thr24                           thr= 24  n=  1500  s/step= 0.15366  median= 0.05654  status=ok wall=233s

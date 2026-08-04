@@ -1,0 +1,1 @@
+l1_thr24_mgs64                     thr= 24  n=  1500  s/step= 0.07125  median= 0.06497  status=ok wall=108s

@@ -1,0 +1,303 @@
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Initializing AMReX (26.06-30-g5fbc49bce6cc)...
+MPI initialized with 1 MPI processes
+MPI initialized with thread support level 3
+OMP initialized with 8 OMP threads
+AMReX (26.06-30-g5fbc49bce6cc) initialized
+PICSAR (26.05)
+WarpX (dabf50c130fa-dirty)
+
+                                   ___
+    __        __             ___  /  /
+    \ \      / /_ _ _ __ _ __\  \/  /
+     \ \ /\ / / _` | '__| '_ \\    /
+      \ V  V / (_| | |  | |_) /    \
+       \_/\_/ \__,_|_|  | .__/__/\  \
+                        |_|       \__\
+
+Level 0: dt = 6.512914152e-16 ; dz = 6.508408475e-08
+Defined DOF object for linear solves (total DOFs = 90002).
+
+Grids Summary:
+  Level 0   235 grids  30000 cells  100 % of domain
+            smallest grid: 112  biggest grid: 128
+
+-------------------------------------------------------------------------------
+--------------------------- MAIN EM PIC PARAMETERS ----------------------------
+-------------------------------------------------------------------------------
+Precision:            | DOUBLE
+Particle precision:   | DOUBLE
+Geometry:             | 1D (Z)
+Operation mode:       | Electromagnetic
+                      | - vacuum
+-------------------------------------------------------------------------------
+Current Deposition:   | Villasenor 
+Guard cells           | - ng_alloc_J  = (2)
+ (allocated for J)    | 
+Particle Pusher:      | Boris 
+Charge Deposition:    | standard 
+Field Gathering:      | energy-conserving 
+Particle Shape Factor:| 2
+-------------------------------------------------------------------------------
+Maxwell Solver:       | Yee 
+-------------------------------------------------------------------------------
+
+-----------------------------------------------------------
+----------- THETA IMPLICIT EM SOLVER PARAMETERS -----------
+-----------------------------------------------------------
+Time-bias parameter theta:           0.5
+max particle iterations:             21
+particle relative tolerance:         1e-10
+use particle suborbits:              false
+print unconverged particle details:  false
+Nonlinear solver type:               newton
+use mass matrices:                   true
+    for jacobian calc:   true
+        skip particle picard init:  false
+    for preconditioner:  true
+    mass matrices pc width:  0
+    ncomp_xx:  (7);  ncomp_pc_xx:  (1)
+    ncomp_xy:  (7);  ncomp_pc_xy:  (0)
+    ncomp_xz:  (6);  ncomp_pc_xz:  (0)
+    ncomp_yx:  (7);  ncomp_pc_yx:  (0)
+    ncomp_yy:  (7);  ncomp_pc_yy:  (1)
+    ncomp_yz:  (6);  ncomp_pc_yz:  (0)
+    ncomp_zx:  (6);  ncomp_pc_zx:  (0)
+    ncomp_zy:  (6);  ncomp_pc_zy:  (0)
+    ncomp_zz:  (5);  ncomp_pc_zz:  (1)
+Newton verbose:             false
+Newton max iterations:      100
+Newton relative tolerance:  1e-06
+Newton absolute tolerance:  0
+Newton require convergence: false
+Newton linear solver:       amrex_gmres
+Linear solver (amrex_gmres) verbose:            0
+Linear solver (amrex_gmres) restart length:     30
+Linear solver (amrex_gmres) max iterations:     1000
+Linear solver (amrex_gmres) relative tolerance: 0.0001
+Linear solver (amrex_gmres) absolute tolerance: 0
+Preconditioner type:      pc_curl_curl_mlmg
+pc_curl_curl_mlmg verbose:              false
+pc_curl_curl_mlmg bottom verbose:       false
+pc_curl_curl_mlmg beta coeff:           MultiFab
+pc_curl_curl_mlmg max iter:             10
+pc_curl_curl_mlmg agglomeration:        1
+pc_curl_curl_mlmg consolidation:        1
+pc_curl_curl_mlmg max_coarsening_level: 30
+pc_curl_curl_mlmg absolute tolerance:   1e-16
+pc_curl_curl_mlmg relative tolerance:   0.0001
+pc_curl_curl_mlmg use GMRES:            false
+-----------------------------------------------------------
+
+For full input parameters, see the file: warpx_used_inputs
+
+--- INFO    : Starting Projection B-Field divergence cleaner.
+MLMG: # of AMR levels: 1
+      # of MG levels on the coarsest AMR level: 5
+MLMG: Initial rhs               = 0
+MLMG: Initial residual (resid0) = 0
+MLMG: No iterations needed
+MLMG: Timers: Solve = 0.002642089 Iter = 0 Bottom = 0
+--- INFO    : Finished Projection B-Field divergence cleaner.
+STEP 1 starts ...
+--- INFO    : target_injector: step 0 added 8 particles
+--- INFO    : particle_heater: generated heating rate for species
+             'piston_electrons':
+             (z>(-4.3389389832360864e-06))*(z<(4.3389389832360864e-06))*(6.9287570315417177e+25)
+
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+
+**** WARNINGS ******************************************************************
+* GLOBAL warning list  after  [ FIRST STEP ]
+*
+* --> [!! ] [NewtonSolver] [raised once]
+*     Newton solver failed to converge after 100 iterations. Relative norm is 1
+*     and the relative tolerance is 1e-06. Absolute norm is 1.09699e+10 and the
+*     absolute tolerance is 0
+*     @ Raised by: ALL
+*
+********************************************************************************
+
+STEP 1 ends. TIME = 6.512914152e-16 DT = 6.512914152e-16
+Evolve time = 54.5476386 s; This step = 54.5476386 s; Avg. per step = 54.5476386 s
+
+STEP 2 starts ...
+STEP 2 ends. TIME = 1.30258283e-15 DT = 6.512914152e-16
+Evolve time = 107.4846578 s; This step = 52.93701923 s; Avg. per step = 53.74232891 s
+
+STEP 3 starts ...
+STEP 3 ends. TIME = 1.953874246e-15 DT = 6.512914152e-16
+Evolve time = 160.6957029 s; This step = 53.21104503 s; Avg. per step = 53.56523429 s
+
+STEP 4 starts ...
+STEP 4 ends. TIME = 2.605165661e-15 DT = 6.512914152e-16
+Evolve time = 214.8602494 s; This step = 54.16454654 s; Avg. per step = 53.71506235 s
+
+STEP 5 starts ...
+STEP 5 ends. TIME = 3.256457076e-15 DT = 6.512914152e-16
+Evolve time = 269.0366348 s; This step = 54.1763854 s; Avg. per step = 53.80732696 s
+
+STEP 6 starts ...
+STEP 6 ends. TIME = 3.907748491e-15 DT = 6.512914152e-16
+
+... [0 lines elided] ...
+
+pc_curl_curl_mlmg agglomeration:        1
+pc_curl_curl_mlmg consolidation:        1
+pc_curl_curl_mlmg max_coarsening_level: 30
+pc_curl_curl_mlmg absolute tolerance:   1e-16
+pc_curl_curl_mlmg relative tolerance:   0.0001
+pc_curl_curl_mlmg use GMRES:            false
+-----------------------------------------------------------
+
+For full input parameters, see the file: warpx_used_inputs
+
+--- INFO    : Starting Projection B-Field divergence cleaner.
+MLMG: # of AMR levels: 1
+      # of MG levels on the coarsest AMR level: 5
+MLMG: Initial rhs               = 0
+MLMG: Initial residual (resid0) = 0
+MLMG: No iterations needed
+MLMG: Timers: Solve = 0.002642089 Iter = 0 Bottom = 0
+--- INFO    : Finished Projection B-Field divergence cleaner.
+STEP 1 starts ...
+--- INFO    : target_injector: step 0 added 8 particles
+--- INFO    : particle_heater: generated heating rate for species
+             'piston_electrons':
+             (z>(-4.3389389832360864e-06))*(z<(4.3389389832360864e-06))*(6.9287570315417177e+25)
+
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+
+**** WARNINGS ******************************************************************
+* GLOBAL warning list  after  [ FIRST STEP ]
+*
+* --> [!! ] [NewtonSolver] [raised once]
+*     Newton solver failed to converge after 100 iterations. Relative norm is 1
+*     and the relative tolerance is 1e-06. Absolute norm is 1.09699e+10 and the
+*     absolute tolerance is 0
+*     @ Raised by: ALL
+*
+********************************************************************************
+
+STEP 1 ends. TIME = 6.512914152e-16 DT = 6.512914152e-16
+Evolve time = 54.5476386 s; This step = 54.5476386 s; Avg. per step = 54.5476386 s
+
+STEP 2 starts ...
+STEP 2 ends. TIME = 1.30258283e-15 DT = 6.512914152e-16
+Evolve time = 107.4846578 s; This step = 52.93701923 s; Avg. per step = 53.74232891 s
+
+STEP 3 starts ...
+STEP 3 ends. TIME = 1.953874246e-15 DT = 6.512914152e-16
+Evolve time = 160.6957029 s; This step = 53.21104503 s; Avg. per step = 53.56523429 s
+
+STEP 4 starts ...
+STEP 4 ends. TIME = 2.605165661e-15 DT = 6.512914152e-16
+Evolve time = 214.8602494 s; This step = 54.16454654 s; Avg. per step = 53.71506235 s
+
+STEP 5 starts ...
+STEP 5 ends. TIME = 3.256457076e-15 DT = 6.512914152e-16
+Evolve time = 269.0366348 s; This step = 54.1763854 s; Avg. per step = 53.80732696 s
+
+STEP 6 starts ...
+STEP 6 ends. TIME = 3.907748491e-15 DT = 6.512914152e-16
+Evolve time = 323.0684538 s; This step = 54.031819 s; Avg. per step = 53.8447423 s
+
+STEP 7 starts ...
+STEP 7 ends. TIME = 4.559039907e-15 DT = 6.512914152e-16
+Evolve time = 377.4868577 s; This step = 54.41840389 s; Avg. per step = 53.92669396 s
+
+STEP 8 starts ...
+STEP 8 ends. TIME = 5.210331322e-15 DT = 6.512914152e-16
+Evolve time = 436.3477564 s; This step = 58.86089875 s; Avg. per step = 54.54346955 s
+
+STEP 9 starts ...
+STEP 9 ends. TIME = 5.861622737e-15 DT = 6.512914152e-16
+Evolve time = 506.6676407 s; This step = 70.31988425 s; Avg. per step = 56.29640452 s
+
+STEP 10 starts ...
+STEP 10 ends. TIME = 6.512914152e-15 DT = 6.512914152e-16
+Evolve time = 577.5614407 s; This step = 70.89380001 s; Avg. per step = 57.75614407 s
+
+STEP 11 starts ...
+STEP 11 ends. TIME = 7.164205568e-15 DT = 6.512914152e-16
+Evolve time = 648.2815664 s; This step = 70.72012572 s; Avg. per step = 58.93468786 s
+
+STEP 12 starts ...
+STEP 12 ends. TIME = 7.815496983e-15 DT = 6.512914152e-16
+Evolve time = 719.0000765 s; This step = 70.71851012 s; Avg. per step = 59.91667304 s
+
+STEP 13 starts ...
+STEP 13 ends. TIME = 8.466788398e-15 DT = 6.512914152e-16
+Evolve time = 789.9962531 s; This step = 70.99617654 s; Avg. per step = 60.76894254 s
+
+STEP 14 starts ...
+STEP 14 ends. TIME = 9.118079813e-15 DT = 6.512914152e-16
+Evolve time = 863.017943 s; This step = 73.02168988 s; Avg. per step = 61.64413878 s
+
+STEP 15 starts ...
+STEP 15 ends. TIME = 9.769371228e-15 DT = 6.512914152e-16
+Evolve time = 935.8021623 s; This step = 72.78421933 s; Avg. per step = 62.38681082 s
+
+STEP 16 starts ...
+STEP 16 ends. TIME = 1.042066264e-14 DT = 6.512914152e-16
+Evolve time = 1000.269141 s; This step = 64.46697834 s; Avg. per step = 62.51682129 s
+
+STEP 17 starts ...
+STEP 17 ends. TIME = 1.107195406e-14 DT = 6.512914152e-16
+Evolve time = 1054.262656 s; This step = 53.99351564 s; Avg. per step = 62.01545037 s
+
+STEP 18 starts ...
+STEP 18 ends. TIME = 1.172324547e-14 DT = 6.512914152e-16
+Evolve time = 1107.294374 s; This step = 53.03171758 s; Avg. per step = 61.5163541 s
+
+STEP 19 starts ...
+STEP 19 ends. TIME = 1.237453689e-14 DT = 6.512914152e-16
+Evolve time = 1161.22804 s; This step = 53.93366586 s; Avg. per step = 61.11726525 s
+
+STEP 20 starts ...
+STEP 20 ends. TIME = 1.30258283e-14 DT = 6.512914152e-16
+Evolve time = 1215.558366 s; This step = 54.33032679 s; Avg. per step = 60.77791832 s
+
+STEP 21 starts ...
+--- INFO    : target_injector: step 20 added 22 particles
+STEP 21 ends. TIME = 1.367711972e-14 DT = 6.512914152e-16
+Evolve time = 1269.624652 s; This step = 54.06628541 s; Avg. per step = 60.45831676 s
+
+STEP 22 starts ...
+STEP 22 ends. TIME = 1.432841114e-14 DT = 6.512914152e-16
+Evolve time = 1325.782759 s; This step = 56.15810669 s; Avg. per step = 60.26285266 s
+
+STEP 23 starts ...
+STEP 23 ends. TIME = 1.497970255e-14 DT = 6.512914152e-16
+Evolve time = 1382.603857 s; This step = 56.82109857 s; Avg. per step = 60.11321118 s
+
+STEP 24 starts ...
+STEP 24 ends. TIME = 1.563099397e-14 DT = 6.512914152e-16
+Evolve time = 1437.371889 s; This step = 54.76803207 s; Avg. per step = 59.89049538 s
+
+STEP 25 starts ...
+STEP 25 ends. TIME = 1.628228538e-14 DT = 6.512914152e-16
+Evolve time = 1492.611624 s; This step = 55.23973437 s; Avg. per step = 59.70446494 s
+
+STEP 26 starts ...
+SIGINT
+See Backtrace.0.0 file for details
+--------------------------------------------------------------------------
+MPI_ABORT was invoked on rank 0 in communicator MPI COMMUNICATOR 3 DUP FROM 0
+with errorcode 2.
+
+NOTE: invoking MPI_ABORT causes Open MPI to kill all MPI processes.
+You may or may not see output from other processes, depending on
+exactly when Open MPI kills them.
+--------------------------------------------------------------------------

@@ -1,0 +1,1 @@
+l3A_gpu_default                    thr=  1  n=  1500  s/step= 0.09268  median= 0.04411  status=ok wall=140s

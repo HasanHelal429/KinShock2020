@@ -1,0 +1,2 @@
+#[0]step() [1]time(s) [2]total(J) [3]piston_electrons(J) [4]piston_ions(J) [5]amb_electrons(J) [6]amb_ions(J) [7]total_mean(J) [8]piston_electrons_mean(J) [9]piston_ions_mean(J) [10]amb_electrons_mean(J) [11]amb_ions_mean(J)
+0 0.00000000000000e+00 6.99482471981223e+04 1.23554671971762e+04 1.26469568055672e+04 2.24617282967022e+04 2.24840948986767e+04 2.40235480682368e-18 2.37286302450854e-18 2.42884349879911e-18 2.40199498714750e-18 2.40438680958933e-18

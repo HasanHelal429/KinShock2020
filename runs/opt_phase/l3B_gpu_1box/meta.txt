@@ -1,0 +1,9 @@
+label      l3B_gpu_1box
+deck       /home/hhelal/KinShock2020/runs/R1_paper_470eV/inputs_kinshock_R1_paper_470eV
+binary     /home/hhelal/warpx-cda/build_cuda1d/bin/warpx.1d
+threads    1
+max_step   1500
+cap_s      600
+extra      amr.max_grid_size=30000
+started    2026-08-04T16:22:37-07:00
+load_before 1.60

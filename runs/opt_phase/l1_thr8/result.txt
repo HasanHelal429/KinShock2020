@@ -1,0 +1,1 @@
+l1_thr8                            thr=  8  n=  1500  s/step= 0.11169  median= 0.09945  status=ok wall=168s

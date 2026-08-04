@@ -1,0 +1,9 @@
+label      l1_thr24
+deck       /home/hhelal/KinShock2020/runs/R1_paper_470eV/inputs_kinshock_R1_paper_470eV
+binary     /home/hhelal/warpx-cda/build/bin/warpx.1d
+threads    24
+max_step   1500
+cap_s      400
+extra      (none)
+started    2026-08-04T15:11:13-07:00
+load_before 21.25

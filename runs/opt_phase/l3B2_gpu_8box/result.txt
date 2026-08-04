@@ -1,0 +1,1 @@
+l3B2_gpu_8box                      thr=  1  n=  1500  s/step= 0.01626  median= 0.01187  status=ok wall=25s
