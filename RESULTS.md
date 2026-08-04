@@ -1731,3 +1731,65 @@ plasma is genuinely collisionless; making lnΛ physical would need n0 ≈ 9e34 m
 physical column's 7 T and the WarpX column's 70.27 T differ by the reduced-c factor
 √100.8 ≈ 10, exactly as `field.B0_tesla`'s comment already said. Confirmed the deck's clock
 too: 220 t_ab = 52.6 ps = 6.50/ω_ci0, matching `max_step`'s comment. 11/11 tests pass.
+
+### 2026-08-03 addendum — the physical column must use the run's OWN mass ratio
+
+The entry above built its physical column at µ = 1836 so it would land on Table I's printed SI
+values. **That was the wrong framing.** µ = 100 is a *physical* choice, not merely a code
+convenience: the plasma the run represents really is a light-ion plasma, and mixing µ = 1836
+scales with µ = 100 relations is what generated the "18.4× trap" narrative in the first place.
+Using µ = 100 throughout, the whole thing is self-consistent and no trap exists.
+
+**The setup, restated.** Choose, in physical units: n_e,ab = 6e26 m⁻³, T_e,ab = 470 eV,
+λ_ab = 20 d_e, µ = 100, β_ab = 1150, T_0 = 10 eV, n_e0 = 0.008 n_e,ab. Everything else follows;
+β_ab sets B₀ = **7.0264 T**. `scripts/table1.py` was rewritten around this.
+
+| | PSC (code) | Physical / WarpX | Table I |
+|---|---|---|---|
+| T_e,ab | 0.092 m_e c² | 470 eV | 470 eV |
+| B₀ | 0.01 √(m_e c²) | **7.026 T** | 7 T |
+| T_0 | 0.001957 m_e c² | 10 eV | 0.002 / 10 eV |
+| C_s,ab | 0.0303 c | 909.2 km/s | 210 km/s (µ=1836) |
+| d_i,ab | 10 d_e,ab | 2.169 µm | 9.31 µm (µ=1836) |
+| d_i0 | 11.18 d_i,ab | 24.26 µm | 104 µm (µ=1836) |
+| 1/ω_ci0 | **33.91 t_ab** | 80.92 ps | 33.9 t_ab / 1.5 ns |
+| β_ab / β_0 | 1150 / 0.1957 | 1150 / 0.1957 | 1150 / 0.2 |
+| M_A / M_ms | 13.95 / 12.76 | 13.95 / 12.76 | 14 / 13 |
+| c_sim/c_phys | **0.100** | 1 (real c) | 0.02 |
+
+Every dimensionless row matches. The ion rows differ from Table I's SI column by √18.36 (speeds)
+or 18.36 (gyro-times) purely because that column is real hydrogen — the caption calls it "one
+possible set of experimentally-relevant physical values", an illustration, not a unit map.
+
+**β_0 is over-determined.** Given n_e0, T_0 and B₀ it is fixed at 0.1957 (Table I's 0.2). A
+requested 0.02 would need n_e0 = 0.00082 n_e,ab or T_0 = 1.02 eV, contradicting the other
+inputs; `--beta-0` now reports this rather than silently accepting it.
+
+**Bonus: at µ = 100 the reduced c becomes self-consistent.** c_sim/c_phys = 0.100 fits *both*
+the temperature rows (470/0.092) and the velocity rows (v_p = 0.104 c_sim = 3117 km/s). Table I's
+printed 0.02 only fits its velocity rows; the 4.3× = √(1836/100) gap that earlier entries
+recorded as an internal inconsistency is just an artifact of its µ = 1836 physical column.
+
+**A real bug this exposed.** `1/ω_ci0 = √β_ab·t_ab` held in the real-c column but came out
+339 t_ab (10× off) in the reduced-c one, because ω_ci0 was taken as qB₀/m_i (physical) against
+a reduced-c t_ab. ω_ci0 must be taken in the *same* normalization as that column's lengths and
+times, i.e. from B_code. Now 33.91 in both, asserted in the test along with exact c-scaling:
+n, T, all speeds, all frequencies, λ_D, β and dt are c-independent and must be bit-identical
+between columns, while d_e, d_i, t_ab, dz, mfp, ρ_i0 and 1/ω_ci0 must scale precisely as c.
+
+**The deck this implies, and its price.** θ_e_heat 0.092 → 9.19767e-4, θ_0 0.002 → 1.95695e-5,
+B0_tesla 70.273 → 7.0264468095, max_step 322400 → 3224046. The grid is **unchanged**
+(d_e,ab = c/ω_pe depends only on n0 and real c): dz = 65.08 nm, 30000 cells, 1.953 mm.
+The collisions block is **also unchanged** — and that is the payoff: `quantity: lambda_ab,
+value: 20` now resolves to **lnΛ = 12.23** on its own, a physical value, where at 47 keV it
+needed 1.22e5. (Not `value: physical`, which is `24 − ln(√n/T)` = 6.23, a different quantity.)
+
+Two costs, both from real c, neither avoidable in WarpX:
+1. **10× the timesteps** for the same 220 t_ab — dt is CFL-locked to dz/c while t_ab ∝ c.
+2. **dz/λ_D,ab goes 0.99 → 9.89.** λ_D is c-independent but d_e ∝ c, so PSC's d_e,ab is 3.3 λ_D
+   against 33 λ_D at real c. The paper's 0.3 d_e,ab cell is then 9.9 λ_D wide and **will
+   grid-heat**; resolving it needs dz ~10× smaller and dt with it, ~100× on top of the 10×.
+
+So this deck is physically faithful where the current one is dimensionally faithful, and the
+choice between them is a real trade, not a bug fix. **Not applied to any config** — the cost
+and the Debye-resolution consequence are the user's call. 15/15 tests pass.

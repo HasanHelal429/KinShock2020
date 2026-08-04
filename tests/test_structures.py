@@ -317,59 +317,76 @@ def test_R1_paper_hits_table_I():
     assert math.pi * b0 * b0 * sc.coulomb_log < 1.0 / (sc.n0 * rmin), "sigma clamped"
 
 
-def test_table1_beta_convention_and_three_columns():
-    """Table I's beta convention and the physical column, both pinned (2026-08-03).
+def test_table1_self_consistent_physical_scales():
+    """scripts/table1.py: the three columns, from the physical scales inward.
 
-    beta = mu0*n*T/B^2 with NO factor of 2 is fixed by two exact identities, so this
-    guards against the factor-2 form creeping back in:
-      (a) in PSC's normalization mu0*n*kT/B^2 = theta*n_code/B_code^2, and Table I's own
-          code primaries give 0.092*1.25/0.01^2 = 1150 and 0.002*0.01/0.01^2 = 0.2;
-      (b) Sec. II's 1/w_ci0 = sqrt(beta_ab)*t_ab needs sqrt(1150) = 33.9, Table I's row.
-    Also checks that scripts/table1.py's physical column reproduces Table I, including
-    B0 = 7 T derived from beta_ab, and lnLambda ~ 9-12 rather than the 0.5 that the
-    (mass-ratio-unsafe) nu_ei*t_ab route produces.
+    Pins the things that are easy to get wrong and that this repo got wrong before:
+      * beta = mu0*n*T/B^2 with NO factor of 2, which reproduces Table I's 1150/0.2
+        exactly and is required by Sec. II's 1/w_ci0 = sqrt(beta_ab)*t_ab = 33.9;
+      * beta_ab SETS B0 -> 7.03 T at (6e26, 470 eV), matching Table I's 7 T;
+      * beta_0 is DERIVED, not free (0.196, i.e. Table I's 0.2);
+      * the 1/w_ci0 = sqrt(beta_ab)*t_ab identity holds in BOTH the reduced-c and the
+        real-c column, which only works if w_ci0 is taken in the same normalization
+        as that column's lengths and times;
+      * at T_e,ab = 470 eV the Coulomb logarithm is PHYSICAL (~12), no dial.
     """
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
     import table1
 
     cfg = kinshock.load(os.path.join(ROOT, "runs", "R1_paper"))
+    mu, theta_e_psc = 100.0, 0.092
+    P = dict(n_ab=6.0e26, Te_ab_eV=470.0, T_0_eV=10.0, mu=mu, beta_ab=1150.0,
+             n0_frac=0.008, lambda_ab=20.0, n_ab_code=1.25,
+             vsh_over_Csab=float(cfg["model"]["vsh_over_Csab"]),
+             vp_over_Csab=float(cfg["model"]["vp_over_c"])
+             / math.sqrt(theta_e_psc / mu))
+    geo = dict(dz_over_de=0.3, cfl=0.75, halfwidth_de=9000.0, tau_sim_over_tab=220.0)
 
-    # (a) the code column reproduces Table I's betas exactly from code primaries
-    co = table1.code_column(cfg, 20.0)
-    assert abs(co["beta_ab"] - 1150.0) < 0.5, f"code beta_ab = {co['beta_ab']}"
-    assert abs(co["beta_0"] - 0.2) < 1e-6, f"code beta_0 = {co['beta_0']}"
-    assert abs(co["B"] - 0.01) < 1e-5, f"B_code = {co['B']}"       # Table I's 0.01
-    # (b) the sqrt(beta_ab) identity -- only holds without the factor of 2
-    assert abs(co["wci0_inv"] / co["t_ab"] - 33.9) < 0.1
-    assert abs(math.sqrt(co["beta_ab"]) - 33.9) < 0.1
-    # nu_ei t_ab = mu/lambda_ab in code units
-    assert abs(co["nu_t_ab"] - 100.0 / 20.0) < 1e-9, f"nu_ei t_ab = {co['nu_t_ab']}"
+    theta_e_phys = 470.0 * kinshock.units.QE / kinshock.units.ME_C2_J
+    c_sim = kinshock.units.C * math.sqrt(theta_e_phys / theta_e_psc)
+    psc = table1.derive(P, c_sim, geo)          # reduced c
+    wx = table1.derive(P, kinshock.units.C, geo)  # real c
 
-    # the physical column: real c, real proton mass -> Table I's SI values
-    ph = table1.phys_column(co, 6.0e20, 470.0, 3.95e-6)
-    for name, got, want, tol in (
-        ("d_i,ab [um]", ph["di_ab"] * 1e6, 9.31, 0.05),
-        ("C_s,ab [km/s]", ph["Cs_ab"] / 1e3, 210.0, 0.05),
-        ("B0 [T]", ph["B0"], 7.0, 0.05),
-        ("T_0 [eV]", ph["Te_0"], 10.0, 0.05),
-        ("d_i0 [um]", ph["di_0"] * 1e6, 104.0, 0.02),
-        ("1/w_ci0 [ns]", ph["wci0_inv"] * 1e9, 1.5, 0.02),
-        ("M_A", ph["MA"], 14.0, 0.01),
-        ("v_sh [km/s]", ph["vsh"] / 1e3, 980.0, 0.01),
-    ):
-        assert abs(got - want) / want < tol, f"physical {name} = {got}, Table I {want}"
-    # nu_ei t_ab is NOT transferable: mu_phys/lambda_ab, ~18.4x the code value
-    assert abs(ph["nu_t_ab"] - table1.MU_PHYS / 20.0) < 0.1
-    # and the Coulomb logarithm is physical, not the 0.5 the nu_ei*t_ab route gives
-    assert 8.0 < ph["lnL"] < 14.0, f"physical lnLambda = {ph['lnL']}"
-    assert 5.0 < ph["lnL_nrl"] < 8.0, f"NRL lnLambda = {ph['lnL_nrl']}"
+    # beta_ab sets B0; beta_0 is derived. Both against Table I.
+    assert abs(wx["B0"] - 7.0) / 7.0 < 0.01, f"B0 = {wx['B0']}"
+    assert abs(wx["beta_0"] - 0.2) / 0.2 < 0.05, f"beta_0 = {wx['beta_0']}"
+    assert abs(psc["B_code"] - 0.01) / 0.01 < 0.01, f"B_code = {psc['B_code']}"
 
-    # the WarpX column must agree with what the deck actually gets from units.derive
-    wx = table1.warpx_column(cfg, co, kinshock.units.NU_EI_NRL)
-    sc = kinshock.units.derive(cfg)
-    assert abs(wx["lnL"] / sc.coulomb_log - 1.0) < 1e-6, (
-        f"table1 WarpX lnLambda {wx['lnL']} != deck {sc.coulomb_log}")
-    assert abs(wx["B0"] - sc.B0) < 1e-9
+    # the identity must hold in BOTH normalizations (this is what caught the bug)
+    for tag, d in (("psc", psc), ("warpx", wx)):
+        got = d["wci0_inv"] / d["t_ab"]
+        assert abs(got - math.sqrt(1150.0)) / math.sqrt(1150.0) < 1e-9, \
+            f"{tag}: 1/w_ci0 = {got} t_ab, expected sqrt(beta_ab) = 33.91"
+    # PSC's theta_0 must land on Table I's 0.002
+    assert abs(psc["theta_0"] - 0.002) / 0.002 < 0.03, f"theta_0 = {psc['theta_0']}"
+
+    # c-INDEPENDENT quantities must be bit-identical between the two columns
+    for k in ("n_ab", "n_0", "Te_ab", "T_0", "Cs_ab", "vte_ab", "lam_D_ab", "B0",
+              "beta_0", "vA", "vp", "vsh", "MA", "Mms", "nu_t_ab", "dt"):
+        assert abs(psc[k] - wx[k]) <= 1e-9 * abs(wx[k]), f"{k} moved with c"
+    # ...and the c-DEPENDENT ones must scale exactly as c
+    r = kinshock.units.C / c_sim
+    for k in ("de_ab", "di_ab", "di_0", "t_ab", "dz", "mfp_ab", "rho_i0", "wci0_inv"):
+        assert abs(wx[k] / psc[k] - r) / r < 1e-9, f"{k} does not scale as c"
+    assert abs(wx["max_step"] / psc["max_step"] - r) / r < 1e-3
+
+    # Mach numbers and collisionality survive
+    assert abs(wx["MA"] - 14.0) / 14.0 < 0.01, f"M_A = {wx['MA']}"
+    assert abs(wx["Mms"] - 13.0) / 13.0 < 0.03, f"M_ms = {wx['Mms']}"
+    assert abs(psc["nu_t_ab"] - mu / 20.0) < 1e-9   # nu_ei t_ab = mu/lambda_ab
+
+    # the payoff: a physical Coulomb logarithm, and it agrees with units.py's
+    # lambda_ab target evaluated at the same 470 eV state
+    lnL = table1.coulomb_log(wx, kinshock.units.NU_EI_NRL)
+    assert 10.0 < lnL < 15.0, f"lnLambda = {lnL}"
+    from kinshock.units import coulomb_log_for
+    lnL_units = coulomb_log_for({"target": {"quantity": "lambda_ab", "value": 20.0}},
+                                P["n_ab"], wx["Te_ab"], wx["vte_ab"], wx["de_ab"], 0.0)
+    assert abs(lnL_units / lnL - 1.0) < 1e-9, f"{lnL_units} != {lnL}"
+
+    # and the cost that buys it: real c under-resolves the Debye length
+    assert psc["dz_over_lamD"] < 1.5, f"PSC dz/lamD = {psc['dz_over_lamD']}"
+    assert wx["dz_over_lamD"] > 5.0, f"WarpX dz/lamD = {wx['dz_over_lamD']}"
 
 
 if __name__ == "__main__":

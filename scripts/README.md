@@ -387,46 +387,54 @@ inversion exists to prevent (RESULTS 2026-07-31).
 ## `table1.py`
 
 Renders Schaeffer 2020 Table I in **three unit systems side by side** — PSC code units, the
-physical HED plasma, and our WarpX SI deck — plus the paper's own quoted value in a fourth
-column for checking. It is the answer to "what exactly are we free to choose, and what
-follows from that?"
+physical plasma, and our WarpX SI deck — with the paper's own printed value in a fourth
+column for checking. `--deck` prints the `config.yaml` values implied; `--show-work` prints
+the Coulomb-logarithm algebra.
 
 ```bash
-python scripts/table1.py                       # runs/R1_paper, Table I's free parameters
-python scripts/table1.py --show-work           # + the Coulomb-logarithm algebra
-python scripts/table1.py runs/R1_paper_phys    # any run dir
-python scripts/table1.py --Te-ab-eV 300 --n-ab-cm3 1e21 --lambda-ab 30
-python scripts/table1.py --nu-coeff 2.91e-6    # NRL coefficient instead of the paper's
+python scripts/table1.py                       # the standard set (below)
+python scripts/table1.py --deck --show-work
+python scripts/table1.py --Te-ab-eV 300 --mu 1836 --beta-ab 30
+python scripts/table1.py --beta-0 0.02         # checks an over-determined value
 ```
 
-**Three free parameters, and only three.** A PIC run of this problem is a set of
-dimensionless numbers and corresponds to a whole *family* of real plasmas. You pick one
-member by choosing (1) the ablation density `n_e,ab`, (2) the ablation temperature
-`T_e,ab` — which *is* the reduced speed of light, since §II sets
-`c = sqrt(mu_p/T_e,ab)·C_s,ab` — and (3) the collisionality `lambda_ab`. Everything else in
-Table I follows. Order of operations: pick the three real values → pick the corresponding
-code values (density O(1), temperature O(0.1) to stay non-relativistic) → derive the rest of
-the code column → derive the rest of the physical column, where **beta_ab sets B0**.
+**The input is a choice of real plasma.** A run of this problem is a set of dimensionless
+numbers and corresponds to a whole *family* of real plasmas. You pick one member by choosing,
+in physical units: `n_e,ab` (6e26 m⁻³), `T_e,ab` (470 eV), `lambda_ab` (20 d_e), `mu = m_i/m_e`
+(100), `beta_ab` (1150), `T_0` (10 eV) and `n_e0/n_e,ab` (0.008). Everything else follows, and
+**`beta_ab` sets B₀** → 7.026 T.
 
-**The mass-ratio trap.** The code runs at `mu_p = 100`, the real plasma at 1836, so a
-dimensionless number transfers between columns only if it is insensitive to that. §II says
-which are not: the `lambda_ab` scaling "ensures that dimensionless quantities such as the
-magnetic Reynolds number are correct, but electron collisionality relative to global scales
-(e.g. `nu_ei,ab t_ab`) is only quantitatively matched at physical mass ratios." Concretely
-`nu_ei,ab·t_ab = mu/lambda_ab`, which is **5.0** in code units and **91.8** physically. So
-the physical Coulomb logarithm must be derived through `lambda_ab` (a pure electron-scale
-ratio, `mfp/d_e`), never through `nu_ei t_ab` — the latter route lands 18.4× low
-(lnΛ = 0.49 instead of 9.0, and below 1 the Coulomb logarithm is not even valid).
+**`mu = 100` is a physical choice here, not just a code convenience** — the represented plasma
+really is a light-ion plasma. That is what makes the set self-consistent, and it is why the ion
+rows do **not** reproduce Table I's own SI column: that column is real hydrogen (µ = 1836), and
+the paper's caption calls it "one possible set of experimentally-relevant physical values",
+i.e. an illustration rather than a unit map. At µ = 100, C_s,ab = 909 km/s (not 210),
+d_i,ab = 2.17 µm (not 9.31), 1/ω_ci0 = 80.9 ps (not 1.5 ns). Everything *dimensionless* still
+matches: β_ab = 1150, β_0 = 0.196, M_A = 13.95, M_ms = 12.76, λ_ab = 20, d_i0 = 11.18 d_i,ab.
+A bonus: at µ = 100 the reduced c is self-consistent at **c_sim/c_phys = 0.100** across both
+the temperature and the velocity rows, whereas Table I's printed 0.02 only fits its velocity
+rows — the 4.3× = √(1836/100) discrepancy is an artifact of its µ = 1836 physical column.
 
-**What the columns are for.** The *physical* column is the real experiment (real c, real
-proton mass) and needs no dial: `lambda_ab = 20` there corresponds to lnΛ ≈ 9, against 6.2
-from NRL's `24 - ln(sqrt(n)/T)` at the same (n, T). The *WarpX* column is our deck, which
-has no reduced-c option, so it runs PSC's dimensionless problem at real c — exact in every
-dimensionless row, at the price of absolute values that look unphysical (T_e,ab = 47 keV,
-B0 = 70.3 T, lnΛ = 1.22e5 as a dial). Both are correct; they are answers to different
-questions, and conflating them is what produced several of the false leads in RESULTS.
+**`beta_0` is NOT free.** Given `n_e0`, `T_0` and B₀ (itself set by `beta_ab`), it is
+determined: µ₀n_e0kT_0/B₀² = 0.196. Pass `--beta-0` to check a value; the script reports what
+a different one would require.
 
-`--nu-coeff` defaults to `3.95e-6`, which is what reproduces Table I's own
-`tau_ei,ab = 0.43 ps` at lnΛ = 10 — strong evidence the paper used that coefficient and a
-physical lnΛ of 10. `units.py` uses NRL's `2.91e-6`, so the script prints the dial under
-both (they differ by 1.36×).
+**The one degree of freedom left is the speed of light.** §II sets
+`c = sqrt(mu_p/T_e,ab) C_s,ab`, so the code's `theta_e,ab` *is* its speed of light. PSC picks
+0.092 (O(0.1), non-relativistic), which at 470 eV means c_sim/c_phys = 0.100. WarpX has no
+reduced-c option, so it must use the physical `theta_e = 9.2e-4`. Both then represent the same
+plasma and agree on every dimensionless row **except the one that is the speed of light**,
+c/C_s,ab: 33.0 for PSC against 329.7 for WarpX. The script prints a "reduced-c ledger"
+isolating that, because it has two unavoidable costs:
+
+1. **10× the timesteps** for the same 220 t_ab (dt is CFL-locked to dz/c while t_ab ∝ c):
+   322,364 → 3,224,046.
+2. **dz/λ_D,ab goes 0.99 → 9.89.** λ_D is c-independent but d_e ∝ c, so PSC's d_e,ab is only
+   3.3 λ_D while at real c it is 33 λ_D — the same 0.3 d_e,ab cell is then 9.9 λ_D wide and
+   will grid-heat. Resolving it needs dz ~10× smaller *and* dt with it, ~100× on top of the 10×.
+
+**The payoff.** At T_e,ab = 470 eV the deck needs **no Coulomb-log dial**: `quantity:
+lambda_ab, value: 20` resolves to lnΛ = 12.2 on its own, because ν_ei ∝ T^-3/2 and dropping
+T_e,ab from 47 keV (θ_e = 0.092 at real c) to 470 eV raises ν_ei ~1000×. That is what turns
+the deck's lnΛ = 1.22e5 into a physical number. Do *not* switch to `value: physical`, which
+uses `24 − ln(√n/T)` = 6.2 — a different quantity that would not give λ_ab = 20.

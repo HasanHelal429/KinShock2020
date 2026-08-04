@@ -1,45 +1,48 @@
 #!/usr/bin/env python
-"""Schaeffer 2020 Table I in three unit systems: PSC code units, physical, WarpX.
+"""Schaeffer 2020 Table I from a self-consistent set of PHYSICAL scales.
 
-WHY THIS SCRIPT EXISTS
-----------------------
-A PIC run of this problem is a set of DIMENSIONLESS numbers. It corresponds to a
-whole family of real plasmas, and you pick one member of that family by choosing
-exactly three free parameters:
+THE INPUT IS A CHOICE OF REAL PLASMA
+------------------------------------
+A PIC run of this problem is a set of dimensionless numbers and corresponds to a
+whole family of real plasmas. You pick one member by choosing, in physical units:
 
-    1. the ablation density        n_e,ab   (real 6e20 cm^-3; code value ~1)
-    2. the ablation temperature    T_e,ab   (real 470 eV; code value ~0.1, which
-                                             IS the reduced speed of light --
-                                             Sec. II: c = sqrt(mu_p/T_e,ab) C_s,ab)
-    3. the collisionality          lambda_ab (= mfp_e,ab/d_e,ab = 20)
+    n_e,ab      ablation electron density        6e26 m^-3
+    T_e,ab      ablation electron temperature    470 eV
+    lambda_ab   collisionality, mfp_e,ab/d_e,ab  20
+    mu          m_i/m_e                          100
+    beta_ab     ablation beta, mu0 n kT/B^2      1150
+    T_0         upstream temperature             10 eV
+    n_e0/n_e,ab upstream density fraction        0.008
 
-Everything else in Table I follows. The order of operations (and this script's
-structure) is:
+Everything else follows, and B0 follows from beta_ab. Note mu = 100 is a *physical*
+choice here, not just a code convenience: the represented plasma really is a
+light-ion plasma. That is what makes the set self-consistent, and it is why the ion
+rows below do NOT reproduce Table I's own SI column, which is a real hydrogen
+(mu = 1836) plasma -- the paper's caption calls that "one possible set of
+experimentally-relevant physical values", i.e. an illustration rather than a unit map.
 
-    step 1  pick the three REAL values
-    step 2  pick the corresponding CODE values (density O(1), temperature O(0.1)
-            so the run stays non-relativistic)
-    step 3  derive the rest of the CODE column -- all of it follows from the three
-    step 4  derive the rest of the PHYSICAL column; beta_ab then sets B0
+beta_0 IS NOT FREE. Given n_e0, T_0 and B0 (itself set by beta_ab) it is determined:
+mu0 n_e0 kT_0/B0^2 = 0.196 here. Table I quotes 0.2, which agrees.
 
-THE ONE TRAP: THE MASS RATIO
-----------------------------
-The code runs at mu_p = m_i/m_e = 100; the real hydrogen plasma is at 1836. A
-dimensionless number transfers between the columns ONLY if it is insensitive to
-that. Sec. II says exactly which ones are not (p. 3):
+THE ONE DEGREE OF FREEDOM LEFT: THE SPEED OF LIGHT
+--------------------------------------------------
+Sec. II sets c = sqrt(mu_p/T_e,ab) C_s,ab, so the code's theta_e,ab IS its speed of
+light. PSC picks theta_e,ab = 0.092 (O(0.1), to stay non-relativistic), which for
+T_e,ab = 470 eV means c_sim/c_phys = sqrt(theta_e_phys/0.092) = 0.100. WarpX has no
+reduced-c option, so it must use the *physical* theta_e = T_e,ab/(m_e c^2) = 9.2e-4.
 
-    "This scaling ensures that dimensionless quantities such as the magnetic
-     Reynolds number are correct, but electron collisionality relative to global
-     scales (e.g. nu_ei,ab t_ab) is only quantitatively matched at physical mass
-     ratios."
+Both codes then represent the SAME physical plasma and reproduce every dimensionless
+row -- beta_ab, beta_0, M_A, M_ms, lambda_ab, n and T ratios -- except the one that
+IS the speed of light, c/C_s,ab: 33.0 for PSC against 329.7 for WarpX. Two
+consequences, both reported below and neither optional:
 
-So `lambda_ab` transfers (it is a purely electron-scale ratio, mfp/d_e) but
-`nu_ei,ab * t_ab` does NOT: it equals mu/lambda_ab, hence 5.0 in the code column
-and 91.8 in the physical one -- a factor mu_phys/mu_p = 18.4. Deriving the
-physical Coulomb logarithm therefore has to go through lambda_ab, never through
-nu_ei t_ab, or the answer comes out 18.4x low (0.5 instead of ~9).
+  * WarpX needs 10x the timesteps for the same 220 t_ab, because dt is CFL-locked to
+    dz/c while t_ab ~ c.
+  * dz/lambda_D,ab goes from ~1 (resolved) to ~10 (under-resolved), so the paper's
+    dz = 0.3 d_e,ab grid will grid-heat at real c. Fixing that costs another 10x in
+    both dz and dt, i.e. ~100x overall.
 
-Run with --show-work to print the algebra behind the Coulomb logarithm.
+Run with --show-work for the Coulomb-logarithm algebra, --deck for the config diff.
 """
 
 from __future__ import annotations
@@ -51,39 +54,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from kinshock import config as kcfg                     # noqa: E402
-from kinshock.units import (C, EPS0, ME, ME_C2_EV, MP, MU0, NU_EI_NRL,  # noqa: E402
-                            QE)
+from kinshock import config as kcfg                                    # noqa: E402
+from kinshock.units import (C, EPS0, ME, ME_C2_EV, ME_C2_J, MP, MU0,   # noqa: E402
+                            NU_EI_NRL, QE)
 
-MU_PHYS = MP / ME          # 1836.15, the real proton-to-electron mass ratio
+MU_PHYS = MP / ME          # 1836.15, for reference only -- NOT used in the columns
 
-# Table I's own numbers, transcribed from schaeffer2020.pdf p.4, for the side-by-side
-# check. Two significant figures throughout, so ~10% agreement is a match.
+# Table I as printed (schaeffer2020.pdf p.4), for the check column.
 TABLE1 = {
-    "Lx":            ("0.5 d_i,ab",     "4.7 um"),
-    "Lz":            ("900 d_i,ab",     "8.4 mm"),
-    "tau_sim":       ("220 t_ab",       "10.9 ns"),
-    "Z_ab":          ("1",              "1"),
-    "n_e,ab":        ("1.25",           "6e20 cm^-3"),
-    "T_e,ab":        ("0.092 m_e c^2",  "470 eV"),
-    "tau_ei,ab":     ("0.009 t_ab",     "0.43 ps"),
-    "C_s,ab":        ("0.030 c",        "210 km/s"),
-    "v_p":           ("0.104 c",        "730 km/s"),
-    "v_sh":          ("4.6 C_s,ab",     "980 km/s"),
-    "B_0":           ("0.01 sqrt(m_e c^2)", "7 T"),
-    "Z_0":           ("1",              "1"),
-    "n_e0":          ("0.01 (code)",    "4.8e18 cm^-3"),
-    "T_0":           ("0.002 m_e c^2",  "10 eV"),
-    "d_i0":          ("11.2 d_i,ab",    "104 um"),
-    "1/w_ci0":       ("33.9 t_ab",      "1.5 ns"),
-    "m_i/m_e":       ("100",            ""),
-    "c_sim/c_phys":  ("0.02",           ""),
-    "beta_ab":       ("1150",           ""),
-    "beta_0":        ("0.2",            ""),
-    "lambda_ab":     ("20",             ""),
-    "mfp/d_i0":      ("350",            ""),
-    "M_A":           ("14",             ""),
-    "M_ms":          ("13",             ""),
+    "n_e,ab": ("1.25", "6e20 cm^-3"), "T_e,ab": ("0.092 m_e c^2", "470 eV"),
+    "tau_ei,ab": ("0.009 t_ab", "0.43 ps"), "C_s,ab": ("0.030 c", "210 km/s"),
+    "v_p": ("0.104 c", "730 km/s"), "v_sh": ("4.6 C_s,ab", "980 km/s"),
+    "B_0": ("0.01", "7 T"), "n_e0": ("0.01 (code)", "4.8e18 cm^-3"),
+    "T_0": ("0.002 m_e c^2", "10 eV"), "d_i0": ("11.2 d_i,ab", "104 um"),
+    "1/w_ci0": ("33.9 t_ab", "1.5 ns"), "m_i/m_e": ("100", ""),
+    "c_sim/c_phys": ("0.02", ""), "beta_ab": ("1150", ""), "beta_0": ("0.2", ""),
+    "lambda_ab": ("20", ""), "M_A": ("14", ""), "M_ms": ("13", ""),
+    "Lz": ("900 d_i,ab", "8.4 mm"), "tau_sim": ("220 t_ab", "10.9 ns"),
 }
 
 
@@ -103,201 +90,109 @@ def lnL_nrl(n_cm3, Te_eV):
 
 
 def mfp_directed(v, n, mi, lnL, Z=1.0):
-    """Rutherford momentum-transfer mean free path [m] of an ion of speed ``v``
-    streaming through density ``n`` [m^-3]:
+    """Rutherford momentum-transfer mfp [m] of an ion of speed v in density n.
 
-        lambda = 4 pi eps0^2 mi^2 v^4 / (n Z^4 e^4 lnLambda)
-
-    This is the DIRECTED-ion mfp, ~v^4, and it is what Table I's
-    ``lambda_mfp/d_i0 = 350`` row reports -- see the note in main(). The thermal
-    ion-ion mfp at T_0 = 10 eV is smaller by (v_ti/v_sh)^4 ~ 1e-6 and is NOT
-    what that row means.
+    lambda = 4 pi eps0^2 mi^2 v^4 / (n Z^4 e^4 lnLambda). This is Table I's
+    lambda_mfp/d_i0 = 350 row; the thermal ion-ion mfp is ~1e6 smaller.
     """
-    return (4.0 * math.pi * EPS0 ** 2 * mi ** 2 * v ** 4
-            / (n * Z ** 4 * QE ** 4 * lnL))
+    return 4.0 * math.pi * EPS0 ** 2 * mi ** 2 * v ** 4 / (n * Z ** 4 * QE ** 4 * lnL)
 
 
 # --------------------------------------------------------------------------- #
-# step 2 + 3 : the CODE column
+# the one derivation, run once per choice of speed of light
 # --------------------------------------------------------------------------- #
-def code_column(cfg, lambda_ab):
-    """Everything PSC actually integrates, in PSC's normalization.
+def derive(P, c_used, geo):
+    """All scales for the plasma ``P`` as simulated with speed of light ``c_used``.
 
-    Lengths in d_e,ab = c_sim/w_pe(n_ref), times in 1/w_pe(n_ref), velocities in
-    c_sim, temperatures in m_e c_sim^2, densities in n_ref, B in m_e c_sim w_pe/e
-    (so B_code = w_ce/w_pe).
+    ``P`` holds the physical choices; ``geo`` the grid/time ratios from the config.
+    Returns SI values plus the code-unit normalizations Table I tabulates.
+
+    The only c-dependent quantities are the inertial lengths (d_e, d_i ~ c), the
+    times built on them (t_ab ~ c), and theta_e = kT/(m_e c^2). Densities,
+    temperatures, all speeds (C_s, v_te, v_A, v_p, v_sh), all frequencies
+    (w_pe, w_ce, w_ci) and beta are c-INDEPENDENT, so they are identical in every
+    column by construction.
     """
-    ref, pis, amb = cfg["reference"], cfg["plasma"]["piston"], cfg["plasma"]["ambient"]
-    mu_p = float(ref["mass_ratio"])
-    th_e = float(pis["theta_e_heat"])
-    th_0 = float(amb["theta_0"])
+    n_ab, mu, lam = P["n_ab"], P["mu"], P["lambda_ab"]
+    mi = mu * ME
+    Te_ab_J = P["Te_ab_eV"] * QE
 
-    # PSC's reference density is n_ref = n_e,ab/1.25, so n_e,ab = 1.25 code units and
-    # the ambient is 0.01 code units. That 0.01 is what Table I's "0.01 n_e,ab" row
-    # really means -- as a FRACTION of n_e,ab it is 0.008, which is what reproduces
-    # both d_i0/d_i,ab = 11.2 and beta_0 = 0.2 exactly (see the checks below).
-    n_ab_code = 1.25
-    n_0_code = n_ab_code * float(amb["density_over_n0"])
+    theta_e = Te_ab_J / (ME * c_used ** 2)        # THE reduced speed of light
+    theta_0 = P["T_0_eV"] * QE / (ME * c_used ** 2)
 
-    c = 1.0                                   # c_sim is the velocity unit
-    Cs_ab = math.sqrt(th_e / mu_p) * c        # sqrt(Z T_e/m_i)
-    vte_ab = math.sqrt(th_e) * c              # sqrt(T_e/m_e) -- the paper's mfp speed
-    Cs_0 = math.sqrt(th_0 / mu_p) * c
-
-    de_ab = 1.0                               # the length unit
-    di_ab = de_ab * math.sqrt(mu_p)           # = 10 d_e,ab at mu_p = 100
-    di_0 = di_ab * math.sqrt(n_ab_code / n_0_code)
-    t_ab = di_ab / Cs_ab                      # ablation time, in 1/w_pe
-
-    # Sec. II: lambda_ab = w_ce,ab/nu_ei,ab = mfp_ab/d_e,ab, with w_ce,ab at the
-    # FUNDAMENTAL field B_ab = sqrt(mu0 n_e,ab T_e,ab) and mfp = sqrt(T_ab/m_e)/nu_ei.
-    # The two forms are identical because rho_e(B_ab) = c/w_pe = d_e,ab exactly.
-    mfp_ab = lambda_ab * de_ab
-    nu_ei_ab = vte_ab / mfp_ab
-
-    # B_code = w_ce/w_pe(n_ref). Derived from the config's own SI primary so this
-    # column is provably the same run as the deck, not a re-typed Table I.
-    n0_si = float(ref["n0"])
-    B_code = (QE * float(cfg["field"]["B0_tesla"]) / ME) / wpe(n0_si / n_ab_code)
-
-    # Identity (see derivation in the module docstring of scripts/README): for PSC's
-    # B normalization, mu0 n kT/B^2 = theta * n_code / B_code^2. This is Table I's
-    # beta convention -- NOT 2*mu0 n T/B^2. It reproduces 1150 and 0.2 exactly, and
-    # is independently confirmed by Table I's own 1/w_ci0 = sqrt(beta_ab) t_ab row.
-    beta_ab = th_e * n_ab_code / B_code ** 2
-    beta_0 = th_0 * n_0_code / B_code ** 2
-
-    # p.3: 1/w_ci0 = (Z_ab/Z_0) sqrt(beta_ab) t_ab
-    wci0_inv = math.sqrt(beta_ab) * t_ab
-    vA = B_code / math.sqrt(n_0_code * mu_p)      # code-unit Alfven speed
-
-    vp = float(cfg["model"]["vp_over_c"]) * c
-    vsh = float(cfg["model"]["vsh_over_Csab"]) * Cs_ab
-
-    return dict(
-        mu=mu_p, th_e=th_e, th_0=th_0, n_ab=n_ab_code, n_0=n_0_code,
-        Cs_ab=Cs_ab, vte_ab=vte_ab, Cs_0=Cs_0, de_ab=de_ab, di_ab=di_ab, di_0=di_0,
-        t_ab=t_ab, mfp_ab=mfp_ab, nu_ei_ab=nu_ei_ab, nu_t_ab=nu_ei_ab * t_ab,
-        B=B_code, beta_ab=beta_ab, beta_0=beta_0, wci0_inv=wci0_inv, vA=vA,
-        vp=vp, vsh=vsh, MA=vsh / vA, Mms=vsh / math.hypot(vA, Cs_0),
-        lambda_ab=lambda_ab, c_over_Csab=c / Cs_ab,
-    )
-
-
-# --------------------------------------------------------------------------- #
-# step 4 : the PHYSICAL column
-# --------------------------------------------------------------------------- #
-def phys_column(code, n_ab_cm3, Te_ab_eV, coeff):
-    """The real HED plasma the run represents: real c, real proton mass.
-
-    Only DIMENSIONLESS numbers come across from `code`, and only those that are
-    mass-ratio-safe (Sec. II). Ratios used: n_0/n_e,ab, T_0/T_e,ab, beta_ab,
-    beta_0, v_p/c_sim, v_sh/C_s,ab, lambda_ab, tau_sim/t_ab, L/d_i,ab.
-    """
-    mu = MU_PHYS
-    n_ab = n_ab_cm3 * 1e6                       # -> m^-3
-    n_0 = n_ab * (code["n_0"] / code["n_ab"])
-    Te_0 = Te_ab_eV * (code["th_0"] / code["th_e"])
-
-    w_pe = wpe(n_ab)
-    de_ab = C / w_pe                            # REAL c here, not c_sim
+    w_pe = wpe(n_ab)                              # c-independent
+    de_ab = c_used / w_pe
     di_ab = de_ab * math.sqrt(mu)
-    di_0 = di_ab * math.sqrt(n_ab / n_0)
+    n_0 = P["n0_frac"] * n_ab
+    de_0, di_0 = c_used / wpe(n_0), c_used / wpe(n_0) * math.sqrt(mu)
 
-    Cs_ab = math.sqrt(Te_ab_eV / (mu * ME_C2_EV)) * C
-    vte_ab = math.sqrt(Te_ab_eV / ME_C2_EV) * C
-    Cs_0 = math.sqrt(Te_0 / (mu * ME_C2_EV)) * C
-    t_ab = di_ab / Cs_ab
+    Cs_ab = math.sqrt(Te_ab_J / mi)               # c-independent
+    vte_ab = math.sqrt(Te_ab_J / ME)
+    Cs_0 = math.sqrt(P["T_0_eV"] * QE / mi)
+    lam_D_ab = vte_ab / w_pe                      # c-independent
+    t_ab = di_ab / Cs_ab                          # ~ c
 
-    # The reduced speed of light, read off the velocity anchor (Sec. II:
-    # c_sim = sqrt(mu_p/T_e,ab) C_s,ab). This is Table I's c_sim/c_phys row.
-    c_sim = code["c_over_Csab"] * Cs_ab
+    # beta_ab SETS B0 (Table I's convention, no factor of 2 -- see RESULTS 2026-08-03)
+    B0 = math.sqrt(MU0 * n_ab * Te_ab_J / P["beta_ab"])
+    beta_0 = MU0 * n_0 * P["T_0_eV"] * QE / B0 ** 2       # DERIVED, not free
+    vA = B0 / math.sqrt(MU0 * n_0 * mi)                   # c-independent
+    # PSC's field normalization, B/sqrt(mu0 n_ref m_e c^2): this is the row Table I
+    # prints as "0.01 sqrt(m_e c^2)", and it is c-dependent, hence 0.01 for PSC and
+    # 1e-3 for WarpX even though B0 is the same 7.03 T.
+    n_ref = n_ab / P["n_ab_code"]
+    B_code = B0 / math.sqrt(MU0 * n_ref * ME * c_used ** 2)
+    # w_ci0 must be taken in the SAME normalization as the lengths and times of this
+    # column, i.e. from B_code, NOT as q B0/m_i. Mixing them (physical w_ci0 against
+    # a reduced-c t_ab) breaks Sec. II's exact identity 1/w_ci0 = sqrt(beta_ab) t_ab
+    # and reports 339 t_ab instead of Table I's 33.9. For the real-c column the two
+    # agree identically, which the assertion below pins.
+    w_ci0 = B_code * wpe(n_ref) / mu
+    if abs(c_used - C) < 1.0:
+        assert abs(w_ci0 / (QE * B0 / mi) - 1.0) < 1e-9, "w_ci0 normalization mismatch"
 
-    # beta_ab is dimensionless and mass-ratio-safe -> it SETS B0. (User's step 4.)
-    p_ab = n_ab * Te_ab_eV * QE                 # electron pressure [Pa]
-    B0 = math.sqrt(MU0 * p_ab / code["beta_ab"])
-    vA = B0 / math.sqrt(MU0 * n_0 * mu * ME)
-    wci0_inv = mu * ME / (QE * B0)
+    vsh = P["vsh_over_Csab"] * Cs_ab
+    vp = P["vp_over_Csab"] * Cs_ab
+    rho_i0 = vp / w_ci0
 
-    vp = code["vp"] / 1.0 * c_sim                # v_p is quoted in units of c_sim
-    vsh = code["vsh"] / code["Cs_ab"] * Cs_ab    # v_sh is quoted in units of C_s,ab
+    # grid + time: dz is a fixed number of d_e,ab, dt is CFL-locked to dz/c_used
+    dz = geo["dz_over_de"] * de_ab
+    dt = geo["cfl"] * dz / c_used
+    n_cell = int(round(geo["halfwidth_de"] / geo["dz_over_de"]))
+    tau_sim = geo["tau_sim_over_tab"] * t_ab
+    max_step = int(round(tau_sim / dt))
 
-    # ---- collisionality: lambda_ab is the invariant that DOES transfer ----
-    mfp_ab = code["lambda_ab"] * de_ab
+    # collisionality: lambda_ab = mfp/d_e,ab fixes nu_ei, which fixes lnLambda
+    mfp_ab = lam * de_ab
     nu_ei_ab = vte_ab / mfp_ab
-    lnL = nu_ei_ab / nu_ei_formulary(n_ab_cm3, Te_ab_eV, 1.0, coeff)
-
     return dict(
-        mu=mu, n_ab=n_ab, n_0=n_0, Te_ab=Te_ab_eV, Te_0=Te_0,
-        de_ab=de_ab, di_ab=di_ab, di_0=di_0, Cs_ab=Cs_ab, vte_ab=vte_ab, Cs_0=Cs_0,
-        t_ab=t_ab, c_sim=c_sim, B0=B0, vA=vA, wci0_inv=wci0_inv, vp=vp, vsh=vsh,
+        c=c_used, mu=mu, mi=mi, theta_e=theta_e, theta_0=theta_0,
+        n_ab=n_ab, n_0=n_0, Te_ab=P["Te_ab_eV"], T_0=P["T_0_eV"],
+        w_pe=w_pe, de_ab=de_ab, di_ab=di_ab, de_0=de_0, di_0=di_0,
+        Cs_ab=Cs_ab, vte_ab=vte_ab, Cs_0=Cs_0, lam_D_ab=lam_D_ab, t_ab=t_ab,
+        B0=B0, B_code=B_code, beta_ab=P["beta_ab"], beta_0=beta_0,
+        w_ci0=w_ci0, wci0_inv=1.0 / w_ci0, vA=vA, vp=vp, vsh=vsh, rho_i0=rho_i0,
         MA=vsh / vA, Mms=vsh / math.hypot(vA, Cs_0),
-        beta_ab=code["beta_ab"], beta_0=code["beta_0"],
+        dz=dz, dt=dt, dt_wpe=dt * w_pe, n_cell=n_cell, tau_sim=tau_sim,
+        max_step=max_step, dz_over_lamD=dz / lam_D_ab,
         mfp_ab=mfp_ab, nu_ei_ab=nu_ei_ab, nu_t_ab=nu_ei_ab * t_ab,
-        tau_ei=1.0 / nu_ei_ab, lnL=lnL, lnL_nrl=lnL_nrl(n_ab_cm3, Te_ab_eV),
-        w_pe=w_pe,
+        lambda_ab=lam, c_over_Csab=c_used / Cs_ab,
     )
 
 
-# --------------------------------------------------------------------------- #
-# the WarpX column
-# --------------------------------------------------------------------------- #
-def warpx_column(cfg, code, coeff):
-    """What our SI deck actually contains: REAL c, but the code column's mu_p and theta.
-
-    WarpX has no reduced-c option, so the only way to run PSC's dimensionless
-    problem is to keep theta_e,ab = 0.092 at the real c. Every dimensionless row
-    is then exact, at the price of absolute values that look unphysical
-    (T_e,ab = 47 keV, B0 = 70 T) and a Coulomb logarithm that must be a dial.
-    """
-    ref = cfg["reference"]
-    mu_p, n0 = float(ref["mass_ratio"]), float(ref["n0"])
-    Te_ab = code["th_e"] * ME_C2_EV
-    Te_0 = code["th_0"] * ME_C2_EV
-
-    w_pe = wpe(n0)
-    de_ab = C / w_pe
-    di_ab = de_ab * math.sqrt(mu_p)
-    n_0 = n0 * (code["n_0"] / code["n_ab"])
-    di_0 = di_ab * math.sqrt(n0 / n_0)
-
-    Cs_ab = code["Cs_ab"] * C
-    vte_ab = code["vte_ab"] * C
-    t_ab = di_ab / Cs_ab
-    B0 = float(cfg["field"]["B0_tesla"])
-    vA = B0 / math.sqrt(MU0 * n_0 * mu_p * ME)
-
-    mfp_ab = code["lambda_ab"] * de_ab
-    nu_ei_ab = vte_ab / mfp_ab
-    lnL = nu_ei_ab / nu_ei_formulary(n0 / 1e6, Te_ab, 1.0, coeff)
-
-    return dict(
-        mu=mu_p, n_ab=n0, n_0=n_0, Te_ab=Te_ab, Te_0=Te_0,
-        de_ab=de_ab, di_ab=di_ab, di_0=di_0, Cs_ab=Cs_ab, vte_ab=vte_ab,
-        Cs_0=code["Cs_0"] * C, t_ab=t_ab, B0=B0, vA=vA,
-        wci0_inv=mu_p * ME / (QE * B0),
-        vp=code["vp"] * C, vsh=code["vsh"] * C,
-        mfp_ab=mfp_ab, nu_ei_ab=nu_ei_ab, nu_t_ab=nu_ei_ab * t_ab,
-        lnL=lnL, lnL_nrl=lnL_nrl(n0 / 1e6, Te_ab), w_pe=w_pe,
-    )
+def coulomb_log(d, coeff):
+    """lnLambda that makes WarpX's dimensional operator reproduce d's nu_ei,ab."""
+    return d["nu_ei_ab"] / nu_ei_formulary(d["n_ab"] / 1e6, d["Te_ab"], 1.0, coeff)
 
 
 # --------------------------------------------------------------------------- #
 # rendering
 # --------------------------------------------------------------------------- #
-def sci(x, unit="1/s", digits=4):
-    """Plain scientific notation. Used for rates, where an SI prefix on "1/s"
-    would read as a nonsense unit ("2.1 T1/s")."""
-    return f"{x:.{digits}g} {unit}"
-
-
-def eng(x, unit, digits=3):
-    """Format a number with an SI prefix chosen so the mantissa is 1-999."""
+def eng(x, unit, digits=4):
     if x == 0:
         return f"0 {unit}"
-    prefixes = [(1e-15, "f"), (1e-12, "p"), (1e-9, "n"), (1e-6, "u"), (1e-3, "m"),
-                (1.0, ""), (1e3, "k"), (1e6, "M"), (1e9, "G"), (1e12, "T"), (1e15, "P")]
-    for scale, p in reversed(prefixes):
+    for scale, p in reversed([(1e-15, "f"), (1e-12, "p"), (1e-9, "n"), (1e-6, "u"),
+                              (1e-3, "m"), (1.0, ""), (1e3, "k"), (1e6, "M"),
+                              (1e9, "G"), (1e12, "T"), (1e15, "P")]):
         if abs(x) >= scale:
             return f"{x / scale:.{digits}g} {p}{unit}"
     return f"{x:.{digits}g} {unit}"
@@ -305,186 +200,248 @@ def eng(x, unit, digits=3):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(
-        description="Schaeffer 2020 Table I in PSC code units, physical units and WarpX SI.",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("run", nargs="?", default="runs/R1_paper",
-                    help="run directory holding config.yaml (default: runs/R1_paper)")
-    ap.add_argument("--n-ab-cm3", type=float, default=6.0e20,
-                    help="FREE PARAMETER 1: real ablation density [cm^-3] (Table I: 6e20)")
-    ap.add_argument("--Te-ab-eV", type=float, default=470.0,
-                    help="FREE PARAMETER 2: real ablation temperature [eV]; this is the "
-                         "reduced speed of light (Table I: 470)")
-    ap.add_argument("--lambda-ab", type=float, default=None,
-                    help="FREE PARAMETER 3: collisionality mfp_e,ab/d_e,ab "
-                         "(default: from the config's collisions.target)")
-    ap.add_argument("--nu-coeff", type=float, default=3.95e-6,
-                    help="coefficient in nu_ei = C*n*lnL*T^-1.5. Default 3.95e-6 is what "
-                         "reproduces Table I's tau_ei = 0.43 ps at lnLambda = 10; NRL's "
-                         "value is 2.91e-6 (pass it to see the 1.36x sensitivity)")
-    ap.add_argument("--show-work", action="store_true",
-                    help="print the Coulomb-logarithm algebra step by step")
+        description="Table I from a self-consistent set of physical scales.")
+    ap.add_argument("run", nargs="?", default="runs/R1_paper")
+    ap.add_argument("--n-ab", type=float, default=6.0e26, help="[m^-3] (6e26)")
+    ap.add_argument("--Te-ab-eV", type=float, default=470.0, help="[eV] (470)")
+    ap.add_argument("--T0-eV", type=float, default=10.0, help="[eV] (10)")
+    ap.add_argument("--mu", type=float, default=100.0, help="m_i/m_e (100)")
+    ap.add_argument("--beta-ab", type=float, default=1150.0, help="(1150)")
+    ap.add_argument("--n0-frac", type=float, default=0.008, help="n_e0/n_e,ab (0.008)")
+    ap.add_argument("--beta-0", type=float, default=None,
+                    help="OVER-DETERMINED: beta_0 follows from n_e0, T_0 and B0. Pass a "
+                         "value only to check it against the derived one.")
+    ap.add_argument("--lambda-ab", type=float, default=20.0, help="mfp/d_e,ab (20)")
+    ap.add_argument("--theta-e-psc", type=float, default=0.092,
+                    help="PSC's code temperature, i.e. its reduced c (0.092)")
+    ap.add_argument("--nu-coeff", type=float, default=NU_EI_NRL,
+                    help=f"nu_ei coefficient (default NRL {NU_EI_NRL:g}; the paper's "
+                         "3.95e-6 reproduces Table I's 0.43 ps at lnLambda = 10)")
+    ap.add_argument("--show-work", action="store_true")
+    ap.add_argument("--deck", action="store_true",
+                    help="print the config.yaml values this implies")
     args = ap.parse_args(argv)
 
     cfg = kcfg.load(Path(args.run) / "config.yaml")
-    lam = args.lambda_ab
-    if lam is None:
-        tgt = (cfg.get("collisions") or {}).get("target") or {}
-        if tgt.get("quantity") != "lambda_ab":
-            ap.error("config has no lambda_ab target; pass --lambda-ab explicitly")
-        lam = float(tgt["value"])
+    P = dict(n_ab=args.n_ab, Te_ab_eV=args.Te_ab_eV, T_0_eV=args.T0_eV, mu=args.mu,
+             beta_ab=args.beta_ab, n0_frac=args.n0_frac, lambda_ab=args.lambda_ab,
+             n_ab_code=1.25, vsh_over_Csab=float(cfg["model"]["vsh_over_Csab"]),
+             # Table I's v_p = 0.104 c_sim, expressed as the c-free ratio v_p/C_s,ab
+             vp_over_Csab=float(cfg["model"]["vp_over_c"])
+             / math.sqrt(args.theta_e_psc / args.mu))
+    geo = dict(dz_over_de=float(cfg["geometry"]["dz_over_de"]),
+               cfl=float(cfg["numerics"]["cfl"]),
+               halfwidth_de=float(cfg["geometry"]["domain_halfwidth_de"]),
+               tau_sim_over_tab=220.0)
 
-    co = code_column(cfg, lam)
-    ph = phys_column(co, args.n_ab_cm3, args.Te_ab_eV, args.nu_coeff)
-    wx = warpx_column(cfg, co, args.nu_coeff)
+    # the physical theta_e is what WarpX must use; PSC's 0.092 defines its reduced c
+    theta_e_phys = args.Te_ab_eV * QE / ME_C2_J
+    c_sim = C * math.sqrt(theta_e_phys / args.theta_e_psc)
 
-    w = (34, 22, 18, 20, 14)
-    print(f"\nSchaeffer 2020 Table I  --  run {cfg['meta']['run_id']}")
-    print(f"free parameters:  n_e,ab = {args.n_ab_cm3:.3g} cm^-3   "
-          f"T_e,ab = {args.Te_ab_eV:g} eV   lambda_ab = {lam:g}\n")
+    psc = derive(P, c_sim, geo)
+    wx = derive(P, C, geo)
+
+    w = (32, 21, 19, 21, 13)
+    print(f"\nTable I from self-consistent physical scales  --  {cfg['meta']['run_id']}")
+    print(f"  CHOSEN: n_e,ab = {args.n_ab:.3g} m^-3   T_e,ab = {args.Te_ab_eV:g} eV   "
+          f"lambda_ab = {args.lambda_ab:g} d_e   m_i/m_e = {args.mu:g}")
+    print(f"          beta_ab = {args.beta_ab:g}   T_0 = {args.T0_eV:g} eV   "
+          f"n_e0 = {args.n0_frac:g} n_e,ab")
+    print(f"  DERIVED: B0 = {wx['B0']:.4f} T   beta_0 = {wx['beta_0']:.4f}   "
+          f"c_sim/c_phys = {c_sim / C:.4f}\n")
+    if args.beta_0 is not None and abs(args.beta_0 / wx["beta_0"] - 1.0) > 0.05:
+        # beta_0 = mu0 n_e0 kT_0/B0^2 with B0 already fixed by beta_ab, so it cannot be
+        # chosen independently. Report what the requested value would actually require.
+        n_need = args.beta_0 * wx["B0"] ** 2 / (MU0 * args.T0_eV * QE)
+        T_need = args.beta_0 * wx["B0"] ** 2 / (MU0 * wx["n_0"] * QE)
+        print(f"  !! beta_0 = {args.beta_0:g} was requested but beta_0 is DERIVED, and "
+              f"these inputs give {wx['beta_0']:.4f} (Table I: 0.2).")
+        print(f"     {args.beta_0:g} would need n_e0 = {n_need / wx['n_ab']:.5f} n_e,ab "
+              f"(not {args.n0_frac:g}) at T_0 = {args.T0_eV:g} eV,")
+        print(f"     or T_0 = {T_need:.4g} eV (not {args.T0_eV:g}) at "
+              f"n_e0 = {args.n0_frac:g} n_e,ab. Proceeding with {wx['beta_0']:.4f}.\n")
     print(f"{'Parameter':<{w[0]}}{'PSC (code)':<{w[1]}}{'Physical':<{w[2]}}"
-          f"{'WarpX (SI)':<{w[3]}}{'Table I':<{w[4]}}")
+          f"{'WarpX deck (SI)':<{w[3]}}{'Table I':<{w[4]}}")
     print("-" * sum(w))
 
-    def row(name, cv, pv, wv, key=None, phys_ref=True):
+    def row(name, cv, pv, wv, key=None, ref="phys"):
         t1 = TABLE1.get(key or name, ("", ""))
-        ref = t1[1] if phys_ref and t1[1] else t1[0]
-        print(f"{name:<{w[0]}}{cv:<{w[1]}}{pv:<{w[2]}}{wv:<{w[3]}}{ref:<{w[4]}}")
+        r = t1[1] if ref == "phys" and t1[1] else (t1[0] if ref != "skip" else "")
+        print(f"{name:<{w[0]}}{cv:<{w[1]}}{pv:<{w[2]}}{wv:<{w[3]}}{r:<{w[4]}}")
 
-    def sec(t):
-        print(f"\n{t}")
-
-    sec("Ablation")
-    row("n_e,ab", f"{co['n_ab']:g}", f"{ph['n_ab']/1e6:.3g} cm^-3",
+    print("\nAblation  (the physical column is c-independent unless marked ~c)")
+    row("n_e,ab", f"{P['n_ab_code']:g}", f"{wx['n_ab']:.3g} m^-3",
         f"{wx['n_ab']:.3g} m^-3", "n_e,ab")
-    row("T_e,ab", f"{co['th_e']:g} m_e c^2", eng(ph["Te_ab"], "eV"),
-        eng(wx["Te_ab"], "eV"), "T_e,ab")
-    row("C_s,ab", f"{co['Cs_ab']:.4f} c", eng(ph["Cs_ab"], "m/s"),
+    row("T_e,ab", f"{psc['theta_e']:.4g} m_e c^2", f"{wx['Te_ab']:g} eV",
+        f"{wx['Te_ab']:g} eV  (th={wx['theta_e']:.3g})", "T_e,ab")
+    row("C_s,ab", f"{psc['Cs_ab'] / psc['c']:.4f} c", eng(wx["Cs_ab"], "m/s"),
         eng(wx["Cs_ab"], "m/s"), "C_s,ab")
-    row("v_te,ab", f"{co['vte_ab']:.4f} c", eng(ph["vte_ab"], "m/s"),
+    row("v_te,ab", f"{psc['vte_ab'] / psc['c']:.4f} c", eng(wx["vte_ab"], "m/s"),
         eng(wx["vte_ab"], "m/s"))
-    row("d_e,ab", f"{co['de_ab']:g}", eng(ph["de_ab"], "m"), eng(wx["de_ab"], "m"))
-    row("d_i,ab", f"{co['di_ab']:g} d_e,ab", eng(ph["di_ab"], "m"),
+    row("d_e,ab", "1 d_e,ab", eng(wx["de_ab"], "m"), eng(wx["de_ab"], "m"))
+    row("d_i,ab", f"{math.sqrt(P['mu']):g} d_e,ab", eng(wx["di_ab"], "m"),
         eng(wx["di_ab"], "m"))
-    row("t_ab = d_i,ab/C_s,ab", f"{co['t_ab']:.4g} /w_pe", eng(ph["t_ab"], "s"),
-        eng(wx["t_ab"], "s"))
-    row("1/w_pe", "1", eng(1 / ph["w_pe"], "s"), eng(1 / wx["w_pe"], "s"))
-    row("v_p", f"{co['vp']:g} c", eng(ph["vp"], "m/s"), eng(wx["vp"], "m/s"), "v_p")
-    row("v_sh", f"{co['vsh']/co['Cs_ab']:g} C_s,ab", eng(ph["vsh"], "m/s"),
+    row("lambda_D,ab", f"{psc['lam_D_ab'] / psc['de_ab']:.4f} d_e,ab",
+        eng(wx["lam_D_ab"], "m"), eng(wx["lam_D_ab"], "m"))
+    row("t_ab", f"{psc['t_ab'] * psc['w_pe']:.4g} /w_pe (PSC clock)",
+        eng(wx["t_ab"], "s"), eng(wx["t_ab"], "s"))
+    row("v_p", f"{psc['vp'] / psc['c']:.4f} c", eng(wx["vp"], "m/s"),
+        eng(wx["vp"], "m/s"), "v_p")
+    row("v_sh", f"{P['vsh_over_Csab']:g} C_s,ab", eng(wx["vsh"], "m/s"),
         eng(wx["vsh"], "m/s"), "v_sh")
 
-    sec("Upstream")
-    row("B_0", f"{co['B']:g} sqrt(m_e c^2)", eng(ph["B0"], "T"),
+    print("\nUpstream")
+    row("B_0", f"{psc['B_code']:.4g} sqrt(m_e c^2)", eng(wx["B0"], "T"),
         eng(wx["B0"], "T"), "B_0")
-    row("n_e0", f"{co['n_0']:g}", f"{ph['n_0']/1e6:.3g} cm^-3",
+    row("n_e0", f"{P['n_ab_code'] * P['n0_frac']:g}", f"{wx['n_0']:.3g} m^-3",
         f"{wx['n_0']:.3g} m^-3", "n_e0")
-    row("T_0", f"{co['th_0']:g} m_e c^2", eng(ph["Te_0"], "eV"),
-        eng(wx["Te_0"], "eV"), "T_0")
-    row("d_i0", f"{co['di_0']/co['di_ab']:.4g} d_i,ab", eng(ph["di_0"], "m"),
-        eng(wx["di_0"], "m"), "d_i0")
-    row("v_A", f"{co['vA']:.4g} c", eng(ph["vA"], "m/s"), eng(wx["vA"], "m/s"))
-    row("1/w_ci0", f"{co['wci0_inv']/co['t_ab']:.4g} t_ab",
-        eng(ph["wci0_inv"], "s"), eng(wx["wci0_inv"], "s"), "1/w_ci0")
+    row("T_0", f"{psc['theta_0']:.4g} m_e c^2", f"{wx['T_0']:g} eV",
+        f"{wx['T_0']:g} eV  (th={wx['theta_0']:.3g})", "T_0")
+    row("d_i0", f"{wx['di_0'] / wx['di_ab']:.4g} d_i,ab",
+        eng(wx["di_0"], "m"), eng(wx["di_0"], "m"), "d_i0")
+    row("v_A", f"{psc['vA'] / psc['c']:.4g} c", eng(wx["vA"], "m/s"),
+        eng(wx["vA"], "m/s"))
+    row("1/w_ci0", f"{psc['wci0_inv'] / psc['t_ab']:.4g} t_ab",
+        eng(wx["wci0_inv"], "s"), eng(wx["wci0_inv"], "s"), "1/w_ci0")
+    row("rho_i0", f"{wx['rho_i0'] / wx['de_ab']:.4g} d_e,ab",
+        eng(wx["rho_i0"], "m"), eng(wx["rho_i0"], "m"))
 
-    sec("Dimensionless (transfer between columns)")
-    row("m_i/m_e", f"{co['mu']:g}", f"{ph['mu']:.4g}", f"{wx['mu']:g}",
-        "m_i/m_e", phys_ref=False)
-    row("c_sim/c_phys", f"{co['c_over_Csab']:.4g} C_s,ab",
-        f"{ph['c_sim']/C:.4f}", "1 (real c)", "c_sim/c_phys", phys_ref=False)
-    row("beta_ab = mu0 n T/B^2", f"{co['beta_ab']:.4g}", f"{ph['beta_ab']:.4g}",
-        f"{co['beta_ab']:.4g}", "beta_ab", phys_ref=False)
-    row("beta_0", f"{co['beta_0']:.4g}", f"{ph['beta_0']:.4g}",
-        f"{co['beta_0']:.4g}", "beta_0", phys_ref=False)
-    row("M_A", f"{co['MA']:.4g}", f"{ph['MA']:.4g}", f"{wx['vsh']/wx['vA']:.4g}",
-        "M_A", phys_ref=False)
-    row("M_ms", f"{co['Mms']:.4g}", f"{ph['Mms']:.4g}", "", "M_ms", phys_ref=False)
+    print("\nDimensionless")
+    row("m_i/m_e", f"{P['mu']:g}", f"{P['mu']:g}", f"{P['mu']:g}", "m_i/m_e", "code")
+    row("c/C_s,ab   <- THE reduced c", f"{psc['c_over_Csab']:.4g}",
+        f"{psc['c_over_Csab']:.4g}", f"{wx['c_over_Csab']:.4g}", ref="skip")
+    row("c_sim/c_phys", f"{c_sim / C:.4f}", f"{c_sim / C:.4f}", "1 (real c)",
+        "c_sim/c_phys", "code")
+    row("beta_ab = mu0 n T/B^2", f"{psc['beta_ab']:.5g}", f"{wx['beta_ab']:.5g}",
+        f"{wx['beta_ab']:.5g}", "beta_ab", "code")
+    row("beta_0  (DERIVED)", f"{psc['beta_0']:.4f}", f"{wx['beta_0']:.4f}",
+        f"{wx['beta_0']:.4f}", "beta_0", "code")
+    row("M_A", f"{psc['MA']:.4g}", f"{wx['MA']:.4g}", f"{wx['MA']:.4g}", "M_A", "code")
+    row("M_ms", f"{psc['Mms']:.4g}", f"{wx['Mms']:.4g}", f"{wx['Mms']:.4g}",
+        "M_ms", "code")
 
-    sec("Collisions  (lambda_ab transfers; nu_ei t_ab does NOT -- Sec. II)")
-    row("lambda_ab = mfp/d_e,ab", f"{co['lambda_ab']:g}", f"{co['lambda_ab']:g}",
-        f"{co['lambda_ab']:g}", "lambda_ab", phys_ref=False)
-    row("mfp_e,ab", f"{co['mfp_ab']:g} d_e,ab", eng(ph["mfp_ab"], "m"),
+    print("\nCollisions")
+    row("lambda_ab = mfp/d_e,ab", f"{P['lambda_ab']:g}", f"{P['lambda_ab']:g}",
+        f"{P['lambda_ab']:g}", "lambda_ab", "code")
+    row("mfp_e,ab", f"{P['lambda_ab']:g} d_e,ab", eng(wx["mfp_ab"], "m"),
         eng(wx["mfp_ab"], "m"))
-    row("nu_ei,ab", f"{co['nu_ei_ab']:.4g} w_pe", sci(ph["nu_ei_ab"]),
-        sci(wx["nu_ei_ab"]))
-    row("tau_ei,ab", f"{1/co['nu_ei_ab']/co['t_ab']:.4g} t_ab",
-        eng(1 / ph["nu_ei_ab"], "s"), eng(1 / wx["nu_ei_ab"], "s"), "tau_ei,ab")
-    row("nu_ei,ab * t_ab  (mu/lambda)", f"{co['nu_t_ab']:.4g}",
-        f"{ph['nu_t_ab']:.4g}", f"{wx['nu_t_ab']:.4g}", "tau_ei,ab", phys_ref=False)
-    print()
+    row("nu_ei,ab", f"{psc['nu_ei_ab'] / psc['w_pe']:.4g} w_pe",
+        f"{wx['nu_ei_ab']:.4g} 1/s", f"{wx['nu_ei_ab']:.4g} 1/s")
+    row("tau_ei,ab", f"{1 / psc['nu_ei_ab'] / psc['t_ab']:.4g} t_ab",
+        eng(1 / wx["nu_ei_ab"], "s"), eng(1 / wx["nu_ei_ab"], "s"), "tau_ei,ab")
+    row("nu_ei,ab t_ab = mu/lambda", f"{psc['nu_t_ab']:.4g}", f"{psc['nu_t_ab']:.4g}",
+        f"{wx['nu_t_ab']:.4g}", ref="skip")
+    lnL_w, lnL_p = coulomb_log(wx, args.nu_coeff), coulomb_log(psc, args.nu_coeff)
     row(f"ln Lambda (coeff {args.nu_coeff:.3g})", "n/a (Takizuka-Abe)",
-        f"{ph['lnL']:.3g}", f"{wx['lnL']:.4g}  (DIAL)")
-    # units.py -- and therefore every deck -- uses the NRL coefficient, so print the
-    # dial under it too or the deck value looks like it disagrees with this table.
-    scale = args.nu_coeff / NU_EI_NRL
-    row("ln Lambda (NRL coeff 2.91e-6)", "n/a", f"{ph['lnL']*scale:.3g}",
-        f"{wx['lnL']*scale:.4g}  <- the deck")
-    row("ln Lambda (NRL 24-ln(sqrt n/T))", "", f"{ph['lnL_nrl']:.3g}",
-        f"{wx['lnL_nrl']:.3g}")
+        f"{lnL_w:.4g}", f"{lnL_w:.4g}   <- PHYSICAL", ref="skip")
+    row("ln Lambda  24-ln(sqrt n/T)", "", f"{lnL_nrl(wx['n_ab'] / 1e6, wx['Te_ab']):.4g}",
+        f"{lnL_nrl(wx['n_ab'] / 1e6, wx['Te_ab']):.4g}", ref="skip")
+    lam350 = mfp_directed(wx["vsh"], wx["n_0"], wx["mi"], lnL_w)
+    row("mfp(v_sh)/d_i0  [Table I 350]", "", f"{lam350 / wx['di_0']:.4g} d_i0",
+        f"{lam350 / wx['di_0']:.4g} d_i0", ref="skip")
 
-    # Table I's last collision row. It is ~1e6 x larger than the THERMAL upstream
-    # ion-ion mfp, which is what the repo had been comparing it against; the row is
-    # the DIRECTED-ion mfp (~v^4) of the piston/shocked ions streaming into the
-    # ambient, i.e. the statement "the experiment is globally collisionless".
-    sec("Table I's lambda_mfp/d_i0 = 350  (directed ions, ~v^4)")
-    mi_p = ph["mu"] * ME
-    v_ti0 = math.sqrt(ph["Te_0"] / (ph["mu"] * ME_C2_EV)) * C   # upstream ion thermal
-    for label, v in (("at v_p", ph["vp"]), ("at v_sh", ph["vsh"]),
-                     ("at v_ti(T_0)  [thermal]", v_ti0)):
-        lam_m = mfp_directed(v, ph["n_0"], mi_p, ph["lnL"])
-        over_di0 = f'{lam_m / ph["di_0"]:.4g} d_i0'
-        print(f"{'  mfp ' + label:<{w[0]}}{'':<{w[1]}}{eng(lam_m, 'm'):<{w[2]}}"
-              f"{over_di0:<{w[3]}}{'350' if 'v_sh' in label else '':<{w[4]}}")
+    print("\nGrid  (identical cell COUNT; the cell SIZE differs because d_e,ab ~ c)")
+    row("dz", f"{geo['dz_over_de']:g} d_e,ab", eng(wx["dz"], "m"), eng(wx["dz"], "m"))
+    row("n_cell", f"{psc['n_cell']}", f"{psc['n_cell']}", f"{wx['n_cell']}")
+    row("domain", f"{geo['halfwidth_de']:g} d_e,ab",
+        eng(wx["dz"] * wx["n_cell"], "m"), eng(wx["dz"] * wx["n_cell"], "m"), "Lz")
+    row("tau_sim", "220 t_ab", eng(wx["tau_sim"], "s"), eng(wx["tau_sim"], "s"),
+        "tau_sim")
+    row("dt", f"{psc['dt_wpe']:.4g} /w_pe", eng(wx["dt"], "s"), eng(wx["dt"], "s"))
+
+    # The reduced c is the ONLY difference between the two codes, so it is worth
+    # isolating what it buys and what it costs rather than burying it in the rows
+    # above. PSC and WarpX represent the same physical plasma; PSC reaches it with a
+    # 10x-slow light speed, which shrinks d_e,ab and hence both dz and t_ab by 10x.
+    print("\nReduced-c ledger  (PSC vs WarpX -- the one place they differ)")
+    led = (("theta_e,ab = kT_e/(m_e c^2)", f"{psc['theta_e']:.5g}",
+            f"{wx['theta_e']:.5g}", "sets the code's c"),
+           ("c/C_s,ab", f"{psc['c_over_Csab']:.4g}", f"{wx['c_over_Csab']:.4g}",
+            "Sec. II's reduced c"),
+           ("d_e,ab [m]", eng(psc["de_ab"], "m"), eng(wx["de_ab"], "m"), "~ c"),
+           ("dz [m]", eng(psc["dz"], "m"), eng(wx["dz"], "m"), "= 0.3 d_e,ab"),
+           ("dz/lambda_D,ab", f"{psc['dz_over_lamD']:.3g}",
+            f"{wx['dz_over_lamD']:.3g}", "<= 1 or it grid-heats"),
+           ("t_ab [s]", eng(psc["t_ab"], "s"), eng(wx["t_ab"], "s"), "~ c"),
+           ("dt [s]", eng(psc["dt"], "s"), eng(wx["dt"], "s"), "CFL: 0.75 dz/c"),
+           ("max_step for 220 t_ab", f"{psc['max_step']:,}", f"{wx['max_step']:,}",
+            f"{wx['max_step'] / psc['max_step']:.0f}x more"))
+    print(f"  {'':<30}{'PSC':<18}{'WarpX':<18}note")
+    for name, a, b, note in led:
+        print(f"  {name:<30}{a:<18}{b:<18}{note}")
+    print(f"\n  PSC resolves lambda_D at 0.3 d_e,ab because its d_e,ab is only "
+          f"{psc['de_ab'] / psc['lam_D_ab']:.1f} lambda_D;")
+    print(f"  at real c d_e,ab is {wx['de_ab'] / wx['lam_D_ab']:.1f} lambda_D, so the SAME 0.3 d_e,ab "
+          f"cell is {wx['dz_over_lamD']:.1f} lambda_D wide.")
+    print(f"  Resolving it needs dz ~{wx['dz_over_lamD']:.0f}x smaller and dt with it: "
+          f"~{wx['dz_over_lamD'] ** 2:.0f}x cost on top of the {wx['max_step'] / psc['max_step']:.0f}x.")
 
     if args.show_work:
-        show_work(co, ph, args)
-
+        show_work(wx, psc, args, lnL_w)
+    if args.deck:
+        print_deck(wx, P, geo, lnL_w, args)
     print()
     return 0
 
 
-def show_work(co, ph, args):
-    lam, mu, muc = co["lambda_ab"], ph["mu"], co["mu"]
-    rate1 = nu_ei_formulary(args.n_ab_cm3, args.Te_ab_eV, 1.0, args.nu_coeff)
+def show_work(wx, psc, args, lnL_w):
+    rate1 = nu_ei_formulary(wx["n_ab"] / 1e6, wx["Te_ab"], 1.0, args.nu_coeff)
     print(f"""
---- the Coulomb logarithm, step by step ---------------------------------------
+--- the Coulomb logarithm ------------------------------------------------------
+lambda_ab = mfp_e,ab/d_e,ab is a pure ELECTRON ratio, so it is independent of mu and
+of the ion physics; what it DOES depend on is the speed of light, through
+d_e,ab = c/w_pe. WarpX runs at real c, so its d_e,ab is 1/{psc['c'] / C:.4f} = {C / psc['c']:.1f}x PSC's, and
+the mean free path it must produce is that much longer:
 
-Sec. II defines the collisionality as a purely ELECTRON-scale ratio,
+  1. v_te,ab = sqrt(T_e,ab/m_e), T_e,ab = {args.Te_ab_eV:g} eV = {eng(wx['vte_ab'], 'm/s')}
+  2. d_e,ab  = c/w_pe at n_e,ab = {wx['n_ab']:.3g} m^-3     = {eng(wx['de_ab'], 'm')}
+  3. mfp_ab  = lambda_ab * d_e,ab                  = {eng(wx['mfp_ab'], 'm')}
+  4. nu_ei,ab = v_te,ab/mfp_ab                     = {wx['nu_ei_ab']:.4g} 1/s
+     tau_ei   = {eng(1 / wx['nu_ei_ab'], 's')} = {1 / wx['nu_ei_ab'] / wx['t_ab']:.4g} t_ab   (Table I: 0.009 t_ab)
+  5. invert nu_ei = {args.nu_coeff:.3g} n[cm^-3] lnL T[eV]^-1.5 = {rate1:.4g} lnL
+     lnLambda = {wx['nu_ei_ab']:.4g}/{rate1:.4g} = {lnL_w:.4g}
 
-    lambda_ab = w_ce,ab/nu_ei,ab = mfp_ab/d_e,ab = {lam:g},
-    mfp_ab = sqrt(T_ab/m_e)/nu_ei,ab,     d_e,ab = c/w_pe,
+  Cross-check: 24 - ln(sqrt(n)/T) = {lnL_nrl(wx['n_ab'] / 1e6, wx['Te_ab']):.4g} at the same (n, T). So at
+  T_e,ab = {args.Te_ab_eV:g} eV the deck needs NO dial -- lambda_ab = {args.lambda_ab:g} is what a real plasma
+  at these conditions actually does. That is the payoff of choosing the physical
+  temperature: nu_ei ~ T^-3/2, so dropping T_e,ab from 47 keV (theta_e = 0.092 at real
+  c) to {args.Te_ab_eV:g} eV raises nu_ei by ~1000x and turns lnLambda = 1.2e5 into {lnL_w:.1f}.
+""")
 
-so it is independent of the ion mass and transfers between columns unchanged.
-That is the ONLY collision quantity that does. Note
 
-    nu_ei,ab t_ab = (v_te/mfp)(d_i/C_s) = sqrt(mu)*sqrt(mu)/lambda_ab = mu/lambda_ab,
+def print_deck(wx, P, geo, lnL_w, args):
+    print(f"""
+--- config.yaml values this implies -------------------------------------------
+reference:
+  n0: {P['n_ab']:.6g}                 # [m^-3] unchanged
+  mass_ratio: {P['mu']:g}
+plasma:
+  piston:
+    theta_e_heat: {wx['theta_e']:.6g}      # [kT_e/m_e c^2] = {args.Te_ab_eV:g} eV at REAL c (was 0.092 = 47 keV)
+  ambient:
+    density_over_n0: {P['n0_frac']:g}
+    theta_0: {wx['theta_0']:.6g}          # [kT/m_e c^2] = {P['T_0_eV']:g} eV     (was 0.002 = 1.02 keV)
+field:
+  B0_tesla: {wx['B0']:.10f}       # [T] from beta_ab = {P['beta_ab']:g}   (was 70.273)
+numerics:
+  max_step: {wx['max_step']}              # [steps] = 220 t_ab      (was 322400, i.e. {wx['max_step'] / 322400:.0f}x)
+collisions:
+  target:
+    quantity: lambda_ab          # UNCHANGED -- and that is the point: at 470 eV this
+    value: 20.0                  # now RESOLVES to lnLambda = {lnL_w:.4g} on its own,
+                                 # a physical value, where at 47 keV it needed 1.22e5.
+                                 # (Do NOT switch to `value: physical`: that uses
+                                 # 24-ln(sqrt n/T) = {lnL_nrl(wx['n_ab'] / 1e6, wx['Te_ab']):.4g}, which is a
+                                 # different quantity and would not give lambda_ab = 20.)
 
-which carries the ion mass explicitly: {muc:g}/{lam:g} = {muc/lam:.3g} in code units but
-{mu:.4g}/{lam:g} = {mu/lam:.3g} physically. Sec. II flags exactly this quantity as
-"only quantitatively matched at physical mass ratios", so the physical lnLambda
-must be derived from lambda_ab, not from nu_ei t_ab.
+geometry/ppc/operators unchanged: d_e,ab = c/w_pe depends only on n0 and real c, so
+dz = {eng(wx['dz'], 'm')}, {wx['n_cell']} cells and the {eng(wx['dz'] * wx['n_cell'], 'm')} domain are all identical.
 
-  1. real electron thermal speed at T_e,ab = {args.Te_ab_eV:g} eV
-        v_te,ab = sqrt(T_e,ab/m_e)              = {eng(ph['vte_ab'], 'm/s')}
-  2. real electron skin depth at n_e,ab = {args.n_ab_cm3:.3g} cm^-3 (REAL c)
-        d_e,ab  = c/w_pe                        = {eng(ph['de_ab'], 'm')}
-  3. mean free path from the collisionality
-        mfp_ab  = lambda_ab * d_e,ab            = {eng(ph['mfp_ab'], 'm')}
-  4. collision rate
-        nu_ei,ab = v_te,ab/mfp_ab               = {sci(ph['nu_ei_ab'])}
-        tau_ei   = 1/nu_ei,ab                   = {eng(ph['tau_ei'], 's')}
-                                                = {ph['tau_ei']/ph['t_ab']:.4g} t_ab
-     Table I quotes tau_ei,ab = 0.009 t_ab = 0.43 ps.
-  5. invert the formulary at the REAL (n, T)
-        nu_ei = {args.nu_coeff:.3g} * n[cm^-3] * lnL * T[eV]^-1.5 = {rate1:.4g} * lnL
-        lnLambda = {ph['nu_ei_ab']:.4g} / {rate1:.4g}      = {ph['lnL']:.3g}
-
-  cross-check: the NRL expression 24 - ln(sqrt(n)/T) gives {ph['lnL_nrl']:.3g} at the same
-  (n, T), so lambda_ab = {lam:g} corresponds to a genuinely PHYSICAL Coulomb logarithm --
-  no dial is needed in the physical column.
-
-  the 18.4x trap: routing through nu_ei t_ab = {muc/lam:.3g} (the CODE value) instead of
-  lambda_ab gives nu_ei = {muc/lam:.3g}/t_ab = {sci(muc/lam/ph['t_ab'])} and hence
-  lnLambda = {(muc/lam/ph['t_ab'])/rate1:.3g}, low by mu_phys/mu_p = {mu/muc:.4g}. A lnLambda below 1
-  is also outside the validity of the Coulomb logarithm itself.
+  ** two costs, both consequences of real c, neither avoidable in WarpX **
+  1. {wx['max_step'] / 322400:.0f}x the timesteps for the same 220 t_ab (dt is CFL-locked to dz/c, t_ab ~ c).
+  2. dz/lambda_D,ab = {wx['dz_over_lamD']:.3g} vs ~1 for PSC, so the paper's 0.3 d_e,ab grid
+     UNDER-RESOLVES the Debye length and will grid-heat. Resolving it needs dz ~10x
+     smaller and dt with it, i.e. ~100x cost on top.
 """)
 
 
