@@ -2004,3 +2004,75 @@ M_ms 12.8 → 4.9) — becomes cheap to settle by just running far enough to see
 by extrapolating. Still gated on the GPU agreement check; the CUDA binary is dated Jul 28 and
 commit `9f981dea2` (Jul 31) fixed an nvcc rejection in `ParticleHeater`, so it predates a fix
 to an operator this deck needs. It runs without aborting, which is necessary, not sufficient.
+
+---
+
+## 2026-08-04 (addendum) — GPU validated; implicit at large dt; the full lever matrix
+
+Completes the sweep. Generated tables in `runs/opt_phase/SUMMARY.md`, figures in
+`media/opt_phase/`, 30 benchmark points. **All costs below are `steps(cfl) x s/step x 1.279`
+with `steps(cfl) = 3,224,046 x 0.75/cfl`** — dt is proportional to cfl, so a large-dt point
+reaches 220 t_ab in fewer steps. Using a fixed step count (as the first version of
+`make_summary.py` did) overstates the cfl 3.0 and 7.5 rows by 4x and 10x.
+
+| configuration | s/step | full run | vs best |
+|---|---|---|---|
+| **explicit GPU, 1 box** | 0.01415 | **0.68 d** | 1.00x |
+| **implicit GPU, cfl 3.0** | 0.10876 | **1.30 d** | 1.92x |
+| implicit GPU, cfl 7.5 | 0.29374 | 1.40 d | 2.08x |
+| explicit CPU, 20 thr | 0.06143 | 2.93 d | 4.34x |
+| implicit GPU, cfl 0.75 | 0.07296 | 3.48 d | 5.16x |
+| implicit CPU, cfl 7.5 | 0.84305 | 4.02 d | 5.96x |
+| explicit GPU, 235 boxes | 0.09268 | 4.42 d | 6.50x |
+| explicit CPU, 8 thr | 0.11169 | 5.33 d | 7.84x |
+| implicit CPU, Picard cfl 0.75 | 1.33961 | 64.77 d | 95.3x |
+
+### The GPU binary is validated
+30 diagnostic rows over steps 0-1479, GPU vs CPU on an identical deck: no diverging column,
+**ambient electron count bit-identical at every step**, weights agreeing to 1e-13, and the
+piston species' relative energy differences *shrinking* 5-14x over the run as injection grows
+their populations — initial RNG sampling noise averaging out, not divergence. Per-species
+energy differences scale as 1/sqrt(N) at step 0 (amb_electrons 3.0e-4 with N=2.99e6 against
+1/sqrt(N)=5.8e-4; piston_electrons 2.6e-2 with N=6667 against 1.2e-2), which is what
+independent RNG streams look like. So the Jul 28 CUDA build is usable despite predating
+commit `9f981dea2`'s nvcc fix to `ParticleHeater`. Caveat: 1479 steps is ~0.1 t_ab.
+
+### Implicit converges at 10x dt but the cost rise beats the step saving
+`hit_max_iter = 0` in **every** implicit point on both devices, including cfl 7.5 — the regime
+the docs flag as where Picard "often" fails. Newton handles it. But per-step cost rises with
+dt, and faster on GPU than CPU:
+
+|  | cfl 0.75 -> 3.0 | cfl 3.0 -> 7.5 |
+|---|---|---|
+| CPU | 1.15x | 1.69x |
+| GPU | 1.49x | **2.70x** |
+
+At 2.70x against a 2.5x step saving, **cfl 7.5 is past the optimum** — implicit GPU is
+cheaper at cfl 3.0 (1.30 d) than at 7.5 (1.40 d). Larger dt is not monotonically better, and
+`SUMMARY.md` now orders rows by projected cost rather than s/step because with cfl varying the
+two orderings disagree (implicit GPU cfl 0.75 has the fastest step of the implicit points and
+is the most expensive run).
+
+### The GPU helps implicit less than explicit
+5.95x vs 7.89x, and the implicit penalty is *worse* on GPU (5.16x) than CPU (3.88x). GMRES and
+mass-matrix assembly are grid work, and grid work is under 1% of the explicit run — the part
+the GPU is least busy with. So the implicit scheme's extra cost lands where acceleration helps
+least. **My cfl 7.5 GPU projections were 0.51 d, then 0.68 d, then 0.77-0.88 d; the answer is
+1.40 d.** Each extrapolated a ratio measured at small dt into large dt, and the nonlinear
+solve got harder faster than any of them assumed. Do not project implicit cost across a dt
+change without measuring the interval.
+
+### Recommendation
+**Explicit GPU, 0.68 d**, for throughput: `amr.max_grid_size=30000` plus the CUDA binary.
+**Implicit GPU at cfl 3.0, 1.30 d**, if the finite-grid instability should be made
+structurally impossible instead of out-run — 1.92x the cost buys exact energy conservation
+(theta = 0.5), which removes the uncertainty the pilot could not resolve (T_0 -> 32 eV
+survivable vs T_0 -> 368 eV and M_ms 12.8 -> 4.87). Both are now cheap enough to run and
+compare, which was not true at 5.33 d.
+
+Two things are still required before either is a physics run, and neither is done:
+`numerics.evolve_scheme` (plus `implicit_evolve.*`) plumbed through `scripts/make_inputs.py`
+— no config passthrough exists and hand-editing decks is against the repo rule, so every
+implicit number here came from ParmParse overrides that are legitimate for benchmarking only
+— and a `grid_heating.py` measurement at matched physical time to confirm implicit actually
+removes what the pilot found rather than merely being entitled to.

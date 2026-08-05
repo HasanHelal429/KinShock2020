@@ -1,0 +1,9 @@
+label      l4_gpu_impl_cfl7.5_verbose
+deck       /home/hhelal/KinShock2020/runs/R1_phase/R1_paper_470eV/inputs_kinshock_R1_paper_470eV
+binary     /home/hhelal/warpx-cda/build_cuda1d/bin/warpx.1d
+threads    1
+max_step   5
+cap_s      600
+extra      algo.evolve_scheme=theta_implicit_em implicit_evolve.theta=0.5 implicit_evolve.nonlinear_solver=newton algo.current_deposition=villasenor implicit_evolve.use_mass_matrices_jacobian=1 implicit_evolve.skip_particle_picard_init=1 newton.require_convergence=0 newton.verbose=1 amr.max_grid_size=30000 gmres.verbose_int=2 warpx.cfl=7.5
+started    2026-08-04T17:05:49-07:00
+load_before 2.40

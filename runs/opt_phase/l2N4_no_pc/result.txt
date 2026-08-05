@@ -1,0 +1,1 @@
+l2N4_no_pc                         thr=  8  n=    20  s/step= 0.43389  median= 0.42666  status=ok wall=10s

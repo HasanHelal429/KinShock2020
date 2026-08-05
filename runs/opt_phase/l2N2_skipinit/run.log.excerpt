@@ -1,0 +1,303 @@
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Initializing AMReX (26.06-30-g5fbc49bce6cc)...
+MPI initialized with 1 MPI processes
+MPI initialized with thread support level 3
+OMP initialized with 8 OMP threads
+AMReX (26.06-30-g5fbc49bce6cc) initialized
+PICSAR (26.05)
+WarpX (dabf50c130fa-dirty)
+
+                                   ___
+    __        __             ___  /  /
+    \ \      / /_ _ _ __ _ __\  \/  /
+     \ \ /\ / / _` | '__| '_ \\    /
+      \ V  V / (_| | |  | |_) /    \
+       \_/\_/ \__,_|_|  | .__/__/\  \
+                        |_|       \__\
+
+Level 0: dt = 1.628228538e-16 ; dz = 6.508408475e-08
+Defined DOF object for linear solves (total DOFs = 90002).
+
+Grids Summary:
+  Level 0   235 grids  30000 cells  100 % of domain
+            smallest grid: 112  biggest grid: 128
+
+-------------------------------------------------------------------------------
+--------------------------- MAIN EM PIC PARAMETERS ----------------------------
+-------------------------------------------------------------------------------
+Precision:            | DOUBLE
+Particle precision:   | DOUBLE
+Geometry:             | 1D (Z)
+Operation mode:       | Electromagnetic
+                      | - vacuum
+-------------------------------------------------------------------------------
+Current Deposition:   | Villasenor 
+Guard cells           | - ng_alloc_J  = (2)
+ (allocated for J)    | 
+Particle Pusher:      | Boris 
+Charge Deposition:    | standard 
+Field Gathering:      | energy-conserving 
+Particle Shape Factor:| 2
+-------------------------------------------------------------------------------
+Maxwell Solver:       | Yee 
+-------------------------------------------------------------------------------
+
+-----------------------------------------------------------
+----------- THETA IMPLICIT EM SOLVER PARAMETERS -----------
+-----------------------------------------------------------
+Time-bias parameter theta:           0.5
+max particle iterations:             21
+particle relative tolerance:         1e-10
+use particle suborbits:              false
+print unconverged particle details:  false
+Nonlinear solver type:               newton
+use mass matrices:                   true
+    for jacobian calc:   true
+        skip particle picard init:  true
+    for preconditioner:  true
+    mass matrices pc width:  0
+    ncomp_xx:  (7);  ncomp_pc_xx:  (1)
+    ncomp_xy:  (7);  ncomp_pc_xy:  (0)
+    ncomp_xz:  (6);  ncomp_pc_xz:  (0)
+    ncomp_yx:  (7);  ncomp_pc_yx:  (0)
+    ncomp_yy:  (7);  ncomp_pc_yy:  (1)
+    ncomp_yz:  (6);  ncomp_pc_yz:  (0)
+    ncomp_zx:  (6);  ncomp_pc_zx:  (0)
+    ncomp_zy:  (6);  ncomp_pc_zy:  (0)
+    ncomp_zz:  (5);  ncomp_pc_zz:  (1)
+Newton verbose:             true
+Newton max iterations:      100
+Newton relative tolerance:  1e-06
+Newton absolute tolerance:  0
+Newton require convergence: false
+Newton linear solver:       amrex_gmres
+Linear solver (amrex_gmres) verbose:            0
+Linear solver (amrex_gmres) restart length:     30
+Linear solver (amrex_gmres) max iterations:     1000
+Linear solver (amrex_gmres) relative tolerance: 0.0001
+Linear solver (amrex_gmres) absolute tolerance: 0
+Preconditioner type:      pc_curl_curl_mlmg
+pc_curl_curl_mlmg verbose:              false
+pc_curl_curl_mlmg bottom verbose:       false
+pc_curl_curl_mlmg beta coeff:           MultiFab
+pc_curl_curl_mlmg max iter:             10
+pc_curl_curl_mlmg agglomeration:        1
+pc_curl_curl_mlmg consolidation:        1
+pc_curl_curl_mlmg max_coarsening_level: 30
+pc_curl_curl_mlmg absolute tolerance:   1e-16
+pc_curl_curl_mlmg relative tolerance:   0.0001
+pc_curl_curl_mlmg use GMRES:            false
+-----------------------------------------------------------
+
+For full input parameters, see the file: warpx_used_inputs
+
+--- INFO    : Starting Projection B-Field divergence cleaner.
+MLMG: # of AMR levels: 1
+      # of MG levels on the coarsest AMR level: 5
+MLMG: Initial rhs               = 0
+MLMG: Initial residual (resid0) = 0
+MLMG: No iterations needed
+MLMG: Timers: Solve = 0.002714335 Iter = 0 Bottom = 0
+--- INFO    : Finished Projection B-Field divergence cleaner.
+STEP 1 starts ...
+Newton: iteration =   0, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   1, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   2, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   3, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   4, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   5, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   6, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   7, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   8, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   9, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  10, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  11, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  12, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  13, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  14, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  15, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  16, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  17, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  18, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  19, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  20, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  21, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  22, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  23, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  24, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  25, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  26, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  27, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  28, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  29, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  30, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  31, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  32, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  33, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  34, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  35, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  36, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  37, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  38, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  39, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =  40, norm = 2.74649e+09 (abs.), 1.00000e+00 (rel.)
+
+... [2479 lines elided] ...
+
+WarpX::Evolve::step                                                                       20   0.002295   0.002295   0.002295   0.00%
+WarpX::Evolve()                                                                            1  8.932e-05  8.932e-05  8.932e-05   0.00%
+WarpX::OneStep()                                                                          20  4.337e-05  4.337e-05  4.337e-05   0.00%
+REG::WarpX::Evolve()                                                                       1  3.095e-06  3.095e-06  3.095e-06   0.00%
+Other                                                                                2038683      2.771      2.771      2.771   0.58%
+-------------------------------------------------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------------------------------------------------
+Name                                                                                  NCalls  Incl. Min  Incl. Avg  Incl. Max   Max %
+-------------------------------------------------------------------------------------------------------------------------------------
+REG::WarpX::Evolve()                                                                       1      476.2      476.2      476.2  99.96%
+WarpX::Evolve()                                                                            1      476.2      476.2      476.2  99.96%
+WarpX::Evolve::step                                                                       20      476.2      476.2      476.2  99.96%
+WarpX::OneStep()                                                                          20      475.2      475.2      475.2  99.76%
+ThetaImplicitEM::OneStep()                                                                20      475.2      475.2      475.2  99.76%
+NewtonSolver::Solve()                                                                     20      474.7      474.7      474.7  99.65%
+GMRES::solve()                                                                          2000        223        223        223  46.83%
+GMRES::cycle()                                                                          2000      214.7      214.7      214.7  45.06%
+ThetaImplicitEM::ComputeRHS()                                                          31477      159.3      159.3      159.3  33.44%
+ImplicitSolver::PreRHSOp()                                                             31477      154.3      154.3      154.3  32.38%
+CurlCurlMLMGPC::Apply()                                                                31477      151.8      151.8      151.8  31.87%
+MLMG::solve()                                                                          31477      147.3      147.3      147.3  30.92%
+MLMG::oneIter()                                                                        29477      132.1      132.1      132.1  27.74%
+NewtonSolver::EvalResidual()                                                            2000        124        124        124  26.04%
+MLMG::mgVcycle()                                                                       29477      121.8      121.8      121.8  25.58%
+ImplicitSolver::PreLinearSolve()                                                        2000      120.7      120.7      120.7  25.33%
+PhysicalParticleContainer::Evolve()                                                     8000      120.5      120.5      120.5  25.30%
+WarpX::DepositMassMatrices()                                                            2000      118.8      118.8      118.8  24.95%
+PhysicalParticleContainer::DepositMassMatrices()                                        8000      117.8      117.8      117.8  24.74%
+PhysicalParticleContainer::Evolve::GatherAndPush                                      124034      90.87      90.87      90.87  19.08%
+JacobianFunctionMF::apply()                                                            29477      39.07      39.07      39.07   8.20%
+MLMG::addInterpCorrection()                                                           117908      32.92      32.92      32.92   6.91%
+FillBoundary_nowait()                                                                4171025      29.64      29.64      29.64   6.22%
+WarpXParticleContainer::DepositCurrent::CurrentDeposition                             124034      27.05      27.05      27.05   5.68%
+MLMG::mgVcycle_down::1                                                                 29477      21.65      21.65      21.65   4.54%
+ablastr::utils::communication::SumBoundary                                            100431      19.72      19.72      19.72   4.14%
+FabArray<FAB>::SumBoundary()                                                          100432      19.69      19.69      19.69   4.13%
+FabArray<FAB>::SumBoundary_nowait()                                                   100432      19.59      19.59      19.59   4.11%
+MLMG::mgVcycle_bottom                                                                  29477      19.32      19.32      19.32   4.06%
+MLMG::actualBottomSolve()                                                              29477       19.3       19.3       19.3   4.05%
+MLCGSolver::bicgstab                                                                   29477      18.85      18.85      18.85   3.96%
+WarpX::SyncCurrent()                                                                   31477      18.51      18.51      18.51   3.89%
+MLMG::mgVcycle_down::2                                                                 29477      17.43      17.43      17.43   3.66%
+FabArray::ParallelCopy_nowait()                                                       607540      16.74      16.74      16.74   3.51%
+MLMG::mgVcycle_up::1                                                                   29477      16.72      16.72      16.72   3.51%
+GMRES::GramSchmidt                                                                     29477      15.58      15.58      15.58   3.27%
+MLMG::mgVcycle_up::2                                                                   29477      15.42      15.42      15.42   3.24%
+FabArray::setVal()                                                                   2803458      14.71      14.71      14.71   3.09%
+ImplicitSolver::ComputeJfromMassMatrices()                                             29477      14.67      14.67      14.67   3.08%
+FabArray::ParallelCopy()                                                              548586      14.33      14.33      14.33   3.01%
+MLMG::prepareForSolve()                                                                31477      10.44      10.44      10.44   2.19%
+MLMG::mgVcycle_down::3                                                                 29477      10.27      10.27      10.27   2.16%
+FillBoundary_nowait(Vector)                                                          1446373      9.847      9.847      9.847   2.07%
+MLCurlCurl::averageDownAndSync()                                                       29477      9.794      9.794      9.794   2.06%
+OverrideSync()                                                                         88431       9.77       9.77       9.77   2.05%
+MLMG::mgVcycle_up::3                                                                   29477      9.144      9.144      9.144   1.92%
+FabArray::Saxpy()                                                                    1930176      7.951      7.951      7.951   1.67%
+JacobianFunctionMF::::makeVecRHS()                                                     33477      7.676      7.676      7.676   1.61%
+OverrideSync_nowait()                                                                 151385      7.461      7.461      7.461   1.57%
+MLMG::mgVcycle_down::0                                                                 29477      6.602      6.602      6.602   1.39%
+CurlCurlMLMGPC::Update()                                                                2000       6.26       6.26       6.26   1.31%
+MLMG::mgVcycle_up::0                                                                   29477      5.238      5.238      5.238   1.10%
+amrex::Copy()                                                                         832763       5.04       5.04       5.04   1.06%
+ThetaImplicitEM::UpdateWarpXFields()                                                   31497      3.807      3.807      3.807   0.80%
+MLMG:computeResOfCorrection()                                                         117908      3.598      3.598      3.598   0.76%
+MLCurlCurl::solutionResidual()                                                         60954      2.675      2.675      2.675   0.56%
+OverrideSync_finish()                                                                 151385      2.571      2.571      2.571   0.54%
+MultiFab::Copy()                                                                      219222      2.237      2.237      2.237   0.47%
+FabArray::norminf()                                                                   542586      2.119      2.119      2.119   0.44%
+FabArray::LinComb()                                                                   176982      1.926      1.926      1.926   0.40%
+GMRES:build_solution()                                                                  2000      1.695      1.695      1.695   0.36%
+MLMG::computeMLResidual()                                                              31477      1.532      1.532      1.532   0.32%
+WarpX::SyncMassMatricesPC()                                                             2000      1.279      1.279      1.279   0.27%
+WarpX::ImplicitComputeRHSE()                                                           31477      1.193      1.193      1.193   0.25%
+MLMG::computeResidual()                                                                29477      1.186      1.186      1.186   0.25%
+FillBoundary_finish(Vector)                                                          1446373       1.02       1.02       1.02   0.21%
+MLMG::ResNormInf()                                                                     60954     0.9291     0.9291     0.9291   0.20%
+WarpX::EvolveB()                                                                       31497       0.78       0.78       0.78   0.16%
+amrex::Add()                                                                          100431     0.7092     0.7092     0.7092   0.15%
+FabArrayBase::getFB()                                                                4171025     0.6599     0.6599     0.6599   0.14%
+MLCGSolver::ParallelAllReduce                                                         176862      0.622      0.622      0.622   0.13%
+FillBoundaryAndSync_nowait(Vector)                                                     63034     0.6194     0.6194     0.6194   0.13%
+FillBoundaryAndSync_nowait()                                                          189102     0.5823     0.5823     0.5823   0.12%
+FillBoundary_finish()                                                                4171025     0.5809     0.5809     0.5809   0.12%
+MLMG::MLResNormInf()                                                                   31477     0.4916     0.4916     0.4916   0.10%
+MLMG::MLRhsNormInf()                                                                   31477      0.471      0.471      0.471   0.10%
+JacobianFunctionMF::::makeVecLHS()                                                      2000     0.4695     0.4695     0.4695   0.10%
+Other                                                                                2038683      4.309      4.309      4.309   0.90%
+-------------------------------------------------------------------------------------------------------------------------------------
+
+END REGION WarpX::Evolve()
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+Async Memory Usage:
+--------------------------------------------------
+Name                      Nalloc    AvgMem  MaxMem
+--------------------------------------------------
+MLMG::mgVcycle_down::1  20781285  1270   B  60 KiB
+MLMG::mgVcycle_down::2  20781285   487   B  31 KiB
+MLMG::mgVcycle_down::3  10434858   124   B  15 KiB
+--------------------------------------------------
+
+Pinned Memory Usage:
+----------------------------------------------------------
+Name                            Nalloc    AvgMem    MaxMem
+----------------------------------------------------------
+The_Pinned_Arena::Initialize()       1     0   B  8192 KiB
+TargetInjector::applyInjector      235     0   B   292 KiB
+main()                             255  9471   B  9472   B
+WarpX::InitData()                    7   767   B   768   B
+ParticleHeater::applyHeater          1   243   B   256   B
+Unprofiled                          11     0   B   256   B
+----------------------------------------------------------
+
+Cpu Memory Usage:
+------------------------------------------------------------------------------
+Name                                                Nalloc    AvgMem    MaxMem
+------------------------------------------------------------------------------
+PhysicalParticleContainer::AddPlasma()                6600   473 MiB   473 MiB
+ThetaImplicitEM::Define()                             6345    18 MiB    18 MiB
+JacobianFunctionMF::::makeVecRHS()                23601285  3805 KiB    15 MiB
+WarpX::InitData()                                     4700    10 MiB    10 MiB
+MLMG::prepareForSolve()                              16752  9656 KiB  9663 KiB
+JacobianFunctionMF::::define()                        2820  3279 KiB  3280 KiB
+NewtonSolver::Define()                                2115  2459 KiB  2460 KiB
+CurlCurlMLMGPC::Update()                           8820000  1989 KiB  2030 KiB
+MLCellLinOp::defineAuxData()                          4700    15   B  1175 KiB
+ParticleContainer::BuildRedistributeMask               940  1111 KiB  1170 KiB
+PhysicalParticleContainer::DepositMassMatrices()       162  1083 KiB  1084 KiB
+OwnerMask()                                           1587   978 KiB   979 KiB
+JacobianFunctionMF::::makeVecLHS()                 1410000   372 KiB   820 KiB
+WarpX::ProjectionDivCleanB()                           470    10   B   585 KiB
+MLCGSolver::bicgstab                              26087145     9 KiB   378 KiB
+TargetInjector::applyInjector                          239     1   B   293 KiB
+OverrideSync_nowait()                             13854190  3796   B   292 KiB
+MLMG::addInterpCorrection()                       51997428  9052   B   291 KiB
+BndryData::define()                                    940     2   B   235 KiB
+ParticleContainer::ReserveForRedistribute()          20592   233 KiB   234 KiB
+FillBoundary_nowait()                             47002176  2014   B   117 KiB
+MLMG::mgVcycle_down::1                            20781285  2136   B   116 KiB
+PhysicalParticleContainer::Evolve()                     54    67 KiB    67 KiB
+MLMG::mgVcycle_down::2                            20781285   936   B    58 KiB
+DenseBins<T>::buildOpenMP                             7520     1   B    32 KiB
+MLMG::mgVcycle_down::3                            10434858   239   B    29 KiB
+amrex::packBuffer                                       35     0   B  4096   B
+MLCellLinOp::applyBC()                                   1     0   B   256   B
+------------------------------------------------------------------------------
+
+AMReX (26.06-30-g5fbc49bce6cc) finalized

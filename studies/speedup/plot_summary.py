@@ -36,19 +36,30 @@ BLUE, ORANGE = "#2a78d6", "#eb6834"
 SURFACE, INK, INK2, MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
 GRID, BASELINE = "#e1e0d9", "#c3c2b7"
 
-STEPS_FULL, DRIFT = 3_224_046, 1.279
+STEPS_FULL, CFL_DECK, DRIFT = 3_224_046, 0.75, 1.279
 RESULT = re.compile(r"^(\S+)\s+thr=\s*(\d+)\s+n=\s*(\d+)\s+s/step=\s*([0-9.]+)")
+CFL_OVERRIDE = re.compile(r"warpx\.cfl=([0-9.]+)")
 
 
 def points():
+    """label -> (mean s/step, cfl). The cfl is needed because dt is proportional to it, so a
+    large-dt point reaches 220 t_ab in STEPS_FULL*0.75/cfl steps, not STEPS_FULL."""
     out = {}
     for d in sorted(OUT.iterdir()) if OUT.is_dir() else []:
         f = d / "result.txt"
         if f.is_file():
             m = RESULT.match(f.read_text().strip())
             if m:
-                out[m.group(1)] = float(m.group(4))
+                meta = (d / "meta.txt").read_text() if (d / "meta.txt").is_file() else ""
+                cm = CFL_OVERRIDE.search(meta)
+                out[m.group(1)] = (float(m.group(4)),
+                                   float(cm.group(1)) if cm else CFL_DECK)
     return out
+
+
+def days(sc):
+    s, cfl = sc
+    return STEPS_FULL * CFL_DECK / cfl * s * DRIFT / 86400.0
 
 
 def style(ax):
@@ -71,8 +82,8 @@ def fig_threads(p, path):
     if len(have) < 3:
         print("  threads: too few points, skipped")
         return
-    base = p["l1_thr8"]
-    spd = [base / p[keys[t]] for t in have]
+    base = p["l1_thr8"][0]
+    spd = [base / p[keys[t]][0] for t in have]
 
     fig, ax = plt.subplots(figsize=(7.2, 4.4), dpi=200, facecolor=SURFACE)
     style(ax)
@@ -115,30 +126,39 @@ def fig_threads(p, path):
 
 
 def fig_cost(p, path):
-    rows = [("GPU, 1 box", "l3B_gpu_1box"), ("GPU, 8 boxes", "l3B2_gpu_8box"),
-            ("CPU 24 thr", "l1_thr24_clean"), ("CPU 20 thr", "l1_thr20_clean"),
-            ("CPU 16 thr", "l1_thr16"), ("GPU, 235 boxes (deck default)", "l3A_gpu_default"),
-            ("CPU 8 thr (baseline)", "l1_thr8"),
-            ("theta-implicit, Picard", "l2B_time_picard")]
-    rows = [(lab, p[k]) for lab, k in rows if k in p]
+    rows = [("explicit GPU, 1 box", "l3B_gpu_1box"),
+            ("explicit GPU, 235 boxes (default)", "l3A_gpu_default"),
+            ("explicit CPU 20 thr", "l1_thr20_clean"),
+            ("explicit CPU 8 thr (baseline)", "l1_thr8"),
+            ("implicit GPU, cfl 3.0", "l4_gpu_impl_cfl3.0"),
+            ("implicit GPU, cfl 7.5", "l4_gpu_impl_cfl7.5"),
+            ("implicit GPU, cfl 0.75", "l4_gpu_impl_cfl0.75"),
+            ("implicit CPU, cfl 7.5", "l2D_cfl7.5"),
+            ("implicit CPU, Picard cfl 0.75", "l2B_time_picard")]
+    rows = [(lab, days(p[k])) for lab, k in rows if k in p]
     if len(rows) < 3:
         print("  cost: too few points, skipped")
         return
     rows.sort(key=lambda r: r[1])
     labels = [r[0] for r in rows]
-    days = [STEPS_FULL * r[1] * DRIFT / 86400.0 for r in rows]
+    dvals = [r[1] for r in rows]
     y = list(range(len(rows)))
-    best = min(range(len(days)), key=lambda i: days[i])
-    cols = [ORANGE if i == best else BLUE for i in y]
+    # Orange marks the two RECOMMENDATIONS, which are not the same thing: cheapest overall,
+    # and cheapest that also conserves energy exactly (no grid heating by construction).
+    best = min(range(len(dvals)), key=lambda i: dvals[i])
+    best_impl = min((i for i, l in enumerate(labels) if l.startswith("implicit")),
+                    key=lambda i: dvals[i], default=None)
+    cols = [ORANGE if i in (best, best_impl) else BLUE for i in y]
+    days_list = dvals
 
-    fig, ax = plt.subplots(figsize=(7.6, 4.4), dpi=200, facecolor=SURFACE)
+    fig, ax = plt.subplots(figsize=(8.4, 4.8), dpi=200, facecolor=SURFACE)
     style(ax)
     ax.set_xscale("log")
     ax.xaxis.grid(True, color=GRID, linewidth=1.0, which="major")
     ax.set_axisbelow(True)
 
-    for yi, d, c in zip(y, days, cols):
-        ax.plot([min(days) * 0.55, d], [yi, yi], color=GRID, linewidth=2, zorder=2)
+    for yi, d, c in zip(y, days_list, cols):
+        ax.plot([min(days_list) * 0.55, d], [yi, yi], color=GRID, linewidth=2, zorder=2)
         ax.plot([d], [yi], "o", markersize=9, color=c, markeredgecolor=SURFACE,
                 markeredgewidth=2, zorder=3)
         txt = f"{d:.2f} d" if d < 100 else f"{d/365:.1f} yr"
@@ -148,14 +168,15 @@ def fig_cost(p, path):
     ax.set_yticks(y)
     ax.set_yticklabels(labels)
     ax.set_ylim(-0.7, len(y) - 0.3)
-    ax.set_xlim(min(days) * 0.5, max(days) * 3.2)
+    ax.set_xlim(min(days_list) * 0.45, max(days_list) * 4.0)
     ax.set_xlabel("projected full-run wall clock (days, log scale)", color=INK2, fontsize=10)
-    ax.set_title("Cost of the full 220 t_ab run by configuration",
+    ax.set_title("Cost of the full 220 t_ab run — orange = the two recommendations",
                  color=INK, fontsize=12, pad=14, loc="left")
-    fig.text(0.01, 0.02, "3,224,046 steps x measured mean s/step x 1.279 particle-growth "
-             "drift. Log axis with dots, not bars: the range spans 3 decades.",
+    fig.text(0.01, 0.02, "steps(cfl) x mean s/step x 1.279 drift, steps = 3,224,046 x 0.75/cfl (large dt\n"
+             "reaches 220 t_ab in fewer steps). Dots on a log axis, not bars: bar length\n"
+             "must stay proportional to value.",
              fontsize=8, color=MUTED)
-    fig.tight_layout(rect=(0, 0.045, 1, 1))
+    fig.tight_layout(rect=(0, 0.105, 1, 1))
     fig.savefig(path, facecolor=SURFACE)
     plt.close(fig)
     print(f"  wrote {path}")

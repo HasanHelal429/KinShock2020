@@ -28,12 +28,26 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 OUT = ROOT / "studies" / "speedup" / "out"
 DEST = ROOT / "runs" / "opt_phase"
 
-STEPS_FULL = 3_224_046          # R1_paper_470eV max_step = 220 t_ab
+STEPS_FULL = 3_224_046          # R1_paper_470eV max_step = 220 t_ab, at the deck's cfl
+CFL_DECK = 0.75                 # the deck's warpx.cfl
 DRIFT = 1.279                   # particle-count growth over the full run
 
 RESULT = re.compile(
     r"^(\S+)\s+thr=\s*(\d+)\s+n=\s*(\d+)\s+s/step=\s*([0-9.]+)\s+median=\s*([0-9.]+)"
     r"\s+status=(\S+)")
+CFL_OVERRIDE = re.compile(r"warpx\.cfl=([0-9.]+)")
+
+
+def steps_for(cfl):
+    """Steps needed to reach 220 t_ab at this cfl.
+
+    NOT a constant. dt is proportional to cfl, so a large-dt point covers the same physical
+    duration in fewer steps -- 806,012 at cfl 3.0 against 3,224,046 at the deck's 0.75.
+    Multiplying every point by STEPS_FULL would have overstated the implicit large-dt runs
+    by 4x and 10x, i.e. reported the *worst* configurations as far worse than they are, for
+    exactly the reason they were interesting.
+    """
+    return STEPS_FULL * CFL_DECK / cfl
 
 # label -> (lever, human description, trust)
 NOTES = {
@@ -60,6 +74,13 @@ NOTES = {
     "l3C_cpu_ref":        ("3", "CPU reference, 8 threads", "ok"),
     "l3D_gpu_agree":      ("3", "GPU, agreement-check run", "ok"),
     "l3D_cpu_agree":      ("3", "CPU, agreement-check run", "ok"),
+    "l2D_cfl3.0":         ("2", "implicit CPU, no PC, cfl 3.0 (4x dt)", "ok"),
+    "l2D_cfl7.5":         ("2", "implicit CPU, no PC, cfl 7.5 (10x dt)", "ok"),
+    "l2D_cfl7.5_verbose": ("2", "implicit CPU, cfl 7.5, full GMRES verbosity", "diagnostic"),
+    "l4_gpu_impl_cfl0.75": ("4", "implicit GPU, cfl 0.75", "ok"),
+    "l4_gpu_impl_cfl3.0":  ("4", "implicit GPU, cfl 3.0 (4x dt)", "ok"),
+    "l4_gpu_impl_cfl7.5":  ("4", "implicit GPU, cfl 7.5 (10x dt)", "ok"),
+    "l4_gpu_impl_cfl7.5_verbose": ("4", "implicit GPU, cfl 7.5, full verbosity", "diagnostic"),
 }
 
 
@@ -73,8 +94,11 @@ def read_points():
         if not m:
             continue
         label, thr, n, mean, med, status = m.groups()
+        meta = (d / "meta.txt").read_text() if (d / "meta.txt").is_file() else ""
+        cm = CFL_OVERRIDE.search(meta)
+        cfl = float(cm.group(1)) if cm else CFL_DECK
         pts[label] = dict(label=label, thr=int(thr), n=int(n), mean=float(mean),
-                          median=float(med), status=status,
+                          median=float(med), status=status, cfl=cfl,
                           lever=NOTES.get(label, ("?", label, "ok"))[0],
                           desc=NOTES.get(label, ("?", label, "ok"))[1],
                           trust=NOTES.get(label, ("?", label, "ok"))[2])
@@ -82,18 +106,20 @@ def read_points():
 
 
 def table(pts, lever, base):
-    hdr = (f"| point | config | thr | steps | s/step (mean) | median | vs base | full run |\n"
-           f"|---|---|---|---|---|---|---|---|\n")
+    """One lever's points, ordered by projected full-run cost -- which is the decision
+    variable, and is NOT monotonic in s/step once cfl varies between rows."""
+    hdr = ("| point | config | cfl | run steps | s/step (mean) | median | **full run** |\n"
+           "|---|---|---|---|---|---|---|\n")
+    sel = [p for p in pts.values() if p["lever"] == lever]
+    for p in sel:
+        p["days"] = steps_for(p["cfl"]) * p["mean"] * DRIFT / 86400.0
     rows = ""
-    for p in sorted(pts.values(), key=lambda x: (x["lever"], x["mean"])):
-        if p["lever"] != lever:
-            continue
-        spd = base / p["mean"] if p["mean"] else 0.0
-        days = STEPS_FULL * p["mean"] * DRIFT / 86400.0
+    for p in sorted(sel, key=lambda x: x["days"]):
         flag = "" if p["trust"] == "ok" else f" **[{p['trust']}]**"
-        dur = f"{days:.2f} d" if days < 400 else f"{days/365:.1f} yr"
-        rows += (f"| `{p['label']}`{flag} | {p['desc']} | {p['thr']} | {p['n']} | "
-                 f"**{p['mean']:.5f}** | {p['median']:.5f} | {spd:.2f}x | {dur} |\n")
+        dur = f"{p['days']:.2f} d" if p["days"] < 400 else f"{p['days']/365:.1f} yr"
+        rows += (f"| `{p['label']}`{flag} | {p['desc']} | {p['cfl']:g} | "
+                 f"{steps_for(p['cfl']):,.0f} | **{p['mean']:.5f}** | {p['median']:.5f} | "
+                 f"**{dur}** |\n")
     return hdr + rows if rows else "_no points yet_\n"
 
 
@@ -116,9 +142,12 @@ findings and their interpretation are in `RESULTS.md`.
 These are **performance points, not physics runs** — they carry no `config.yaml`, which is
 why `kinshock.find_runs()` does not enumerate them.
 
-Baseline: **{base:.5f} s/step** at 8 OMP threads. Full run is {STEPS_FULL:,} steps; the
-"full run" column applies the measured {DRIFT} particle-growth drift, so it is a projected
-wall-clock, not steps x s/step.
+Baseline: **{base:.5f} s/step** at 8 OMP threads. The **full run** column is the decision
+variable: `steps(cfl) x s/step x {DRIFT}` where `steps(cfl) = {STEPS_FULL:,} x {CFL_DECK}/cfl`,
+because dt is proportional to cfl and a large-dt point reaches 220 t_ab in fewer steps. The
+{DRIFT} factor is the measured particle-count growth. **Rows are ordered by that column, not
+by s/step** — with cfl varying, the two orderings differ, and the cheapest run is not the one
+with the fastest step.
 
 **Statistic: the mean.** In a clean run the only outliers are the collision supercycle
 (`ndt_supercycle: 10`) — every 10th step is genuinely expensive and you pay for it, so the
@@ -155,10 +184,33 @@ update. The `l2N*` points retune it with verbosity on.
 ~1.2x; one box gives ~7.9x — a 6.5x swing from `amr.max_grid_size=30000` alone. A GPU
 benchmark left at the default decomposition would have read as "not worth it".
 
-Speed is contingent on the agreement check (`l3D_*`): the CUDA binary is dated Jul 28 and
-commit `9f981dea2` landed Jul 31 fixing an nvcc rejection in `ParticleHeater`, so it
-predates a fix to an operator this deck needs. It runs without aborting, which is necessary
-and not sufficient.
+**The agreement check PASSES** (`l3D_*`): 30 diagnostic rows over steps 0-1479, no diverging
+column, ambient electron count bit-identical at every step, and the piston species' relative
+energy differences *shrink* over time (initial RNG sampling noise averaging out as injection
+grows the population, not divergence). The Jul 28 CUDA binary is therefore usable despite
+predating commit `9f981dea2`'s nvcc fix to `ParticleHeater`. Caveat: 1479 steps is ~0.1 t_ab,
+which establishes the operators fire correctly, not a long-baseline physics validation.
+
+## Lever 4 — theta-implicit ON the GPU
+
+{table(pts, "4", base)}
+The combination that could have given throughput *and* grid-heating immunity. It gives the
+second at ~1.9x the cost of the first, not for free:
+
+  * The GPU accelerates implicit **less** than explicit — 5.95x vs 7.89x — and the implicit
+    penalty is *worse* on GPU (5.16x) than CPU (3.88x). GMRES and mass-matrix assembly are
+    grid work, and grid work is what the GPU is least busy with here (<1% of the explicit
+    run), so the extra cost lands where acceleration helps least.
+  * **cfl 7.5 is past the optimum.** Per-step cost rises 2.70x from cfl 3.0 to 7.5 on GPU
+    against 1.69x on CPU, so the step-count saving (2.5x) stops paying for itself. The best
+    implicit configuration measured is **cfl 3.0 at 1.30 d**, not the largest dt.
+  * Every point converged at every cfl on both devices -- `hit_max_iter = 0` throughout,
+    including 10x dt on device, the regime the docs flag as where Picard fails.
+
+**Recommendation.** Explicit GPU (0.68 d) for throughput. Implicit GPU at cfl 3.0 (1.30 d) if
+the grid heating should be made structurally impossible rather than out-run -- 1.92x the cost
+to remove the uncertainty the pilot could not resolve (T_0 -> 32 eV survivable vs
+T_0 -> 368 eV and M_ms 12.8 -> 4.87).
 
 ## Reproducing
 

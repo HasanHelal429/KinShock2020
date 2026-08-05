@@ -1,0 +1,1 @@
+l4_gpu_impl_cfl7.5                 thr=  1  n=   200  s/step= 0.29374  median= 0.29137  status=ok wall=60s

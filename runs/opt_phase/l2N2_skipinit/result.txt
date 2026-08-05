@@ -1,0 +1,1 @@
+l2N2_skipinit                      thr=  8  n=    20  s/step=23.74381  median=23.64987  status=ok wall=477s

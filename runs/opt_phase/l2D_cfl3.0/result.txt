@@ -1,0 +1,1 @@
+l2D_cfl3.0                         thr=  8  n=   200  s/step= 0.49834  median= 0.48547  status=ok wall=100s

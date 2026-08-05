@@ -1,0 +1,1 @@
+l2N3_pc_jacobi                     thr=  8  n=    20  s/step= 0.43928  median= 0.43189  status=ok wall=10s

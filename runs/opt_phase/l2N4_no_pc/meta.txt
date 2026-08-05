@@ -1,0 +1,9 @@
+label      l2N4_no_pc
+deck       /home/hhelal/KinShock2020/runs/R1_phase/R1_paper_470eV/inputs_kinshock_R1_paper_470eV
+binary     /home/hhelal/warpx-cda/build/bin/warpx.1d
+threads    8
+max_step   20
+cap_s      600
+extra      algo.evolve_scheme=theta_implicit_em implicit_evolve.theta=0.5 implicit_evolve.nonlinear_solver=newton algo.current_deposition=villasenor newton.require_convergence=0 newton.verbose=1 gmres.verbose_int=0 pc_curl_curl_mlmg.verbose=0 implicit_evolve.use_mass_matrices_jacobian=1 implicit_evolve.skip_particle_picard_init=1
+started    2026-08-04T16:49:08-07:00
+load_before 8.29

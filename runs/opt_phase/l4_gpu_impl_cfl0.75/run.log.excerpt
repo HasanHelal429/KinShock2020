@@ -1,0 +1,303 @@
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Authorization required, but no authorization protocol specified
+
+Initializing AMReX (26.06-30-g5fbc49bce6cc)...
+MPI initialized with 1 MPI processes
+MPI initialized with thread support level 3
+Initializing CUDA...
+CUDA initialized with 1 device.
+AMReX (26.06-30-g5fbc49bce6cc) initialized
+PICSAR (26.05)
+WarpX (c33a7732bd1f-dirty)
+
+                                   ___
+    __        __             ___  /  /
+    \ \      / /_ _ _ __ _ __\  \/  /
+     \ \ /\ / / _` | '__| '_ \\    /
+      \ V  V / (_| | |  | |_) /    \
+       \_/\_/ \__,_|_|  | .__/__/\  \
+                        |_|       \__\
+
+Level 0: dt = 1.628228538e-16 ; dz = 6.508408475e-08
+Defined DOF object for linear solves (total DOFs = 90002).
+
+Grids Summary:
+  Level 0   1 grids  30000 cells  100 % of domain
+
+-------------------------------------------------------------------------------
+--------------------------- MAIN EM PIC PARAMETERS ----------------------------
+-------------------------------------------------------------------------------
+Precision:            | DOUBLE
+Particle precision:   | DOUBLE
+Geometry:             | 1D (Z)
+Operation mode:       | Electromagnetic
+                      | - vacuum
+-------------------------------------------------------------------------------
+Current Deposition:   | Villasenor 
+Guard cells           | - ng_alloc_J  = (2)
+ (allocated for J)    | 
+Particle Pusher:      | Boris 
+Charge Deposition:    | standard 
+Field Gathering:      | energy-conserving 
+Particle Shape Factor:| 2
+-------------------------------------------------------------------------------
+Maxwell Solver:       | Yee 
+-------------------------------------------------------------------------------
+
+-----------------------------------------------------------
+----------- THETA IMPLICIT EM SOLVER PARAMETERS -----------
+-----------------------------------------------------------
+Time-bias parameter theta:           0.5
+max particle iterations:             21
+particle relative tolerance:         1e-10
+use particle suborbits:              false
+print unconverged particle details:  false
+Nonlinear solver type:               newton
+use mass matrices:                   true
+    for jacobian calc:   true
+        skip particle picard init:  true
+    for preconditioner:  false
+    ncomp_xx:  (7);  ncomp_pc_xx:  (0)
+    ncomp_xy:  (7);  ncomp_pc_xy:  (0)
+    ncomp_xz:  (6);  ncomp_pc_xz:  (0)
+    ncomp_yx:  (7);  ncomp_pc_yx:  (0)
+    ncomp_yy:  (7);  ncomp_pc_yy:  (0)
+    ncomp_yz:  (6);  ncomp_pc_yz:  (0)
+    ncomp_zx:  (6);  ncomp_pc_zx:  (0)
+    ncomp_zy:  (6);  ncomp_pc_zy:  (0)
+    ncomp_zz:  (5);  ncomp_pc_zz:  (0)
+Newton verbose:             true
+Newton max iterations:      100
+Newton relative tolerance:  1e-06
+Newton absolute tolerance:  0
+Newton require convergence: false
+Newton linear solver:       amrex_gmres
+Linear solver (amrex_gmres) verbose:            0
+Linear solver (amrex_gmres) restart length:     30
+Linear solver (amrex_gmres) max iterations:     1000
+Linear solver (amrex_gmres) relative tolerance: 0.0001
+Linear solver (amrex_gmres) absolute tolerance: 0
+Preconditioner type:      none
+-----------------------------------------------------------
+
+For full input parameters, see the file: warpx_used_inputs
+
+--- INFO    : Starting Projection B-Field divergence cleaner.
+MLMG: # of AMR levels: 1
+      # of MG levels on the coarsest AMR level: 5
+MLMG: Initial rhs               = 0
+MLMG: Initial residual (resid0) = 0
+MLMG: No iterations needed
+MLMG: Timers: Solve = 0.000429785 Iter = 0 Bottom = 0
+--- INFO    : Finished Projection B-Field divergence cleaner.
+STEP 1 starts ...
+Newton: iteration =   0, norm = 2.56495e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   1, norm = 4.98023e+04 (abs.), 1.94165e-05 (rel.)
+Newton: iteration =   2, norm = 1.33798e+00 (abs.), 5.21641e-10 (rel.)
+Newton: exiting at iteration =   2. Satisfied relative tolerance 1e-06
+--- INFO    : target_injector: step 0 added 4 particles
+--- INFO    : particle_heater: generated heating rate for species
+             'piston_electrons':
+             (z>(-4.3389389832360864e-06))*(z<(4.3389389832360864e-06))*(6.9287570315417177e+25)
+
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+
+**** WARNINGS ******************************************************************
+* GLOBAL warning list  after  [ FIRST STEP ]
+*
+* No recorded warnings.
+********************************************************************************
+
+STEP 1 ends. TIME = 1.628228538e-16 DT = 1.628228538e-16
+Evolve time = 0.154680618 s; This step = 0.154680618 s; Avg. per step = 0.154680618 s
+
+STEP 2 starts ...
+Newton: iteration =   0, norm = 3.58628e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   1, norm = 6.83911e+04 (abs.), 1.90702e-05 (rel.)
+Newton: iteration =   2, norm = 1.74636e+00 (abs.), 4.86956e-10 (rel.)
+Newton: exiting at iteration =   2. Satisfied relative tolerance 1e-06
+STEP 2 ends. TIME = 3.256457076e-16 DT = 1.628228538e-16
+Evolve time = 0.250895326 s; This step = 0.096214708 s; Avg. per step = 0.125447663 s
+
+STEP 3 starts ...
+Newton: iteration =   0, norm = 5.19192e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   1, norm = 9.73431e+04 (abs.), 1.87490e-05 (rel.)
+Newton: iteration =   2, norm = 2.45936e+00 (abs.), 4.73690e-10 (rel.)
+Newton: exiting at iteration =   2. Satisfied relative tolerance 1e-06
+STEP 3 ends. TIME = 4.884685614e-16 DT = 1.628228538e-16
+Evolve time = 0.341493262 s; This step = 0.090597936 s; Avg. per step = 0.1138310873 s
+
+STEP 4 starts ...
+Newton: iteration =   0, norm = 3.95189e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   1, norm = 7.29848e+04 (abs.), 1.84683e-05 (rel.)
+Newton: iteration =   2, norm = 1.83691e+00 (abs.), 4.64817e-10 (rel.)
+Newton: exiting at iteration =   2. Satisfied relative tolerance 1e-06
+--- INFO    : re-sorting particles
+STEP 4 ends. TIME = 6.512914152e-16 DT = 1.628228538e-16
+Evolve time = 0.439167147 s; This step = 0.097673885 s; Avg. per step = 0.1097917867 s
+
+STEP 5 starts ...
+Newton: iteration =   0, norm = 4.09355e+09 (abs.), 1.00000e+00 (rel.)
+Newton: iteration =   1, norm = 8.45990e+04 (abs.), 2.06664e-05 (rel.)
+Newton: iteration =   2, norm = 2.26357e+00 (abs.), 5.52961e-10 (rel.)
+Newton: exiting at iteration =   2. Satisfied relative tolerance 1e-06
+
+... [1824 lines elided] ...
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Name                                                                                 NCalls  Incl. Min  Incl. Avg  Incl. Max   Max %
+------------------------------------------------------------------------------------------------------------------------------------
+REG::WarpX::Evolve()                                                                      1      14.71      14.71      14.71  99.40%
+WarpX::Evolve()                                                                           1      14.71      14.71      14.71  99.40%
+WarpX::Evolve::step                                                                     200      14.71      14.71      14.71  99.40%
+WarpX::OneStep()                                                                        200      13.76      13.76      13.76  92.96%
+ThetaImplicitEM::OneStep()                                                              200      13.76      13.76      13.76  92.96%
+NewtonSolver::Solve()                                                                   200       13.3       13.3       13.3  89.84%
+ThetaImplicitEM::ComputeRHS()                                                          2600      8.491      8.491      8.491  57.36%
+ImplicitSolver::PreRHSOp()                                                             2600      8.242      8.242      8.242  55.68%
+NewtonSolver::EvalResidual()                                                            600       8.19       8.19       8.19  55.32%
+PhysicalParticleContainer::Evolve()                                                    2400      8.053      8.053      8.053  54.40%
+PhysicalParticleContainer::Evolve::GatherAndPush                                       2400      5.819      5.819      5.819  39.31%
+ImplicitSolver::PreLinearSolve()                                                        400      3.618      3.618      3.618  24.44%
+WarpX::DepositMassMatrices()                                                            400      3.603      3.603      3.603  24.34%
+PhysicalParticleContainer::DepositMassMatrices()                                       1600       3.58       3.58       3.58  24.19%
+WarpXParticleContainer::DepositCurrent::CurrentDeposition                              2400      2.223      2.223      2.223  15.02%
+GMRES::solve()                                                                          400      1.417      1.417      1.417   9.57%
+GMRES::cycle()                                                                          400      1.395      1.395      1.395   9.43%
+GMRES::GramSchmidt                                                                     2000     0.6625     0.6625     0.6625   4.48%
+JacobianFunctionMF::apply()                                                            2000      0.512      0.512      0.512   3.46%
+MultiParticleContainer::doCollisions()                                                  200     0.4939     0.4939     0.4939   3.34%
+BinaryCollision::doCollisionsWithinTile                                                 200     0.4933     0.4933     0.4933   3.33%
+BinaryCollision::doCollisionsWithinTile::LoopOverCollisions                             200     0.3479     0.3479     0.3479   2.35%
+FabArray::Saxpy()                                                                     49200     0.2517     0.2517     0.2517   1.70%
+ThetaImplicitEM::UpdateWarpXFields()                                                   2800     0.2002     0.2002     0.2002   1.35%
+ParticleContainer::SortParticlesForDeposition()                                         200     0.1857     0.1857     0.1857   1.25%
+MultiFab::Copy()                                                                      33000     0.1829     0.1829     0.1829   1.24%
+amrex::Copy()                                                                         33000     0.1698     0.1698     0.1698   1.15%
+FabArray::setVal()                                                                    24610     0.1169     0.1169     0.1169   0.79%
+WarpXParticleContainer::ApplyBoundaryConditions()                                       800     0.1155     0.1155     0.1155   0.78%
+ParticleContainer::Redistribute_impl()                                                  820     0.1076     0.1076     0.1076   0.73%
+ImplicitSolver::ComputeJfromMassMatrices()                                             2000      0.103      0.103      0.103   0.70%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures                        200    0.08637    0.08637    0.08637   0.58%
+Redistribute_partition                                                                  820    0.07398    0.07398    0.07398   0.50%
+FabArray::LinComb()                                                                   13200     0.0728     0.0728     0.0728   0.49%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::shuffle               200    0.06638    0.06638    0.06638   0.45%
+WarpX::ImplicitComputeRHSE()                                                           2600     0.0615     0.0615     0.0615   0.42%
+GMRES:build_solution()                                                                  400    0.05062    0.05062    0.05062   0.34%
+PermutationForDeposition()                                                              200    0.04852    0.04852    0.04852   0.33%
+BinaryCollision::doCollisionsWithinTile::findParticlesInEachCell                        200      0.047      0.047      0.047   0.32%
+DenseBins<T>::buildGPU                                                                  320    0.04687    0.04687    0.04687   0.32%
+WarpX::EvolveB()                                                                       2800    0.04373    0.04373    0.04373   0.30%
+MultiReducedDiags::ComputeDiags()                                                       200    0.04116    0.04116    0.04116   0.28%
+FabArray::mult()                                                                       7200    0.03489    0.03489    0.03489   0.24%
+MultiFab::Subtract()                                                                   4800    0.02572    0.02572    0.02572   0.17%
+WarpX::ApplyJfieldBoundary()                                                           2600    0.02455    0.02455    0.02455   0.17%
+WarpX::SyncCurrent()                                                                   2600    0.02427    0.02427    0.02427   0.16%
+FillBoundaryAndSync_nowait(Vector)                                                     6000    0.02289    0.02289    0.02289   0.15%
+ablastr::utils::communication::SumBoundary                                             7800    0.02063    0.02063    0.02063   0.14%
+ParticleCopyPlan::build                                                                 820    0.01946    0.01946    0.01946   0.13%
+BinaryCollision::doCollisionsWithinTile::findDensityTemperatures::atomics               200    0.01881    0.01881    0.01881   0.13%
+FillBoundaryAndSync_nowait()                                                          18000    0.01806    0.01806    0.01806   0.12%
+FabArray<FAB>::SumBoundary()                                                           7810    0.01747    0.01747    0.01747   0.12%
+Other                                                                                140673      0.147      0.147      0.147   0.99%
+------------------------------------------------------------------------------------------------------------------------------------
+
+END REGION WarpX::Evolve()
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+
+Device Memory Usage:
+-----------------------------------------------------------------------------------------
+Name                                                           Nalloc    AvgMem    MaxMem
+-----------------------------------------------------------------------------------------
+The_Arena::Initialize()                                             1   676   B  8904 MiB
+ParticleContainer::SortParticlesForDeposition()                   400   409 MiB   481 MiB
+PhysicalParticleContainer::AddPlasma()                             60    47 MiB   459 MiB
+DenseBins<T>::buildGPU                                           1944  1637 KiB    69 MiB
+PermutationForDeposition()                                        800   147 KiB    22 MiB
+ThetaImplicitEM::Define()                                          27    16 MiB    16 MiB
+ResizeRandomSeed                                                    1    12 MiB    12 MiB
+WarpX::InitData()                                                  26  9588 KiB  9613 KiB
+JacobianFunctionMF::::makeVecRHS()                               8400   355 KiB  4924 KiB
+Redistribute_partition                                           1896    13 KiB  2963 KiB
+JacobianFunctionMF::::define()                                     12  2809 KiB  2814 KiB
+MLMG::prepareForSolve()                                            22    43   B  2273 KiB
+NewtonSolver::Define()                                              9  2107 KiB  2110 KiB
+JacobianFunctionMF::::makeVecLHS()                               1200    67 KiB   703 KiB
+BinaryCollision::doCollisionsWithinTile                           320    10 KiB   477 KiB
+WarpX::ProjectionDivCleanB()                                        5   452   B   469 KiB
+OwnerMask()                                                         3   351 KiB   351 KiB
+BinaryCollision::doCollisionsWithinTile::computeNumberOfPairs     600  7304   B   239 KiB
+TargetInjector::applyInjector                                      50    31   B   235 KiB
+MultiReducedDiags::ComputeDiags()                                 348   627   B   138 KiB
+ParticleContainer::Redistribute_impl()                             12  2042   B   105 KiB
+GMRES::GramSchmidt                                              42000  2289   B    72 KiB
+NewtonSolver::Solve()                                            3009  2468   B    71 KiB
+JacobianFunctionMF::apply()                                      7218  1176   B    70 KiB
+GMRES::cycle()                                                   8400   487   B    69 KiB
+FabArray::norminf()                                                 4     0   B    69 KiB
+main()                                                             65    12 KiB    12 KiB
+MLCellLinOp::defineAuxData()                                       20     0   B  5120   B
+ParticleBufferMap::define                                          16  4082   B  4096   B
+ParticleCopyPlan::build                                          4944     1   B  1280   B
+MLCellLinOp::defineBC()                                             5     0   B  1280   B
+MLCellLinOp::applyBC()                                              4     0   B  1280   B
+BndryData::define()                                                 4     0   B  1024   B
+MLCellLinOp::prepareForSolve()                                      5     0   B   768   B
+ParticleCopyPlan::buildCopiesAtomicScatter                         31     0   B   512   B
+ParticleHeater::applyHeater                                         1   252   B   256   B
+PhysicalParticleContainer::Evolve::GatherAndPush                 2400   100   B   256   B
+-----------------------------------------------------------------------------------------
+
+Managed Memory Usage:
+---------------------------------------------------------
+Name                             Nalloc  AvgMem    MaxMem
+---------------------------------------------------------
+The_Managed_Arena::Initialize()       1   0   B  8192 KiB
+---------------------------------------------------------
+
+Pinned Memory Usage:
+----------------------------------------------------------------------------
+Name                                              Nalloc    AvgMem    MaxMem
+----------------------------------------------------------------------------
+The_Pinned_Arena::Initialize()                         1     0   B  8192 KiB
+TargetInjector::applyInjector                        178    28   B   237 KiB
+main()                                               255  9463   B  9472   B
+GMRES::GramSchmidt                                 42000   217   B  4096   B
+NewtonSolver::Solve()                               3009  2282   B  2560   B
+JacobianFunctionMF::apply()                         7218   831   B  1792   B
+ParticleContainer::Redistribute_impl()               836  1020   B  1536   B
+Redistribute_partition                               828  1021   B  1280   B
+MLCellLinOp::applyBC()                                 3     0   B  1024   B
+amrex::packBuffer                                      4  1020   B  1024   B
+GMRES::cycle()                                      8400    73   B  1024   B
+MLCellLinOp::prepareForSolve()                         5     0   B   768   B
+FabArray::norminf()                                    4     0   B   768   B
+WarpX::InitData()                                      7   767   B   768   B
+PhysicalParticleContainer::Evolve::GatherAndPush    2400   100   B   256   B
+ParticleHeater::applyHeater                            1   252   B   256   B
+ParticleCopyPlan::build                              824     0   B   256   B
+ThetaImplicitEM::Define()                              3     0   B   256   B
+Unprofiled                                            12     0   B   256   B
+MultiReducedDiags::ComputeDiags()                    348     1   B   256   B
+MLMG::prepareForSolve()                                1     0   B   256   B
+MLCellLinOp::setLevelBC()                              5     0   B   256   B
+----------------------------------------------------------------------------
+
+Total GPU global memory (MB) spread across MPI: [11873 ... 11873]
+Free  GPU global memory (MB) spread across MPI: [2746 ... 2746]
+[The         Arena] max space (MB) allocated spread across MPI: [8904 ... 8904]
+[The         Arena] max space (MB) used      spread across MPI: [572 ... 572]
+[The Managed Arena] max space (MB) allocated spread across MPI: [8 ... 8]
+[The Managed Arena] max space (MB) used      spread across MPI: [0 ... 0]
+[The  Pinned Arena] max space (MB) allocated spread across MPI: [8 ... 8]
+[The  Pinned Arena] max space (MB) used      spread across MPI: [0 ... 0]
+AMReX (26.06-30-g5fbc49bce6cc) finalized

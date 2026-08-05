@@ -7,9 +7,12 @@ findings and their interpretation are in `RESULTS.md`.
 These are **performance points, not physics runs** — they carry no `config.yaml`, which is
 why `kinshock.find_runs()` does not enumerate them.
 
-Baseline: **0.11169 s/step** at 8 OMP threads. Full run is 3,224,046 steps; the
-"full run" column applies the measured 1.279 particle-growth drift, so it is a projected
-wall-clock, not steps x s/step.
+Baseline: **0.11169 s/step** at 8 OMP threads. The **full run** column is the decision
+variable: `steps(cfl) x s/step x 1.279` where `steps(cfl) = 3,224,046 x 0.75/cfl`,
+because dt is proportional to cfl and a large-dt point reaches 220 t_ab in fewer steps. The
+1.279 factor is the measured particle-count growth. **Rows are ordered by that column, not
+by s/step** — with cfl varying, the two orderings differ, and the cheapest run is not the one
+with the fastest step.
 
 **Statistic: the mean.** In a clean run the only outliers are the collision supercycle
 (`ndt_supercycle: 10`) — every 10th step is genuinely expensive and you pay for it, so the
@@ -20,18 +23,18 @@ by `_clean` re-runs and kept only so the artefact is on the record.
 
 ## Lever 1 — OMP threads
 
-| point | config | thr | steps | s/step (mean) | median | vs base | full run |
-|---|---|---|---|---|---|---|---|
-| `l1_thr24_clean` | 24 OMP threads (clean re-run) | 24 | 1500 | **0.05851** | 0.05169 | 1.91x | 2.79 d |
-| `l1_thr20_clean` | 20 OMP threads (clean re-run) | 20 | 1500 | **0.06143** | 0.05443 | 1.82x | 2.93 d |
-| `l1_thr16` | 16 OMP threads | 16 | 1500 | **0.07076** | 0.06417 | 1.58x | 3.38 d |
-| `l1_thr24_mgs64` | 24 threads, max_grid_size=64 | 24 | 1500 | **0.07125** | 0.06497 | 1.57x | 3.40 d |
-| `l1_thr16_mgs64` | 16 threads, max_grid_size=64 | 16 | 1500 | **0.08088** | 0.07308 | 1.38x | 3.86 d |
-| `l1_thr12` | 12 OMP threads | 12 | 1500 | **0.08738** | 0.07851 | 1.28x | 4.17 d |
-| `l1_thr8` | 8 OMP threads (pilot baseline) | 8 | 1500 | **0.11169** | 0.09945 | 1.00x | 5.33 d |
-| `l1_thr24` **[CONTAMINATED]** | 24 OMP threads | 24 | 1500 | **0.15366** | 0.05654 | 0.73x | 7.33 d |
-| `l1_thr20` **[CONTAMINATED]** | 20 OMP threads | 20 | 1500 | **0.16560** | 0.06149 | 0.67x | 7.90 d |
-| `l1_thr4` | 4 OMP threads | 4 | 1500 | **0.21153** | 0.18794 | 0.53x | 10.10 d |
+| point | config | cfl | run steps | s/step (mean) | median | **full run** |
+|---|---|---|---|---|---|---|
+| `l1_thr24_clean` | 24 OMP threads (clean re-run) | 0.75 | 3,224,046 | **0.05851** | 0.05169 | **2.79 d** |
+| `l1_thr20_clean` | 20 OMP threads (clean re-run) | 0.75 | 3,224,046 | **0.06143** | 0.05443 | **2.93 d** |
+| `l1_thr16` | 16 OMP threads | 0.75 | 3,224,046 | **0.07076** | 0.06417 | **3.38 d** |
+| `l1_thr24_mgs64` | 24 threads, max_grid_size=64 | 0.75 | 3,224,046 | **0.07125** | 0.06497 | **3.40 d** |
+| `l1_thr16_mgs64` | 16 threads, max_grid_size=64 | 0.75 | 3,224,046 | **0.08088** | 0.07308 | **3.86 d** |
+| `l1_thr12` | 12 OMP threads | 0.75 | 3,224,046 | **0.08738** | 0.07851 | **4.17 d** |
+| `l1_thr8` | 8 OMP threads (pilot baseline) | 0.75 | 3,224,046 | **0.11169** | 0.09945 | **5.33 d** |
+| `l1_thr24` **[CONTAMINATED]** | 24 OMP threads | 0.75 | 3,224,046 | **0.15366** | 0.05654 | **7.33 d** |
+| `l1_thr20` **[CONTAMINATED]** | 20 OMP threads | 0.75 | 3,224,046 | **0.16560** | 0.06149 | **7.90 d** |
+| `l1_thr4` | 4 OMP threads | 0.75 | 3,224,046 | **0.21153** | 0.18794 | **10.10 d** |
 
 Monotonic to 24 threads with returns flattening after 20 (20 -> 24 buys ~5%). **No cliff**,
 which is conditional: the earlier ~20x collapse above 12 threads was oversubscription
@@ -40,12 +43,18 @@ consistently worse — the deck's default 235 grids is already right for CPU.
 
 ## Lever 2 — `algo.evolve_scheme = theta_implicit_em`
 
-| point | config | thr | steps | s/step (mean) | median | vs base | full run |
-|---|---|---|---|---|---|---|---|
-| `l2A_smoke_picard` | theta-implicit, Picard, cfl 0.75 (smoke) | 8 | 100 | **1.33770** | 1.33658 | 0.08x | 63.84 d |
-| `l2B_time_picard` | theta-implicit, Picard, cfl 0.75 | 8 | 1329 | **1.35713** | 1.33961 | 0.08x | 64.77 d |
-| `l2N1_broken_verbose` **[diagnostic]** | Newton, reproduce the misconfig with verbosity | 8 | 5 | **23.95499** | 23.99078 | 0.00x | 3.1 yr |
-| `l2C_newton_cfl3.0` **[BROKEN]** | Newton, cfl 3.0 -- MISCONFIGURED | 8 | 25 | **61.17875** | 56.48960 | 0.00x | 8.0 yr |
+| point | config | cfl | run steps | s/step (mean) | median | **full run** |
+|---|---|---|---|---|---|---|
+| `l2D_cfl7.5_verbose` **[diagnostic]** | implicit CPU, cfl 7.5, full GMRES verbosity | 7.5 | 322,405 | **0.81716** | 0.81607 | **3.90 d** |
+| `l2D_cfl7.5` | implicit CPU, no PC, cfl 7.5 (10x dt) | 7.5 | 322,405 | **0.84305** | 0.82861 | **4.02 d** |
+| `l2D_cfl3.0` | implicit CPU, no PC, cfl 3.0 (4x dt) | 3 | 806,012 | **0.49834** | 0.48547 | **5.95 d** |
+| `l2N4_no_pc` | Newton + skip_init, no preconditioner | 0.75 | 3,224,046 | **0.43389** | 0.42666 | **20.71 d** |
+| `l2N3_pc_jacobi` | Newton + skip_init, pc_jacobi | 0.75 | 3,224,046 | **0.43928** | 0.43189 | **20.97 d** |
+| `l2A_smoke_picard` | theta-implicit, Picard, cfl 0.75 (smoke) | 0.75 | 3,224,046 | **1.33770** | 1.33658 | **63.84 d** |
+| `l2B_time_picard` | theta-implicit, Picard, cfl 0.75 | 0.75 | 3,224,046 | **1.35713** | 1.33961 | **64.77 d** |
+| `l2C_newton_cfl3.0` **[BROKEN]** | Newton, cfl 3.0 -- MISCONFIGURED | 3 | 806,012 | **61.17875** | 56.48960 | **2.0 yr** |
+| `l2N2_skipinit` | Newton + skip_particle_picard_init | 0.75 | 3,224,046 | **23.74381** | 23.64987 | **3.1 yr** |
+| `l2N1_broken_verbose` **[diagnostic]** | Newton, reproduce the misconfig with verbosity | 0.75 | 3,224,046 | **23.95499** | 23.99078 | **3.1 yr** |
 
 Picard converges cleanly (21-23 iterations, every step exiting on relative tolerance) but
 costs ~13.5x per step, so break-even against explicit needs dt to grow past cfl ~10. It is
@@ -59,21 +68,52 @@ update. The `l2N*` points retune it with verbosity on.
 
 ## Lever 3 — GPU
 
-| point | config | thr | steps | s/step (mean) | median | vs base | full run |
-|---|---|---|---|---|---|---|---|
-| `l3B_gpu_1box` | GPU, 1 box (max_grid_size=30000) | 1 | 1500 | **0.01415** | 0.01094 | 7.89x | 0.68 d |
-| `l3B2_gpu_8box` | GPU, 8 boxes (max_grid_size=4096) | 1 | 1500 | **0.01626** | 0.01187 | 6.87x | 0.78 d |
-| `l3A_gpu_default` | GPU, deck default (235 boxes) | 1 | 1500 | **0.09268** | 0.04411 | 1.21x | 4.42 d |
-| `l3C_cpu_ref` | CPU reference, 8 threads | 8 | 1500 | **0.11379** | 0.10161 | 0.98x | 5.43 d |
+| point | config | cfl | run steps | s/step (mean) | median | **full run** |
+|---|---|---|---|---|---|---|
+| `l3B_gpu_1box` | GPU, 1 box (max_grid_size=30000) | 0.75 | 3,224,046 | **0.01415** | 0.01094 | **0.68 d** |
+| `l3D_gpu_agree` | GPU, agreement-check run | 0.75 | 3,224,046 | **0.01433** | 0.01094 | **0.68 d** |
+| `l3B2_gpu_8box` | GPU, 8 boxes (max_grid_size=4096) | 0.75 | 3,224,046 | **0.01626** | 0.01187 | **0.78 d** |
+| `l3A_gpu_default` | GPU, deck default (235 boxes) | 0.75 | 3,224,046 | **0.09268** | 0.04411 | **4.42 d** |
+| `l3C_cpu_ref` | CPU reference, 8 threads | 0.75 | 3,224,046 | **0.11379** | 0.10161 | **5.43 d** |
+| `l3D_cpu_agree` | CPU, agreement-check run | 0.75 | 3,224,046 | **0.11410** | 0.10082 | **5.45 d** |
 
 **The decomposition matters more than the hardware.** The deck's CPU-tuned 235 boxes give
 ~1.2x; one box gives ~7.9x — a 6.5x swing from `amr.max_grid_size=30000` alone. A GPU
 benchmark left at the default decomposition would have read as "not worth it".
 
-Speed is contingent on the agreement check (`l3D_*`): the CUDA binary is dated Jul 28 and
-commit `9f981dea2` landed Jul 31 fixing an nvcc rejection in `ParticleHeater`, so it
-predates a fix to an operator this deck needs. It runs without aborting, which is necessary
-and not sufficient.
+**The agreement check PASSES** (`l3D_*`): 30 diagnostic rows over steps 0-1479, no diverging
+column, ambient electron count bit-identical at every step, and the piston species' relative
+energy differences *shrink* over time (initial RNG sampling noise averaging out as injection
+grows the population, not divergence). The Jul 28 CUDA binary is therefore usable despite
+predating commit `9f981dea2`'s nvcc fix to `ParticleHeater`. Caveat: 1479 steps is ~0.1 t_ab,
+which establishes the operators fire correctly, not a long-baseline physics validation.
+
+## Lever 4 — theta-implicit ON the GPU
+
+| point | config | cfl | run steps | s/step (mean) | median | **full run** |
+|---|---|---|---|---|---|---|
+| `l4_gpu_impl_cfl3.0` | implicit GPU, cfl 3.0 (4x dt) | 3 | 806,012 | **0.10876** | 0.10558 | **1.30 d** |
+| `l4_gpu_impl_cfl7.5` | implicit GPU, cfl 7.5 (10x dt) | 7.5 | 322,405 | **0.29374** | 0.29137 | **1.40 d** |
+| `l4_gpu_impl_cfl7.5_verbose` **[diagnostic]** | implicit GPU, cfl 7.5, full verbosity | 7.5 | 322,405 | **0.30934** | 0.31194 | **1.48 d** |
+| `l4_gpu_impl_cfl0.75` | implicit GPU, cfl 0.75 | 0.75 | 3,224,046 | **0.07296** | 0.06959 | **3.48 d** |
+
+The combination that could have given throughput *and* grid-heating immunity. It gives the
+second at ~1.9x the cost of the first, not for free:
+
+  * The GPU accelerates implicit **less** than explicit — 5.95x vs 7.89x — and the implicit
+    penalty is *worse* on GPU (5.16x) than CPU (3.88x). GMRES and mass-matrix assembly are
+    grid work, and grid work is what the GPU is least busy with here (<1% of the explicit
+    run), so the extra cost lands where acceleration helps least.
+  * **cfl 7.5 is past the optimum.** Per-step cost rises 2.70x from cfl 3.0 to 7.5 on GPU
+    against 1.69x on CPU, so the step-count saving (2.5x) stops paying for itself. The best
+    implicit configuration measured is **cfl 3.0 at 1.30 d**, not the largest dt.
+  * Every point converged at every cfl on both devices -- `hit_max_iter = 0` throughout,
+    including 10x dt on device, the regime the docs flag as where Picard fails.
+
+**Recommendation.** Explicit GPU (0.68 d) for throughput. Implicit GPU at cfl 3.0 (1.30 d) if
+the grid heating should be made structurally impossible rather than out-run -- 1.92x the cost
+to remove the uncertainty the pilot could not resolve (T_0 -> 32 eV survivable vs
+T_0 -> 368 eV and M_ms 12.8 -> 4.87).
 
 ## Reproducing
 

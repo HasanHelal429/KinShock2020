@@ -1,0 +1,1 @@
+l4_gpu_impl_cfl7.5_verbose         thr=  1  n=     5  s/step= 0.30934  median= 0.31194  status=ok wall=2s

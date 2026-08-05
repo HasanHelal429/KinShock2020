@@ -1,0 +1,1 @@
+l3D_cpu_agree                      thr=  8  n=  1500  s/step= 0.11410  median= 0.10082  status=ok wall=171s
