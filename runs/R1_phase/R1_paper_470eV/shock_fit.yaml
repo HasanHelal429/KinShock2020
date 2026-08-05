@@ -1,0 +1,22 @@
+# Shock kinematics fitted BY EYE with scripts/tune_shock.py -- the SINGLE
+# SOURCE OF TRUTH for v_sh and the front trajectory z_front(t), consumed by
+# make_figures / crosscheck. z_front(t) = z0 + v_sh*t, with optional per-time
+# (t*wci0) overrides in fronts_de. Speed in c, lengths in d_e.
+#
+# Fitted 2026-08-05 against media/R1_phase/R1_paper_470eV/tune_trajectory.png.
+# v_sh = 0.0165 c  ->  M_A = 16.50, M_ms = 15.09 (at the NOMINAL T_0 = 10 eV; see below).
+#
+# Two caveats to carry with any number derived from this, both measured, neither a
+# reason to change the fit:
+#  1. It is ABOVE the model 0.0140 c (M_A 13.95) and near track_front's 0.0170 c
+#     auto-fallback. Recorded because the ratio matters when comparing to R1_paper,
+#     whose own fit was made the same way.
+#  2. M_ms quoted from this v_sh uses the config's T_0 = 10 eV, but this run grid-heats
+#     the upstream to ~112 eV by t = 137 t_ab (RESULTS 2026-08-05). At the measured T_0
+#     the fast-magnetosonic speed is ~3.3x larger, so M_ms from v_sh/sqrt(vA^2+Cs0^2)
+#     with nominal T_0 is an OVERESTIMATE for most of the run. M_A is unaffected -- v_A
+#     depends on B0 and n_amb, not temperature.
+shock:
+  v_sh_over_c: 0.0165
+  z0_de: 0.0
+  fronts_de: {}

@@ -2333,3 +2333,36 @@ Mismatch to be aware of in the current figure set: `make_movies.py` annotates wi
 v_sh = 0.0140c, while `make_figures.py` fell back to `track_front` and used 0.0170c. The
 movies and the PNGs therefore carry different shock speeds right now — another reason the
 whole set needs regenerating once `tune_shock.py` has been run by eye.
+
+### By-eye fit adopted: v_sh = 0.0165c; and make_movies was ignoring shock_fit.yaml
+
+`runs/R1_phase/R1_paper_470eV/shock_fit.yaml` written with **v_sh_over_c = 0.0165**
+(M_A = 16.50), fitted by eye against `tune_trajectory.png`. Full figure set + both movies
+regenerated against it, so the whole set finally shares one speed.
+
+Two caveats recorded in the fit file's header, since they travel with anything derived from
+it. (1) 0.0165c sits ABOVE the model 0.0140c and near `track_front`'s 0.0170c fallback; worth
+knowing because R1_paper's fit was made the same way, so cross-run comparisons rest on the
+ratio. (2) **M_ms = 15.09 is an overestimate for most of the run** — it uses the config's
+nominal T_0 = 10 eV, but the upstream grid-heats to ~112 eV by t = 137 t_ab, which raises the
+fast-magnetosonic speed ~3.3x. M_A = 16.50 is unaffected, since v_A depends on B0 and n_amb
+and not on temperature. **M_A is the robust number for this run; M_ms is not.**
+
+**`make_movies.py` never read the fit.** Line 99 was
+`vsh = args.vsh_c * C if args.vsh_c else sc.vsh_model` — by design per its docstring
+("measured one is passed with --vsh-c"). So the instant a `shock_fit.yaml` exists, the movies
+and the figures are annotated with different speeds unless the flag is remembered: here
+0.0140c against the figures' 0.0165c, an **18% disagreement between two outputs of the same
+run**. Fixed by giving it `make_figures`' precedence (`--vsh-c` > `shock_fit.yaml` > model)
+and printing which source was used, so a silent divergence cannot recur:
+
+    R1_paper_470eV: 51 plotfiles -> movies (v_sh=0.0165 c from by-eye fit (shock_fit.yaml))
+
+That is the third bug this session with the same shape — plausible output, no error — after
+the plotfile ordering past 1e6 steps and `media_dir` escaping the phase mirror. Worth a habit:
+when two scripts consume the same derived quantity, have each **print its source**, not just
+its value.
+
+`is_shock` still reads None, unchanged: criterion 1 shifted slightly with the new v_sh but was
+already 50/50, and criterion 2 remains unpassable by construction. When it is reworked,
+criteria 1 and 2 should also read the measured T_0(t) rather than the nominal 10 eV.

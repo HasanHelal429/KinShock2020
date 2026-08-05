@@ -6,8 +6,15 @@
                        vs time (v_z > v_sh dotted line = reflected-ion threshold)
 
 Frames are rendered to $MOVIE_SCRATCH (default the session scratchpad) then
-encoded. Uses the same shock speed the figures use (model value, unless a
-measured one is passed with --vsh-c).
+encoded.
+
+SHOCK SPEED -- reads runs/<ID>/shock_fit.yaml, the by-eye fit, exactly as
+make_figures does. It used to default to the config's MODEL v_sh unless you
+remembered --vsh-c, which meant that as soon as a fit existed the movies and the
+figures were annotated with DIFFERENT speeds: on R1_paper_470eV the figures used
+the fitted 0.0165c while the movies said 0.0140c, a 18% disagreement between two
+outputs of the same run (RESULTS 2026-08-05). Precedence is now
+--vsh-c > shock_fit.yaml > model, and the source is printed.
 
 Usage:  python scripts/make_movies.py [runs/R1_phase/R1] [--fps 8] [--vsh-c 0.14]
 """
@@ -24,7 +31,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import numpy as np  # noqa: E402
 import kinshock  # noqa: E402
-from kinshock import io, plotting as P  # noqa: E402
+from kinshock import io, metrics, plotting as P  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 SCRATCH = os.environ.get(
@@ -88,7 +95,8 @@ def main():
     ap.add_argument("run_dir", nargs="?", default=os.path.join(ROOT, "runs", "R1_phase", "R1"))
     ap.add_argument("--fps", type=int, default=8)
     ap.add_argument("--vsh-c", type=float, default=None,
-                    help="shock speed in units of c (default: model value from config)")
+                    help="shock speed in units of c (overrides shock_fit.yaml; "
+                         "default: the by-eye fit, else the config model value)")
     ap.add_argument("--only", choices=("ni", "phase"), default=None,
                     help="render just one movie (default: both). Useful mid-run, "
                          "when you only want the phase space as a progress check.")
@@ -96,9 +104,18 @@ def main():
 
     cfg = kinshock.load(args.run_dir)
     sc = kinshock.units.derive(cfg)
-    vsh = args.vsh_c * kinshock.units.C if args.vsh_c else sc.vsh_model
+    # Same precedence as make_figures, so the two never disagree by default.
+    if args.vsh_c:
+        vsh, src = args.vsh_c * kinshock.units.C, "--vsh-c"
+    else:
+        fit = metrics.load_shock_fit(args.run_dir, sc)
+        if fit is not None:
+            vsh, src = fit.v_sh, "by-eye fit (shock_fit.yaml)"
+        else:
+            vsh, src = sc.vsh_model, "config MODEL value -- no shock_fit.yaml"
     pfs = io.plotfiles(args.run_dir)
-    print(f"{cfg['meta']['run_id']}: {len(pfs)} plotfiles -> movies (v_sh={vsh/kinshock.units.C:.4f} c)")
+    print(f"{cfg['meta']['run_id']}: {len(pfs)} plotfiles -> movies "
+          f"(v_sh={vsh/kinshock.units.C:.4f} c from {src})")
     if args.only != "phase":
         movie_ni(pfs, cfg, sc, args.fps)
     if args.only != "ni":
