@@ -13,11 +13,15 @@
 # Usage:  scripts/launch.sh [options] <run_dir> [-- <warpx args>]
 #
 #   -j, --threads N    OMP_NUM_THREADS (default 8)
-#   -g, --gpu [N]      run on GPU N (default 0): selects the CUDA build, 1 thread, and
-#                      pins CUDA_VISIBLE_DEVICES so the other card stays free for other
-#                      users. Refuses to start if the config lacks numerics.max_grid_size,
-#                      because AMReX's default decomposition costs 6.5x on a GPU
-#                      (RESULTS 2026-08-04: 1.21x vs 7.89x over 8 CPU threads).
+#   -g, --gpu [LIST]   run on GPU(s) LIST (default 0; e.g. "0" or "0,1"): selects the CUDA
+#                      build, 1 thread, pins CUDA_VISIBLE_DEVICES so unlisted cards stay
+#                      free for other users, and runs ONE MPI RANK PER DEVICE via mpirun.
+#                      Two guards, both measured (RESULTS 2026-08-04): refuses without
+#                      numerics.max_grid_size, since AMReX's default decomposition costs
+#                      6.5x on GPU (1.21x vs 7.89x over 8 CPU threads); and refuses if the
+#                      decomposition gives fewer boxes than ranks, since the extra ranks
+#                      would idle and the run would just look half as fast as expected.
+#                      Two cards measured 1.77x (91% parallel efficiency) on R1_paper_470eV.
 #   -w, --warpx PATH   WarpX binary (default $KINSHOCK_WARPX, else the repo's usual build)
 #   -b, --background   detach and return immediately (prints the PID)
 #   -L, --logger       start scripts/run_progress_logger.py (DEFAULT ON)
@@ -61,8 +65,9 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --)              shift; EXTRA=("$@"); break ;;
         -j|--threads)    THREADS="${2:-}"; shift 2 ;;
-        -g|--gpu)        # optional numeric argument; bare -g means device 0
-                         if [[ "${2:-}" =~ ^[0-9]+$ ]]; then GPU="$2"; shift 2
+        -g|--gpu)        # optional device LIST; bare -g means device 0. "0,1" runs one MPI
+                         # rank per device via mpirun.
+                         if [[ "${2:-}" =~ ^[0-9]+(,[0-9]+)*$ ]]; then GPU="$2"; shift 2
                          else GPU=0; shift; fi ;;
         -w|--warpx)      WARPX="${2:-}";   shift 2 ;;
         -b|--background) BACKGROUND=1; shift ;;
@@ -84,28 +89,6 @@ done
 RUN_DIR="$(cd "$RUN_DIR" && pwd)"                       # absolute: we are about to cd
 [[ -f "$RUN_DIR/config.yaml" ]] || die "$RUN_DIR has no config.yaml -- is it a run dir?"
 
-# --- GPU mode -----------------------------------------------------------------------
-# Selects the CUDA build, drops to one thread (OMP is irrelevant on device), and pins
-# CUDA_VISIBLE_DEVICES so the other card stays available to other users on this shared box.
-if [[ -n "$GPU" ]]; then
-    [[ "$WARPX" == "${KINSHOCK_WARPX:-/home/hhelal/warpx-cda/build/bin/warpx.1d}" ]] \
-        && WARPX="$WARPX_CUDA"          # -w wins if given explicitly
-    THREADS=1
-    export CUDA_VISIBLE_DEVICES="$GPU"
-    # The single biggest GPU footgun here: without amr.max_grid_size AMReX picks a
-    # CPU-friendly ~235-box decomposition and the GPU runs 6.5x slower -- 1.21x over 8 CPU
-    # threads instead of 7.89x (RESULTS 2026-08-04). That is a silent 4-day mistake on a
-    # 0.68-day run, so refuse rather than warn.
-    grep -qE '^\s*max_grid_size\s*:' "$RUN_DIR/config.yaml" \
-        || die "GPU mode needs numerics.max_grid_size in $RUN_DIR/config.yaml
-     (set it to n_cell -- one box). Without it AMReX's default decomposition costs 6.5x
-     on GPU. Add it to config.yaml and regenerate the deck; do not pass it as an override."
-    command -v nvidia-smi >/dev/null && \
-        nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv,noheader \
-                   --id="$GPU" | sed 's/^/launch: gpu /'
-fi
-[[ -x "$WARPX" ]] || die "WarpX binary not executable: $WARPX (set --warpx or \$KINSHOCK_WARPX)"
-
 # Exactly one deck, so we never guess which input file was meant.
 shopt -s nullglob
 DECKS=("$RUN_DIR"/inputs_*)
@@ -115,6 +98,49 @@ case ${#DECKS[@]} in
     1) DECK="$(basename "${DECKS[0]}")" ;;
     *) die "$RUN_DIR has ${#DECKS[@]} decks (${DECKS[*]##*/}) -- keep one" ;;
 esac
+
+# --- GPU mode -----------------------------------------------------------------------
+# Selects the CUDA build, drops to one thread (OMP is irrelevant on device), pins
+# CUDA_VISIBLE_DEVICES so unlisted cards stay free for other users on this shared box, and
+# runs one MPI rank per listed device. Placed after deck discovery because the box-vs-rank
+# check reads amr.n_cell / amr.max_grid_size out of the DECK.
+MPI_PREFIX=()
+if [[ -n "$GPU" ]]; then
+    [[ "$WARPX" == "${KINSHOCK_WARPX:-/home/hhelal/warpx-cda/build/bin/warpx.1d}" ]] \
+        && WARPX="$WARPX_CUDA"          # -w wins if given explicitly
+    THREADS=1
+    export CUDA_VISIBLE_DEVICES="$GPU"
+    NRANKS=$(awk -F, '{print NF}' <<< "$GPU")     # one rank per device
+
+    # The single biggest GPU footgun: without amr.max_grid_size AMReX picks a CPU-friendly
+    # ~235-box decomposition and the GPU runs 6.5x slower -- 1.21x over 8 CPU threads
+    # instead of 7.89x (RESULTS 2026-08-04). A silent multi-day mistake, so refuse.
+    grep -qE '^\s*max_grid_size\s*:' "$RUN_DIR/config.yaml" \
+        || die "GPU mode needs numerics.max_grid_size in $RUN_DIR/config.yaml
+     (n_cell for one GPU, n_cell/2 for two). Without it AMReX's default decomposition costs
+     6.5x on GPU. Add it to config.yaml and regenerate the deck, not as an override."
+
+    if [[ $NRANKS -gt 1 ]]; then
+        command -v mpirun >/dev/null || die "-g $GPU needs mpirun for $NRANKS ranks"
+        MPI_PREFIX=(mpirun -np "$NRANKS")
+        # Boxes must be >= ranks or a rank owns nothing and idles -- which looks like a
+        # working run at half the expected speed. Read the DECK, so this reflects what
+        # WarpX will actually be given rather than what the config meant.
+        NC=$(awk -F= '/^amr\.n_cell/{gsub(/ /,"",$2); print $2}'        "${DECKS[0]}")
+        MGS=$(awk -F= '/^amr\.max_grid_size/{gsub(/ /,"",$2); print $2}' "${DECKS[0]}")
+        NBOX=$(( (NC + MGS - 1) / MGS ))
+        [[ $NBOX -ge $NRANKS ]] || die "decomposition gives $NBOX box(es) for $NRANKS ranks
+     (amr.n_cell=$NC, amr.max_grid_size=$MGS). Ranks beyond the first would idle. Set
+     numerics.max_grid_size to about n_cell/$NRANKS and regenerate."
+        echo "launch: $NRANKS MPI ranks, $NBOX boxes (n_cell=$NC, max_grid_size=$MGS)"
+    fi
+    if command -v nvidia-smi >/dev/null; then
+        nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv,noheader \
+                   --id="$GPU" | sed 's/^/launch: gpu /'
+    fi
+fi
+# After the GPU block, so it validates the binary actually about to run.
+[[ -x "$WARPX" ]] || die "WarpX binary not executable: $WARPX (set --warpx or \$KINSHOCK_WARPX)"
 
 if [[ -d "$RUN_DIR/diags" ]] && compgen -G "$RUN_DIR/diags/*" >/dev/null; then
     if [[ $FORCE -eq 1 ]]; then
@@ -130,7 +156,7 @@ fi
 
 echo "launch: $(basename "$RUN_DIR")  deck=$DECK  threads=$THREADS"
 echo "launch: cwd=$RUN_DIR  (so diags/ lands here, not in the repo root)"
-echo "launch: $WARPX $DECK ${EXTRA[*]:-} > run.log 2>&1"
+echo "launch: ${MPI_PREFIX[*]:-}${MPI_PREFIX:+ }$WARPX $DECK ${EXTRA[*]:-} > run.log 2>&1"
 if [[ $DRYRUN -eq 1 ]]; then
     if [[ $LOGGER -eq 1 ]]; then
         echo "launch: progress logger WOULD start -> $(basename "$RUN_DIR")/progress.log (every=${EVERY_PCT:-10}%% poll=${POLL:-30}s)"
@@ -155,12 +181,12 @@ start_logger() {   # after WarpX, so run.log exists (the logger waits for it any
 }
 
 if [[ $BACKGROUND -eq 1 ]]; then
-    nohup "$WARPX" "$DECK" ${EXTRA[@]+"${EXTRA[@]}"} > run.log 2>&1 &
+    nohup ${MPI_PREFIX[@]+"${MPI_PREFIX[@]}"} "$WARPX" "$DECK" ${EXTRA[@]+"${EXTRA[@]}"} > run.log 2>&1 &
     echo "launch: warpx pid $! -> $(basename "$RUN_DIR")/run.log"
     start_logger
     echo "launch: tail -f $RUN_DIR/run.log"
 else
     start_logger
     echo "launch: running in the foreground; tail -f $RUN_DIR/run.log"
-    exec "$WARPX" "$DECK" ${EXTRA[@]+"${EXTRA[@]}"} > run.log 2>&1
+    exec ${MPI_PREFIX[@]+"${MPI_PREFIX[@]}"} "$WARPX" "$DECK" ${EXTRA[@]+"${EXTRA[@]}"} > run.log 2>&1
 fi

@@ -2136,3 +2136,44 @@ for 0.3 h of compute is the wrong direction.
 to 43 — one frame every 3.80 t_ab, against the pilot's entire 3.41 t_ab baseline for the
 heating measurement that is this run's key monitored output. NB R1_paper ran the full
 220 t_ab, so compare over the overlapping window.
+
+### Two GPUs: 1.77x, and the agreement check that first said no
+
+Measured 2026-08-04, 1500 steps per point, `runs/R1_phase/R1_paper_470eV`:
+
+| configuration | s/step | vs 1 GPU / 1 box |
+|---|---|---|
+| 1 GPU, 1 box (`mgs` 30000) | 0.01415 | 1.00x |
+| 1 GPU, 2 boxes (`mgs` 15000) | 0.01462 | 0.97x — splitting alone costs 3.3% |
+| **2 GPUs, 2 boxes** | **0.00801** | **1.77x** |
+| 2 GPUs, 4 boxes (`mgs` 7500) | 0.00849 | 1.67x |
+
+Against the matched 1-GPU/2-box control that is **1.83x, i.e. 91% parallel efficiency** — in
+1D the MPI cost is a single guard-cell interface, and 3e6 particles still saturates a 4070.
+Two boxes beats four, same direction as the single-GPU finding. Adopted:
+`numerics.max_grid_size: 15000` and `launch.sh -g 0,1`, giving **7.9 h** (from 14.0 h on one
+card, and 4.60 d on 8 CPU threads at this max_step).
+
+Both custom operators are MPI-safe, checked in source rather than assumed:
+`TargetInjector.cpp:277` calls `n_meas.SumBoundary(geom.periodicity())` after its CIC
+deposition, so per-cell density accumulates correctly across rank boundaries, and
+`ParticleHeater` makes no MPI calls at all (a per-particle kick from a position-evaluated
+parser). The injector's only other MPI use is a `ReduceLongSum` for its log line.
+
+**The agreement check initially FAILED and the check was the thing that was wrong.**
+1-GPU vs 2-GPU flagged `piston_ions` at 1.6%, `total` at 0.5%. Two runs differing only in
+`warpx.random_seed` then gave 1.03% and 0.31% on those columns — so the 2-rank differences
+are ~1.6x pure stochastic scatter, while `amb_ions` (the bulk plasma) agrees to **0.1%**
+(7.566e-4 vs 7.555e-4). Nothing structural.
+
+Two defects in `compare_diags.py`, now fixed. Its rule was `last > max(10*first, 1e-3)`,
+which (a) degenerates when the two runs start identical — `first = 0`, so anything above
+1e-3 fires regardless of cause — and (b) had no notion of how much scatter is inherent to the
+quantity. It therefore failed a run against *itself with a different seed*, which no correct
+check can do. It now accepts `--floor C D` (two seed-only runs) and requires 3x that measured
+floor. This also **strengthens** the earlier CPU-vs-GPU pass: those differences (total
+2.79e-3, piston_ions 1.41e-3) are *below* this noise floor.
+
+Note for reuse: the seed-only floor is the right tolerance for any comparison of stochastic
+PIC runs here — thread count, rank count, device, or binary. Comparing to `first` only works
+when the runs start from different RNG draws AND the column is not RNG-dominated.

@@ -56,16 +56,18 @@
 # scripts/grid_heating.py (restrict to the outer 25% -- the global ParticleEnergy mean is
 # dominated by real piston heating and is useless for this).
 #
-# WHICH IS WHY THIS RUN IS NOW ON THE GPU -- see numerics.max_grid_size below. At 0.68 d
+# WHICH IS WHY THIS RUN IS NOW ON TWO GPUs -- see numerics.max_grid_size below. At 7.9 h
 # instead of 5.33 d, settling the question above by RUNNING far enough to see it is cheaper
 # than arguing about the extrapolation. Costs measured 2026-08-04, runs/opt_phase/SUMMARY.md:
-#     explicit GPU, one box   0.01415 s/step -> 0.68 d   <- this run
+#     explicit GPU, 2 cards   0.00801 s/step -> 0.33 d   <- this run (7.9 h)
+#     explicit GPU, one card  0.01415        -> 0.58 d
 #     explicit CPU, 20 thr    0.06143        -> 2.93 d
 #     explicit CPU,  8 thr    0.11169        -> 5.33 d   (the original plan)
-# Launch with `scripts/launch.sh -b -g runs/R1_phase/R1_paper_470eV`; -g selects the CUDA
-# build, one thread, and pins CUDA_VISIBLE_DEVICES so the second card stays free. The GPU
-# binary was validated against the CPU build on this deck: 30 diagnostic rows over 1479
-# steps, no diverging column, ambient electron count bit-identical.
+# Launch with `scripts/launch.sh -b -g 0,1 runs/R1_phase/R1_paper_470eV`; -g takes a device
+# list, selects the CUDA build, and runs one MPI rank per device. TWO GPUs give 1.77x (91%
+# parallel efficiency) -> 7.9 h. The GPU binary was validated against the CPU build on this
+# deck (30 rows over 1479 steps, no diverging column, ambient electron count bit-identical),
+# and the 2-rank run against the 1-rank run with a measured RNG noise floor.
 #
 # IF THE HEATING SATURATES, the fix is not more resolution -- it is theta_implicit_em, which
 # conserves energy exactly (theta = 0.5) and so cannot grid-heat at all. Measured at 1.30 d
@@ -86,17 +88,19 @@
 #    [w_pe units, ParticleHeater.cpp:207], so the heating TIME theta/H ~ 1/sqrt(theta) ~ c
 #    scales exactly like t_ab -- 0.5 t_ab in both runs, automatically.
 #
-# DIAGNOSTIC INTERVALS all scaled by 10 to keep 50 plotfiles and the same output volume.
+# DIAGNOSTIC INTERVALS keep 50 plotfiles; plotfile_intervals was rescaled with the truncated
+# max_step so the frame COUNT did not drop to 43. ~18 GiB total output.
 #
 # DOMAIN vs SHOCK TRANSIT -- READ BEFORE TRUSTING LATE-TIME DATA. The domain is Table I's
 # own 900 d_i,ab (= 80.5 d_i0), and this is a DIMENSIONLESS property, so the numbers below
 # are identical for R1_paper:
 #     shock reaches z = hi at  195.7 t_ab = 5.77/wci0   (at the model v_sh = 4.6 C_s,ab)
 #                              190.9 t_ab = 5.63/wci0   (at R1_paper's fitted 4.72 C_s,ab)
-#     run ends at              220.0 t_ab = 6.49/wci0
-# So the last ~0.7-0.9/wci0 -- about 11-13% of the steps -- happens AFTER the shock has
-# reached the far boundary. That boundary is `field_hi = pec`, i.e. REFLECTING for fields
-# (only particles are absorbed), so those late frames are contaminated, not clean outflow.
+#     run ends at              190.0 t_ab = 5.60/wci0   <- TRUNCATED to just under arrival
+# `field_hi = pec` REFLECTS fields (only particles are absorbed), so anything after arrival
+# is contaminated rather than clean outflow. max_step was cut from Table I's 220 t_ab for
+# exactly that reason -- see numerics.max_step. R1_paper ran the full 220, so compare over
+# the OVERLAPPING window.
 # Worse, the shock does not exist from t = 0: it forms at t*_1 ~ 1.35-1.41 (RESULTS
 # 2026-07-31), leaving only ~4.2-4.4/wci0 of clean shock propagation -- SHORT OF 5.
 # Reaching 5 gyroperiods after formation needs ~1025 d_i,ab, i.e. domain_halfwidth_de
@@ -199,7 +203,18 @@ numerics:
                               # trade clean propagation for 0.3 h.
                               # NB R1_paper ran the full 220 t_ab, so compare over the
                               # OVERLAPPING window; its own late frames are contaminated too.
-  max_grid_size: 30000        # [cells] = n_cell, i.e. ONE box. THIS RUN IS FOR THE GPU.
+  max_grid_size: 15000        # [cells] = n_cell/2, i.e. TWO boxes -- one per GPU. THIS RUN
+                              # IS FOR TWO GPUs; launch with `-g 0,1`. Boxes must be >= MPI
+                              # ranks or a rank sits idle, and launch.sh refuses that.
+                              # Measured 2026-08-04, 1500 steps each:
+                              #   1 GPU,  1 box (mgs 30000)  0.01415 s/step
+                              #   1 GPU,  2 box (mgs 15000)  0.01462   splitting costs 3.3%
+                              #   2 GPU,  2 box (mgs 15000)  0.00801   1.77x, 91% efficiency
+                              #   2 GPU,  4 box (mgs  7500)  0.00849   fewer, larger wins
+                              # -> 7.9 h instead of 14.0 h. Validated against the 1-GPU run
+                              # with a measured RNG noise floor (two seed-only runs): every
+                              # column within 3x the seed-only scatter, and amb_ions -- the
+                              # bulk plasma -- agreeing to 0.1%. For a SINGLE GPU set 30000.
                               # Left unset, AMReX picks ~235 grids of 112-128 cells: correct
                               # for OpenMP over tiles, and 6.5x too fine for a GPU, where
                               # each kernel launch then gets ~25k of the 6.0e6 particles.
