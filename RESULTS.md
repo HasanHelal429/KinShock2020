@@ -2320,3 +2320,16 @@ the set regenerated.**
 
 Front reached ~71 of 80.5 d_i0, so the shock never touched the wall and the boundary artifact
 appears only in the last ~0.3/wci0 — the truncation to 190 t_ab was well placed.
+
+**Movies regenerated after the ordering fix.** `shock_ni.mp4` and `shock_phase.mp4` were
+rebuilt with the numeric `_step_key` in place. Their sizes changed (346,779 -> 359,619 and
+364,361 -> 417,368 bytes), and since the encode is deterministic for fixed frames, that size
+change is proof the frame content differed — i.e. the originals *were* mis-ordered. Note the
+timestamps could NOT establish this: the mp4s were written within ~25 s of the `io.py` edit,
+and a Python process caches imports at startup, so a job launched just before the edit still
+runs the old code. Regenerating beats reasoning about it.
+
+Mismatch to be aware of in the current figure set: `make_movies.py` annotates with the MODEL
+v_sh = 0.0140c, while `make_figures.py` fell back to `track_front` and used 0.0170c. The
+movies and the PNGs therefore carry different shock speeds right now — another reason the
+whole set needs regenerating once `tune_shock.py` has been run by eye.
