@@ -2541,3 +2541,75 @@ Also plumbed: `numerics.evolve_scheme`, `numerics.implicit.*` and `numerics.curr
 now render and round-trip through `key_params`, with the implicit defaults set to the
 configuration measured fastest in runs/opt_phase (Newton + mass matrices + skip_particle_
 picard_init, and NO preconditioner -- pc_curl_curl_mlmg was 54x slower than none).
+
+## 2026-08-05 — heating matrix h0/h1: 8 filter passes buy 12.5%, not the 2.6x needed
+
+Two of the five pilot variants ran (`runs/heat_phase/`, 440,000 steps = 30.0 t_ab each,
+both GPUs). h2/h3/h4 are staged but **paused pending approval**, so the matrix is a pair,
+not a matrix, for now.
+
+### The headline: dT_0 over the fixed 30 t_ab window
+
+The deliberately model-free metric — far upstream (outer 5%), no fit in the way:
+
+| variant | dT_0 | T_0 final | beta_0 final |
+|---|---|---|---|
+| `h0_baseline` | **29.7 eV** | 39.7 eV | 0.78 |
+| `h1_filter8` (`filter_npass: 8`) | **26.0 eV** | 36.0 eV | 0.70 |
+
+**12.5% reduction.** Holding beta_0 under 1.0 for a full-length run needs ~2.6x less
+heating; under Table I's 0.2 needs ~10x. Filtering alone is not that lever.
+
+### The asymptote looks 3x better and should not be believed
+
+The saturation fit gives 132.2 -> 87.1 eV (beta_0 2.59 -> 1.71), a 34% drop, and h1's fit is
+the tighter of the two (r = -0.943 vs -0.879). Do not quote it:
+  * a 30 t_ab window ends at T = 36-40 eV while the asymptote sits at 87-132 eV, so the fit
+    extrapolates 2-3x beyond its own data;
+  * the SAME fit on the same physics over the production run's 141 t_ab window returned
+    beta_0 = 4.33, against 2.59 here. The window length, not the physics, moved it.
+This is why dT_0 was chosen as the metric when the matrix was designed.
+
+The lambda_D = dz ceiling is **367.9 eV in both**, as it must be — that is set by the grid,
+and no amount of current smoothing moves it.
+
+### Cost: NOT measured, do not read the s/step column
+h0 ran at load 18.3, h1 at load 40.7 on this shared box. Their means (0.0103 vs 0.0108
+s/step) differ by less than the contention between them. The profiler puts filtering at
+0.16% of runtime per pass, so h1 *should* be ~1% slower; these runs cannot confirm it.
+
+Figures: `media/heat_phase/{h0_baseline,h1_filter8}/upstream_beta.png`.
+
+## 2026-08-05 — implicit test moved to ONE GPU; AMReX arena must be capped to share a card
+
+`i0_implicit_cfl075` + `i1_explicit_villasenor` reconfigured for a single card, freeing the
+other for other users on this shared box.
+
+**`max_grid_size` 15000 -> 30000** in both configs (one box for one rank). Regenerated both
+decks, both round-trip verified. Justified by the measurement already in those configs:
+two boxes on one GPU costs 3.3% over one box.
+
+### The arena trap
+AMReX allocates **3/4 of TOTAL device memory** at init regardless of need. Measured on
+`h1_filter8` (`run.log`, "Device Memory Usage"):
+
+    [The Arena] max space allocated   8904 MB     <- 0.75 x 11873 total
+    [The Arena] max space USED         189-204 MB <- the actual footprint
+    [The Pinned Arena] max used         74 MB
+
+With another user holding 9.1 GB on both cards (2747 MB free), the default allocation
+**fails at init** though the run needs ~300 MB. Fix, passed as a runtime ParmParse arg via
+`launch.sh -- ` rather than baked into the deck (it is a machine-sharing knob, not physics,
+and it still lands in `warpx_used_inputs`):
+
+    scripts/launch.sh -g 1 runs/implicit_phase/i0_implicit_cfl075 \
+        -- amrex.the_arena_init_size=1610612736      # 1.5 GB
+
+Result: 1736 MB resident, coexisting with the other job.
+
+### Implicit loses much less to halving the cards than explicit does
+Measured **0.0807 s/step on one contended card** -> ~3.3 h for 149,164 steps, against the
+~3.0 h projected for two free cards. The explicit scheme gets 1.77x from the second card;
+the implicit scheme is Newton-iteration-bound rather than bandwidth-bound and would not.
+Newton converges in **2 iterations to rel 4.6e-10** at cfl 0.75, so the runs/opt_phase
+solver retune holds at this timestep.

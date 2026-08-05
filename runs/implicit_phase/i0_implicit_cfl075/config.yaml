@@ -242,9 +242,13 @@ numerics:
                               # trade clean propagation for 0.3 h.
                               # NB R1_paper ran the full 220 t_ab, so compare over the
                               # OVERLAPPING window; its own late frames are contaminated too.
-  max_grid_size: 15000        # [cells] = n_cell/2, i.e. TWO boxes -- one per GPU. THIS RUN
-                              # IS FOR TWO GPUs; launch with `-g 0,1`. Boxes must be >= MPI
-                              # ranks or a rank sits idle, and launch.sh refuses that.
+  max_grid_size: 30000        # [cells] = n_cell, i.e. ONE box. THIS RUN IS FOR ONE GPU;
+                              # launch with `-g 1`, leaving the other card for other users
+                              # on this shared box. Was 15000 (two boxes, one per GPU) until
+                              # 2026-08-05; one box is the right decomposition for one rank
+                              # and avoids the 3.3% splitting cost measured below.
+                              # Boxes must be >= MPI ranks or a rank sits idle, and
+                              # launch.sh refuses that.
                               # Measured 2026-08-04, 1500 steps each:
                               #   1 GPU,  1 box (mgs 30000)  0.01415 s/step
                               #   1 GPU,  2 box (mgs 15000)  0.01462   splitting costs 3.3%
