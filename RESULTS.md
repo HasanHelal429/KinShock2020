@@ -1859,9 +1859,13 @@ trajectory is genuinely unconstrained. The t^2.27 power law I first fitted came 
 0.1117 s/step measured × R1_paper's 1.279 particle-growth drift = 0.1429 s/step mean:
 **5.33 d idle, 7.39 d at R1_paper's load ~24.**
 
-No current filtering is enabled in the deck at all (`warpx.use_filter` absent, only
-`algo.particle_shape = 2`). RESULTS 2026-07-2x measured `filter_npass = 8` cutting far-upstream
-noise 31% for a few percent of runtime — the cheapest available mitigation and untested here.
+~~No current filtering is enabled in the deck at all~~ **WRONG, corrected 2026-08-05.**
+`warpx.use_filter` defaults to **ON** for the explicit evolve scheme (`parameters.rst:3842`),
+so the deck's silence means 1-pass bilinear filtering is already active: the completed run's
+profiler shows `Filter::ApplyStencil` called 8,358,775 times for **0.16%** of runtime. The
+lever is therefore not "enable filtering" but "raise `filter_npass_each_dir` from its default
+1", which at 0.16% per pass is nearly free. RESULTS 2026-07-2x measured `filter_npass = 8`
+cutting far-upstream noise 31%.
 Raising ppc cuts heating ~1/ppc but multiplies an already-10× cost. Halving dz is ~100×.
 
 **Recommended next step, not taken:** a ~250k-step (17 t_ab, ~8 h) pilot with filtering on,
