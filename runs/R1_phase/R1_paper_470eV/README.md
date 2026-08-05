@@ -37,7 +37,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | boundary lo / hi | lo symmetry, hi open | `geometry.boundary` |
 | CFL | 0.75 | `numerics.cfl` |
 | particle shape | 2 | `numerics.particle_shape` |
-| max_step | 3224046 | `numerics.max_step` |
+| max_step | 2784400 | `numerics.max_step` |
 | ppc | piston 100, ambient 100 | `numerics.ppc` |
 | heater intervals | 20 | `operators.heater.intervals` |
 | injector intervals | 20 | `operators.injector.intervals` |
@@ -71,7 +71,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | dt*omega_pe | 0.225 | dt * omega_pe |
 | n_cell | 30000 | domain / dz (halved when one_sided) |
 | steps per 1/omega_ci0 | 496967 | 1/(omega_ci0*dt) |
-| run length [1/omega_ci0] | 6.48745 | max_step * dt * omega_ci0 |
+| run length [1/omega_ci0] | 5.60279 | max_step * dt * omega_ci0 |
 | T_e,ab [eV] | 470 | theta_e,ab * m_e c^2 |
 | lnLambda (used) | 12.2287 | units.coulomb_log_for(collisions.target) |
 | lnLambda (physical) | 6.231 | NRL at (n0, T_e,ab) |

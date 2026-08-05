@@ -177,9 +177,28 @@ numerics:
   cfl: 0.75                   # [-] -> dt*wpe = 0.225, dt = 1.628e-16 s (same as R1_paper:
                               # dt = 0.75 dz/c and dz ~ d_e,ab ~ c, so dt is c-invariant)
   particle_shape: 2           # [-] B-spline order
-  max_step: 3224046           # [steps] = 220 t_ab = 6.49/wci0, Table I's tau_sim.
-                              # 10.0x R1_paper's 322400 for the SAME dimensionless
-                              # duration, because t_ab ~ c while dt is not. 524.9 ps.
+  max_step: 2784400           # [steps] = 190.0 t_ab = 5.60/wci0. TRUNCATED ON PURPOSE from
+                              # 3224046 (= 220 t_ab = 6.49/wci0, Table I's tau_sim), because
+                              # every step past the shock's arrival at the far wall costs
+                              # compute and yields nothing usable:
+                              #   shock at z=hi  190.9 t_ab (5.63/wci0, R1_paper's fitted
+                              #                  v_sh = 4.72 C_s,ab -- the EARLIER estimate)
+                              #                  195.7 t_ab (5.77/wci0, model v_sh = 4.6)
+                              #   Table I end    220.1 t_ab (6.49/wci0)
+                              # `field_hi = pec` REFLECTS fields (only particles are
+                              # absorbed), so post-arrival frames are contaminated, not clean
+                              # outflow. 190.0 sits just under the earlier arrival, keeping a
+                              # small margin. Saves 13.6% of the run (~2.2 h of 0.68 d) and
+                              # costs ZERO science: the discarded steps were all post-arrival.
+                              # NOT cut further to the 186.5 t_ab B-spike onset (RESULTS
+                              # 2026-07-29: ~80x B_perp/B0 at the open boundary from
+                              # t*wci0 ~ 5.5) -- that artifact is LOCALISED and handled by
+                              # cutting the outer 2 d_i0 when quoting B_compression, whereas
+                              # clean shock propagation is already only ~4.2-4.4/wci0 after
+                              # formation at t*_1 ~ 1.35-1.41, short of the 5 wanted. Do not
+                              # trade clean propagation for 0.3 h.
+                              # NB R1_paper ran the full 220 t_ab, so compare over the
+                              # OVERLAPPING window; its own late frames are contaminated too.
   max_grid_size: 30000        # [cells] = n_cell, i.e. ONE box. THIS RUN IS FOR THE GPU.
                               # Left unset, AMReX picks ~235 grids of 112-128 cells: correct
                               # for OpenMP over tiles, and 6.5x too fine for a GPU, where
@@ -232,9 +251,14 @@ collisions:
   ndt_supercycle: 10          # [steps] PSC collision_interval = 10
 
 diagnostics:
-  plotfile_intervals: 64481   # [steps] 50 frames over the run (3224046/50). x10 R1_paper.
-  reduced_intervals: 5000     # [steps] x10, to hold the output volume fixed
-  field_intervals: 2500       # [steps] x10
+  plotfile_intervals: 55688   # [steps] 50 frames over the run (2784400/50), rescaled with
+                              # the truncated max_step so the frame COUNT is unchanged. One
+                              # frame every 3.80 t_ab -- and the pilot resolved the grid
+                              # heating over a 3.41 t_ab baseline in total, so the heating
+                              # trajectory (this run's key monitored output) is well sampled
+                              # from the first few frames onward. ~277 MiB each, ~13.9 GiB.
+  reduced_intervals: 5000     # [steps] -> 557 rows. EP/PN are cheap (11 s per 50k steps).
+  field_intervals: 2500       # [steps] -> 1114 field-only files at 3.5 MiB, ~3.9 GiB
 
 species:
   piston_electrons: {kind: electron, role: piston}

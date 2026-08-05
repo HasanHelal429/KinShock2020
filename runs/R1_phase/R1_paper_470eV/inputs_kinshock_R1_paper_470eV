@@ -25,7 +25,7 @@ my_constants.slab         = 2.*di
 my_constants.half         = 9000.*de
 
 # --- time / solver ---
-max_step      = 3224046
+max_step      = 2784400
 warpx.cfl     = 0.75
 warpx.verbose = 1
 
@@ -190,12 +190,12 @@ EP.intervals = 5000
 PN.type      = ParticleNumber
 PN.intervals = 5000
 
-# diag1: fields + raw particles for (z,uz) phase space (~49 frames).
+# diag1: fields + raw particles for (z,uz) phase space (~50 frames).
 diagnostics.diags_names = diag1 diag_fields
-diag1.intervals = 64481
+diag1.intervals = 55688
 diag1.diag_type = Full
 
-# diag_fields: field-only, high cadence (~1289 frames) for streaks / field
+# diag_fields: field-only, high cadence (~1113 frames) for streaks / field
 # structure. No particles (write_species = 0); full grid resolution.
 diag_fields.intervals     = 2500
 diag_fields.diag_type     = Full
