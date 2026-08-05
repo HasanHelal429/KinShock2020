@@ -216,6 +216,14 @@ def render(cfg: dict) -> str:
     a(f"# --- grid (dz = {geo['dz_over_de']} d_e; z = ablation / propagation axis) ---")
     a(f"amr.n_cell        = {n_cell}")
     a("amr.max_level     = 0")
+    # Optional box decomposition. Absent -> AMReX chooses, which gives ~235 grids of
+    # 112-128 cells here: right for OpenMP over tiles, and 6.5x too fine for a GPU, where
+    # each kernel launch then gets only ~25k of the 6e6 particles. Measured 2026-08-04:
+    # 1.21x on GPU with the default decomposition against 7.89x with one box, so on GPU
+    # this wants max_grid_size = n_cell. Neutral-to-negative on CPU (RESULTS 2026-07-23,
+    # and 64 measured worse at every thread count), so it is opt-in rather than defaulted.
+    if num.get("max_grid_size") is not None:
+        a(f"amr.max_grid_size = {int(num['max_grid_size'])}")
     a(f"geometry.dims     = {int(geo['dims'])}")
     a("geometry.prob_lo  =  0." if one_sided else "geometry.prob_lo  = -half")
     a("geometry.prob_hi  =  half")
@@ -422,6 +430,10 @@ def key_params(path: str) -> dict:
     out["max_step"] = int(float(d["max_step"]))
     out["n_cell"] = int(float(d["amr.n_cell"].split()[0]))
     out["cfl"] = float(d["warpx.cfl"])
+    # Absent means "AMReX decides", which is a different run from an explicit box size on
+    # GPU (6.5x). It has to round-trip or --verify would pass on a deck whose decomposition
+    # silently changed. 0 is the sentinel for "not set" so the comparison stays numeric.
+    out["max_grid_size"] = int(float(d.get("amr.max_grid_size", 0)))
     out["particle_shape"] = int(float(d["algo.particle_shape"]))
     out["dims"] = int(float(d.get("geometry.dims", "1")))
     out["prob_hi"] = _eval(d["geometry.prob_hi"], ns)

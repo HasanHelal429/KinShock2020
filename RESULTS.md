@@ -2076,3 +2076,45 @@ Two things are still required before either is a physics run, and neither is don
 implicit number here came from ParmParse overrides that are legitimate for benchmarking only
 — and a `grid_heating.py` measurement at matched physical time to confirm implicit actually
 removes what the pilot found rather than merely being entitled to.
+
+---
+
+## 2026-08-04 (decision) — `R1_paper_470eV` configured for GPU: 5.33 d -> 0.68 d
+
+`numerics.max_grid_size: 30000` added to the config (= `n_cell`, one box) and
+`scripts/launch.sh` grew a `-g/--gpu` flag. The run is staged, **not launched**.
+
+`max_grid_size` is plumbed through `kinshock.deck` properly rather than passed as a launch
+override: it is rendered from config, it round-trips through `key_params` (sentinel 0 for
+"absent", because absent means "AMReX decides" and that is a *different run* on GPU by 6.5x),
+and so `--verify` will catch a deck whose decomposition silently changed. The key is opt-in,
+not defaulted, because it is neutral-to-negative on CPU — `mgs=64` measured worse at every
+thread count, and a CPU run should simply not carry it.
+
+`launch.sh -g [N]` selects the CUDA build, drops to one thread, pins
+`CUDA_VISIBLE_DEVICES=N` so the second card stays free for other users, prints the device,
+and **refuses to start if the config lacks `numerics.max_grid_size`**. That last part is a
+hard failure rather than a warning on purpose: forgetting it turns a 0.68 d run into a 4.42 d
+run with no error message, which is exactly the kind of silent 4-day mistake this session
+produced three other examples of.
+
+Launch with:
+
+    scripts/launch.sh -b -g runs/R1_phase/R1_paper_470eV
+
+Preconditions verified: deck `--check` clean, README up to date, `diags/` empty (so no
+`--force`), 111 GB free against the ~14 GB of 50 plotfiles, both GPUs idle, and the other
+six run configs still `--check` clean after the deck.py change (15/15 tests pass).
+
+**The upstream temperature is a monitored OUTPUT of this run, not a controlled input.** The
+pilot's grid heating is real and unresolved: 3.41 t_ab could not distinguish linear
+(T_0 -> 32 eV, M_ms 12.76 -> 10.92, survivable) from saturation (T_0 -> 368 eV,
+M_ms -> 4.87, regime destroyed). The reason to take the GPU path is precisely that at 0.68 d
+the question can be settled by running far enough to see it. Analyse with
+`scripts/grid_heating.py` against `runs/R1_phase/R1_paper` at matched t/t_ab, restricted to
+the outer 25% — the global `ParticleEnergy` mean is dominated by real piston heating and is
+useless for this. The 50 plotfiles give a frame every 4.4 t_ab, against the pilot's entire
+3.41 t_ab baseline, so the trajectory should be well resolved.
+
+If it saturates, the fix is `theta_implicit_em` (1.30 d on GPU at cfl 3.0, 1.92x this run),
+which conserves energy exactly and cannot grid-heat — not more resolution, which is ~100x.

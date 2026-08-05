@@ -13,6 +13,11 @@
 # Usage:  scripts/launch.sh [options] <run_dir> [-- <warpx args>]
 #
 #   -j, --threads N    OMP_NUM_THREADS (default 8)
+#   -g, --gpu [N]      run on GPU N (default 0): selects the CUDA build, 1 thread, and
+#                      pins CUDA_VISIBLE_DEVICES so the other card stays free for other
+#                      users. Refuses to start if the config lacks numerics.max_grid_size,
+#                      because AMReX's default decomposition costs 6.5x on a GPU
+#                      (RESULTS 2026-08-04: 1.21x vs 7.89x over 8 CPU threads).
 #   -w, --warpx PATH   WarpX binary (default $KINSHOCK_WARPX, else the repo's usual build)
 #   -b, --background   detach and return immediately (prints the PID)
 #   -L, --logger       start scripts/run_progress_logger.py (DEFAULT ON)
@@ -38,7 +43,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WARPX="${KINSHOCK_WARPX:-/home/hhelal/warpx-cda/build/bin/warpx.1d}"
+WARPX_CUDA="${KINSHOCK_WARPX_CUDA:-/home/hhelal/warpx-cda/build_cuda1d/bin/warpx.1d}"
 THREADS=8
+GPU=""          # empty = CPU; otherwise the device index
 BACKGROUND=0
 LOGGER=1        # progress logger is ON by default -- every run gets a progress.log
 EVERY_PCT=""
@@ -54,6 +61,9 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --)              shift; EXTRA=("$@"); break ;;
         -j|--threads)    THREADS="${2:-}"; shift 2 ;;
+        -g|--gpu)        # optional numeric argument; bare -g means device 0
+                         if [[ "${2:-}" =~ ^[0-9]+$ ]]; then GPU="$2"; shift 2
+                         else GPU=0; shift; fi ;;
         -w|--warpx)      WARPX="${2:-}";   shift 2 ;;
         -b|--background) BACKGROUND=1; shift ;;
         -L|--logger)     LOGGER=1;     shift ;;
@@ -73,6 +83,27 @@ done
 [[ -d "$RUN_DIR" ]] || die "no such run dir: $RUN_DIR"
 RUN_DIR="$(cd "$RUN_DIR" && pwd)"                       # absolute: we are about to cd
 [[ -f "$RUN_DIR/config.yaml" ]] || die "$RUN_DIR has no config.yaml -- is it a run dir?"
+
+# --- GPU mode -----------------------------------------------------------------------
+# Selects the CUDA build, drops to one thread (OMP is irrelevant on device), and pins
+# CUDA_VISIBLE_DEVICES so the other card stays available to other users on this shared box.
+if [[ -n "$GPU" ]]; then
+    [[ "$WARPX" == "${KINSHOCK_WARPX:-/home/hhelal/warpx-cda/build/bin/warpx.1d}" ]] \
+        && WARPX="$WARPX_CUDA"          # -w wins if given explicitly
+    THREADS=1
+    export CUDA_VISIBLE_DEVICES="$GPU"
+    # The single biggest GPU footgun here: without amr.max_grid_size AMReX picks a
+    # CPU-friendly ~235-box decomposition and the GPU runs 6.5x slower -- 1.21x over 8 CPU
+    # threads instead of 7.89x (RESULTS 2026-08-04). That is a silent 4-day mistake on a
+    # 0.68-day run, so refuse rather than warn.
+    grep -qE '^\s*max_grid_size\s*:' "$RUN_DIR/config.yaml" \
+        || die "GPU mode needs numerics.max_grid_size in $RUN_DIR/config.yaml
+     (set it to n_cell -- one box). Without it AMReX's default decomposition costs 6.5x
+     on GPU. Add it to config.yaml and regenerate the deck; do not pass it as an override."
+    command -v nvidia-smi >/dev/null && \
+        nvidia-smi --query-gpu=index,name,memory.used,memory.total --format=csv,noheader \
+                   --id="$GPU" | sed 's/^/launch: gpu /'
+fi
 [[ -x "$WARPX" ]] || die "WarpX binary not executable: $WARPX (set --warpx or \$KINSHOCK_WARPX)"
 
 # Exactly one deck, so we never guess which input file was meant.

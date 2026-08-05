@@ -45,6 +45,33 @@
 #     a controlled input, and check it against R1_paper before trusting any thermal
 #     diagnostic. A short pilot (~50k steps) is the cheap way to measure the heating rate.
 #
+# THE PILOT RAN, AND THE HEATING IS REAL (RESULTS 2026-08-04). Far upstream warmed +3.9% in
+# 3.41 t_ab where R1_paper gives -0.9% against a 0.3% noise floor. The cause is the AMBIENT
+# Debye length, not the ablation one: dz/lambda_D,amb = 6.07 here against 0.60 for R1_paper,
+# because lambda_D ~ sqrt(T) and R1_paper's upstream is 100x hotter. 3.41 t_ab is 1.5% of
+# the run and CANNOT distinguish the two outcomes that matter:
+#     linear extrapolation   T_0 -> 32.4 eV (3.2x)   M_ms 12.76 -> 10.92   survivable
+#     saturation (dz=lam_D)  T_0 -> 367.9 eV (36.8x) M_ms 12.76 ->  4.87   regime destroyed
+# So the upstream temperature is a MONITORED OUTPUT of this run. Analyse with
+# scripts/grid_heating.py (restrict to the outer 25% -- the global ParticleEnergy mean is
+# dominated by real piston heating and is useless for this).
+#
+# WHICH IS WHY THIS RUN IS NOW ON THE GPU -- see numerics.max_grid_size below. At 0.68 d
+# instead of 5.33 d, settling the question above by RUNNING far enough to see it is cheaper
+# than arguing about the extrapolation. Costs measured 2026-08-04, runs/opt_phase/SUMMARY.md:
+#     explicit GPU, one box   0.01415 s/step -> 0.68 d   <- this run
+#     explicit CPU, 20 thr    0.06143        -> 2.93 d
+#     explicit CPU,  8 thr    0.11169        -> 5.33 d   (the original plan)
+# Launch with `scripts/launch.sh -b -g runs/R1_phase/R1_paper_470eV`; -g selects the CUDA
+# build, one thread, and pins CUDA_VISIBLE_DEVICES so the second card stays free. The GPU
+# binary was validated against the CPU build on this deck: 30 diagnostic rows over 1479
+# steps, no diverging column, ambient electron count bit-identical.
+#
+# IF THE HEATING SATURATES, the fix is not more resolution -- it is theta_implicit_em, which
+# conserves energy exactly (theta = 0.5) and so cannot grid-heat at all. Measured at 1.30 d
+# on GPU at cfl 3.0, i.e. 1.92x this run. It needs numerics.evolve_scheme plumbed through
+# make_inputs.py first (no passthrough exists, and decks are never hand-edited).
+#
 # TWO OPERATOR SETTINGS NEEDED CARE (checked against the warpx-cda source, not assumed):
 #  - operators.injector.tau_over_wpe_inv 40 -> 400. TargetInjector.cpp:240 relaxes toward
 #    the target density with fac = (dt_inject/tau)/(1+dt_inject/tau), so `tau` is a
@@ -153,6 +180,18 @@ numerics:
   max_step: 3224046           # [steps] = 220 t_ab = 6.49/wci0, Table I's tau_sim.
                               # 10.0x R1_paper's 322400 for the SAME dimensionless
                               # duration, because t_ab ~ c while dt is not. 524.9 ps.
+  max_grid_size: 30000        # [cells] = n_cell, i.e. ONE box. THIS RUN IS FOR THE GPU.
+                              # Left unset, AMReX picks ~235 grids of 112-128 cells: correct
+                              # for OpenMP over tiles, and 6.5x too fine for a GPU, where
+                              # each kernel launch then gets ~25k of the 6.0e6 particles.
+                              # Measured 2026-08-04 (runs/opt_phase/SUMMARY.md):
+                              #   GPU, 235 boxes (default)  0.09268 s/step -> 4.42 d
+                              #   GPU, one box              0.01415 s/step -> 0.68 d
+                              # A 6.5x swing from this one line -- without it the GPU is
+                              # barely worth using (1.21x over 8 CPU threads instead of
+                              # 7.89x). It is neutral-to-negative on CPU, so if this run is
+                              # ever moved back to CPU, DELETE this key rather than keeping
+                              # it (mgs=64 measured worse at every thread count).
   ppc:
     piston: 100               # [particles/cell] matched to R1_paper for a fair comparison
     ambient: 100              # [particles/cell]
