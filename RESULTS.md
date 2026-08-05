@@ -2275,3 +2275,48 @@ Both are the same shape as the harness bugs from the optimisation sweep: **the f
 was a plausible-looking output, not an error.** A blocky streak could be read as physics if
 you were not expecting it, and a figure in the wrong folder is invisible until someone looks
 for it.
+
+### Diagnostics: 6 of 7 criteria pass; "no shock" is the known criterion-2 defect
+
+`make_figures.py` produced the full A-D set plus movies into
+`media/R1_phase/R1_paper_470eV/` (streak, trajectory, lineouts, phase, fig7, reflected,
+`shock_ni.mp4`, `shock_phase.mp4`). It reported *"first shock (crit 1-7) at t*wci0 = None"*.
+That headline is a **tooling artifact, not a physics result**:
+
+| criterion | frames passing (of 50) |
+|---|---|
+| 1_super_magnetosonic | 50/50 |
+| **2_collisionless** | **0/50** |
+| 3_density_compression | 50/50 |
+| 4_field_compression | 50/50 |
+| 5_steep_ramp | 50/50 |
+| 6_reflected_ions | 50/50 |
+| 7_piston_separation | 49/50 |
+
+Criterion 2 fails in **every** frame at `lambda_ii_over_di0 = 0.014321` against a threshold of
+350 — exactly the category error CLAUDE.md already flags: 350 is Table I's **directed**-ion
+mfp, while this measures the **thermal** upstream ion-ion mfp, six orders down. It cannot pass
+by construction, so `is_shock` can never be True and the composite verdict is meaningless
+until criterion 2 is reworked. The six physical criteria pass from t*wci0 = 0.22 onward.
+
+**Two criteria values are CONSTANT across all 50 frames** — `M_ms_front = 15.5589` and
+`lambda_ii_over_di0 = 0.014321`. Both are derived from `config.yaml`'s nominal T_0 = 10 eV, not
+measured per frame. Given this run heats the upstream to 112 eV, criteria 1 and 2 are being
+evaluated against an upstream state that stops being true after ~30 t_ab. Reworking criterion
+2 should therefore also make both read the measured T_0(t).
+
+Also worth not trusting yet: `n_compression ~ 270` and `B_compression ~ 15-19` in every frame
+from t*wci0 = 0.11, i.e. before any shock could exist. Those look like global maxima over the
+domain (as CLAUDE.md already warns for `B_compression`) rather than jumps across the shock
+ramp, so criteria 3 and 4 passing is not independent evidence of a shock either.
+
+**The auto v_sh fallback is 21% high and should not be used.** With no `shock_fit.yaml`,
+`make_figures` fell back to `track_front` and got v_sh = 0.0170c (M_A = 17.01) — but the
+re-rendered streak shows the bright B_perp ridge sitting *below* the model 0.0140c trial line
+at late time (ridge ~70 d_i0 vs line ~72 at t*wci0 = 5.4), so the true v_sh is a little
+*under* 0.0140c, not 21% over. This is the inter-script drift CLAUDE.md warns about, now
+quantified. **Every figure in this set is provisional until `tune_shock.py` is run by eye and
+the set regenerated.**
+
+Front reached ~71 of 80.5 d_i0, so the shock never touched the wall and the boundary artifact
+appears only in the last ~0.3/wci0 — the truncation to 190 t_ab was well placed.
