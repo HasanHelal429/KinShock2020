@@ -2431,3 +2431,45 @@ temperature, which is physically impossible for a saturating model. A reach thre
 wrong guard: grid heating is smooth and decelerating while the precursor is a step, so the
 script now cuts on that contrast (`--break-factor`, default 3x the trailing median) and prints
 where it cut. Reach survives only as a backstop.
+
+### Staged: `runs/heat_phase/` — pilot matrix for the grid-heating levers (NOT run)
+
+Five variants derived from `runs/R1_phase/R1_paper_470eV`, each differing from the baseline in
+exactly one respect, all real config-driven runs rather than ParmParse overrides. Runner:
+`studies/heating/run_matrix.sh` (serial — each variant uses both GPUs, so two at once would
+halve each other's cards and make the timings meaningless).
+
+| variant | key under test | cost | time | plotfiles |
+|---|---|---|---|---|
+| `h0_baseline` | — (control) | 1.00x | 0.98 h | 3.3 GB |
+| `h1_filter8` | `filter_npass: 8` | 1.01x | 0.99 h | 3.3 GB |
+| `h2_shape3` | `particle_shape: 3` | ~1.40x* | 1.37 h | 3.3 GB |
+| `h3_filter8_shape3` | both | ~1.42x* | 1.39 h | 3.3 GB |
+| `h4_ppc400` | `ppc: 400` | 4.00x | 3.92 h | 13.3 GB |
+| **total** | | | **8.6 h** | **26.6 GB** |
+
+\* estimate, not a measurement — the cost of cubic shape is one of the things being measured.
+Disk: 90 GB free (95% used), so the matrix leaves ~63 GB.
+
+**Metric: dT_0 in the far upstream over a fixed 30 t_ab window**, deliberately not the fitted
+asymptote — that needs a long clean window and is the least-constrained quantity in the fit.
+The baseline rises ~34 eV over 30 t_ab, so a 2x improvement reads as ~17 eV against a ~0.3%
+noise floor: one number, no model in the way. 30 t_ab also clears the initial transient
+(T passes 25 eV around t = 18).
+
+**What is actually unknown.** Only `h4`'s mechanism is textbook (heating ~ 1/N_ppc, still
+unverified here). For `h1` the measured 31% was a NOISE reduction, not a heating one; `h2`'s
+effect and its cost are both estimates. `h3` tests whether the two cheap levers compose or
+overlap.
+
+**The bar to clear.** Holding beta_0 below 1.0 through 141 t_ab needs ~2.6x less heating;
+below 0.40 (2x Table I) needs ~10x. The cheap levers plausibly reach the first, not the
+second. `theta_implicit_em` at cfl 3 removes the heating *by construction* for ~2.1x
+(~13 h) — cheaper than the ppc-400 package at 24.8 h. So this matrix is really asking
+whether the cheap levers get close enough to make the implicit route unnecessary; if the
+answer is no, implicit is the better buy and the matrix has cost 8.6 h to establish that.
+
+Also plumbed: `numerics.filter_npass` now renders `warpx.use_filter` +
+`warpx.filter_npass_each_dir` and round-trips through `key_params` (absent == 1, the WarpX
+default, not off). `queryArrWithParser` reads exactly `AMREX_SPACEDIM` values
+(`WarpX.cpp:843`), so in 1D the deck carries ONE integer, not three.

@@ -239,6 +239,16 @@ def render(cfg: dict) -> str:
         a(f"boundary.reflect_symmetry_axis = {sym_axis}")
     a("")
     a(f"algo.particle_shape = {int(num['particle_shape'])}")
+    # Bilinear current/charge smoothing. `warpx.use_filter` DEFAULTS TO ON for the explicit
+    # evolve scheme (parameters.rst:3842) with filter_npass_each_dir = 1, so a deck that says
+    # nothing is already filtering once per step -- 0.16% of runtime in R1_paper_470eV. This
+    # key raises the pass count, which is the cheap lever against the short-wavelength
+    # aliasing that drives the finite-grid instability. queryArrWithParser reads exactly
+    # AMREX_SPACEDIM values (WarpX.cpp:843), so in 1D emit ONE integer, not three.
+    if num.get("filter_npass") is not None:
+        a("warpx.use_filter          = 1")
+        a(f"warpx.filter_npass_each_dir = "
+          + " ".join([str(int(num["filter_npass"]))] * int(geo["dims"])))
     a("")
 
     # background field ----------------------------------------------------
@@ -435,6 +445,8 @@ def key_params(path: str) -> dict:
     # silently changed. 0 is the sentinel for "not set" so the comparison stays numeric.
     out["max_grid_size"] = int(float(d.get("amr.max_grid_size", 0)))
     out["particle_shape"] = int(float(d["algo.particle_shape"]))
+    # 1 is the WarpX default (filtering on, one pass), so absent == 1 rather than == off.
+    out["filter_npass"] = int(float(d.get("warpx.filter_npass_each_dir", "1").split()[0]))
     out["dims"] = int(float(d.get("geometry.dims", "1")))
     out["prob_hi"] = _eval(d["geometry.prob_hi"], ns)
     out["prob_lo"] = _eval(d["geometry.prob_lo"], ns)
