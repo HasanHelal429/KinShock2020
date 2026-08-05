@@ -141,11 +141,24 @@ def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
     return rgb
 
 
-def stamp(ax, cfg, scales, extra=None):
-    """Annotate a figure with run_id + key parameters read from the config/scales,
-    so every plot in media/ is self-describing (plan §6.0a)."""
+def stamp(ax, cfg, scales, extra=None, shock=None):
+    """Annotate a figure with run_id + key parameters, so every plot in media/ is
+    self-describing (plan §6.0a).
+
+    ``shock`` (a make_figures ``_Shock``) supplies the Mach numbers when a by-eye
+    shock_fit.yaml is in play. Without it the stamp falls back to ``scales.MA/Mms``,
+    which are MODEL values -- and that was a silent inconsistency: after fitting
+    R1_paper_470eV at v_sh = 0.0165c every figure still stamped the model M_A = 14.0,
+    M_ms = 12.8 while the figure body used the fit (RESULTS 2026-08-05). The source is
+    now spelled out in the stamp so the two can never disagree unnoticed.
+    """
     rid = cfg.get("meta", {}).get("run_id", "?")
-    txt = (f"{rid}  |  M_A={scales.MA:.1f}  M_ms={scales.Mms:.1f}  "
+    if shock is not None:
+        MA, Mms = shock.MA, shock.Mms
+        src = "fit" if getattr(shock, "fit", None) is not None else "auto"
+    else:
+        MA, Mms, src = scales.MA, scales.Mms, "model"
+    txt = (f"{rid}  |  M_A={MA:.1f}  M_ms={Mms:.1f} ({src})  "
            f"m_i/m_e={scales.mass_ratio:.0f}  n_t/n_e0={scales.nt/scales.namb:.0f}")
     if extra:
         txt += "  |  " + extra

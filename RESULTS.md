@@ -2366,3 +2366,26 @@ its value.
 `is_shock` still reads None, unchanged: criterion 1 shifted slightly with the new v_sh but was
 already 50/50, and criterion 2 remains unpassable by construction. When it is reworked,
 criteria 1 and 2 should also read the measured T_0(t) rather than the nominal 10 eV.
+
+**Correction: the first two "regenerated" figure sets did NOT use the fit.** `make_figures`
+loaded `shock_fit.yaml`, printed `v_sh=0.0165c`, and then two places ignored it:
+
+  * `fig_streak(frames, cfg, sc)` never received the `shock` object at all and read
+    `sc.vsh_model` unconditionally, so the white `v_sh` overlay was drawn at the MODEL
+    0.0140c. Confirmed arithmetically from the plot: the line hit 78.1 d_i0 at
+    t*wci0 = 5.6, which is 0.0140c; 0.0165c reaches 92 (off-scale).
+  * `plotting.stamp()` always read `scales.MA / scales.Mms`, which are model-derived, so
+    **all four stamped figures** printed `M_A=14.0 M_ms=12.8` instead of 16.5 / 15.1.
+
+Fixed: `fig_streak` and `fig_lineouts` take `shock` and use `shock.v_sh`; all four `stamp`
+calls pass it. `v_p` stays a model quantity deliberately — the fit covers the shock front,
+not the piston. The stamp now also prints its SOURCE, `M_A=16.5 M_ms=15.1 (fit)` vs
+`(model)` / `(auto)`.
+
+The lesson is the one from the `make_movies` bug one step earlier, which I stated and then
+failed to apply: **a derived value must carry its provenance into the artifact.** The log line
+said "by-eye fit" while the figure body used the model, so the log was never evidence — only
+reading the rendered image was. Verified that way this time: the stamp reads `(fit)` and the
+`v_sh` line exits the top at t*wci0 = 4.85 as 0.0165c requires.
+
+Final set, all at v_sh = 0.0165c: 7 PNGs + criteria.json + both movies.

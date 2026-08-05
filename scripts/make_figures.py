@@ -104,16 +104,22 @@ def resolve_shock(run_dir, frames, cfg, sc):
 
 
 # --- A: streak + trajectory ---
-def fig_streak(frames, cfg, sc):
+def fig_streak(frames, cfg, sc, shock=None):
     t = np.array([fr.time for fr in frames]) * sc.wci0
     zc = np.asarray(frames[0].z_centers) / sc.di0
     B = np.array([fr.Bx / sc.B0 for fr in frames])  # (nt, nz)
     fig, ax = plt.subplots(figsize=(7.8, 5.2))
     pc = ax.pcolormesh(t, zc, B.T, shading="auto", cmap="viridis",
                        vmin=0, vmax=max(2.0, np.nanpercentile(B, 99)))
-    # overlay model piston/shock speed lines (z = v t), converted to (t*wci0, z/d_i0)
+    # Overlay the piston/shock speed lines (z = v t), converted to (t*wci0, z/d_i0).
+    # v_sh comes from `shock` -- the by-eye shock_fit.yaml when present -- NOT from
+    # sc.vsh_model. It used to read sc.vsh_model unconditionally, so after fitting
+    # R1_paper_470eV at 0.0165c the streak still drew the model 0.0140c line while the
+    # rest of the run's figures used the fit (RESULTS 2026-08-05). v_p stays a model
+    # quantity: the fit only covers the shock front, not the piston.
     tt = np.linspace(t.min(), t.max(), 50)
-    for v, lbl, ls in ((sc.vp_model, "v_p", "--"), (sc.vsh_model, "v_sh", "-")):
+    v_shock = shock.v_sh if shock is not None else sc.vsh_model
+    for v, lbl, ls in ((sc.vp_model, "v_p", "--"), (v_shock, "v_sh", "-")):
         z_di0 = (v * (tt / sc.wci0)) / sc.di0
         ax.plot(tt, z_di0, ls, color="w", lw=1.2, label=lbl)
     ax.set_ylim(0, zc.max())
@@ -121,7 +127,7 @@ def fig_streak(frames, cfg, sc):
     ax.set_ylabel(r"$z / d_{i0}$")
     ax.legend(frameon=False, labelcolor="w", loc="upper left")
     fig.colorbar(pc, ax=ax, label=r"$B_\perp / B_0$")
-    P.stamp(ax, cfg, sc)
+    P.stamp(ax, cfg, sc, shock=shock)
     fig.suptitle(f"{cfg['meta']['run_id']}: magnetic streak (piston + shock)")
     fig.tight_layout()
     return P.savefig(fig, "shock_streak.png", run_id=cfg["meta"]["run_id"])
@@ -180,7 +186,7 @@ def fig_trajectory(frames, cfg, sc, shock):
 
 
 # --- B: line-outs + phase space ---
-def fig_lineouts(frames, cfg, sc, nframes):
+def fig_lineouts(frames, cfg, sc, nframes, shock=None):
     idx = _select(frames, nframes)
     cmap = plt.get_cmap("viridis")
     fig, (a_n, a_b) = plt.subplots(2, 1, figsize=(7.6, 6.6), sharex=True)
@@ -200,7 +206,7 @@ def fig_lineouts(frames, cfg, sc, nframes):
     for ax in (a_n, a_b):
         P.style_axes(ax)
     a_n.legend(frameon=False, fontsize=8, ncol=2)
-    P.stamp(a_n, cfg, sc)
+    P.stamp(a_n, cfg, sc, shock=shock)
     fig.suptitle(f"{cfg['meta']['run_id']}: density compression + magnetic ramp")
     fig.tight_layout()
     return P.savefig(fig, "shock_lineouts.png", run_id=cfg["meta"]["run_id"])
@@ -585,9 +591,9 @@ def fig_reflected(frames, cfg, sc, shock):
     a_df.set_xlabel(r"$z / \rho_{i0}$")
     a_df.set_ylabel(r"$dF/dt$")
     P.style_axes(a_f)
-    P.stamp(a_g, cfg, sc)
+    P.stamp(a_g, cfg, sc, shock=shock)
     P.style_axes(a_df)
-    P.stamp(a_dg, cfg, sc)
+    P.stamp(a_dg, cfg, sc, shock=shock)
     fig.suptitle(f"{cfg['meta']['run_id']}: reflected ambient ions & onset")
     fig.tight_layout()
     P.savefig(fig, "shock_reflected.png", run_id=cfg["meta"]["run_id"])
@@ -682,11 +688,11 @@ def main():
     shock = resolve_shock(args.run_dir, frames, cfg, sc)
 
     if want("streak"):
-        fig_streak(field_frames, cfg, sc)
+        fig_streak(field_frames, cfg, sc, shock)
     if want("trajectory"):
         fig_trajectory(frames, cfg, sc, shock)
     if want("lineouts"):
-        fig_lineouts(frames, cfg, sc, args.nframes)
+        fig_lineouts(frames, cfg, sc, args.nframes, shock)
     if want("phase"):
         fig_phase(frames, cfg, sc, shock, args.nframes, times=args.phase_times)
     if want("fig7"):
