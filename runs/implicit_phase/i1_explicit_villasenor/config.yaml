@@ -1,0 +1,328 @@
+# The QUESTION. R1_paper_470eV reaches a coherent magnetic compression of ~11x B0 at its
+# FIRST output frame and then sits flat, where R1_paper builds 3.5 -> 4.9 -> 6.1 over the
+# same interval (RESULTS 2026-08-05). The barrier arrives fully formed instead of being
+# assembled by accumulating swept-up ambient, and ambient ions are accelerated 2.5x faster.
+# The one controlled difference between those runs is dz/lambda_D,amb = 6.07 vs 0.60; both
+# resolve d_e identically at dz = 0.3 d_e,ab.
+#
+# HYPOTHESIS (not yet demonstrated): with the ambient Debye length unresolved the grid
+# cannot support the charge separation that mediates piston-to-ambient coupling, so the
+# field is compressed numerically at the piston edge within the first steps.
+#
+# WHY THESE TWO RUNS. theta_implicit_em is robust to the finite-grid instability at ANY
+# dz/lambda_D, so if the instant pileup is a Debye-resolution artefact it should vanish
+# here while everything else is held fixed. cfl stays 0.75 -- the SAME dt as the production
+# run -- so the scheme is the only thing that changes. Its fast configuration needs
+# villasenor deposition (ImplicitSolver.cpp:679), which the production run does not use, so
+# i1 is the control that isolates that deposition change on its own.
+#
+# READ THEM TOGETHER:
+#   i0 pileup ~= i1 pileup ~= 11x  -> NOT the scheme; the hypothesis is wrong
+#   i0 builds gradually, i1 stays ~11x -> the implicit scheme fixes it: Debye resolution
+#   i1 also builds gradually            -> it was the DEPOSITION, not the scheme at all
+#
+# THIS RUN: the deposition control. Explicit, villasenor, everything else production.
+#
+# R1_paper_470eV — R1_paper re-anchored on PHYSICAL units instead of dimensionless ones.
+#
+# WHAT THIS RUN IS. R1_paper reproduces Table I's DIMENSIONLESS problem exactly, at the
+# price of absolute values that are not those of any real plasma: theta_e,ab = 0.092 at
+# WarpX's real c means T_e,ab = 47 keV, B0 = 70.27 T, and a Coulomb logarithm of 1.22e5
+# used as a pure dial. This run instead fixes the PHYSICAL state and lets the
+# dimensionless numbers follow. Chosen (2026-08-03, see RESULTS of that date):
+#
+#     n_e,ab    = 6e26 m^-3        T_e,ab  = 470 eV      lambda_ab = 20 d_e,ab
+#     m_i/m_e   = 100              beta_ab = 1150        T_0       = 10 eV
+#     n_e0      = 0.008 n_e,ab
+#
+# Everything else is derived. beta_ab SETS B0 = 7.0264 T. Run
+#     python scripts/table1.py runs/R1_phase/R1_paper_470eV --deck --show-work
+# for the full PSC / physical / WarpX three-column derivation.
+#
+# NOTE m_i/m_e = 100 is a PHYSICAL choice here, not just a code convenience: the plasma
+# this represents really is a light-ion plasma. That is what makes the set self-consistent,
+# and it is why the ion rows do NOT match Table I's own SI column, which is real hydrogen
+# (mu = 1836) -- its caption calls that "one possible set of experimentally-relevant
+# physical values", an illustration rather than a unit map. At mu = 100:
+#     C_s,ab = 909.2 km/s (not 210)     d_i,ab = 2.169 um (not 9.31)
+#     v_sh   = 4182 km/s  (not 980)     1/w_ci0 = 80.92 ps (not 1.5 ns)
+# Every DIMENSIONLESS row still matches: beta_ab 1150, beta_0 0.196, M_A 13.95,
+# M_ms 12.76, d_i0/d_i,ab 11.18, 1/w_ci0 = 33.91 t_ab = sqrt(beta_ab). A bonus: at
+# mu = 100 the reduced c is self-consistent at c_sim/c_phys = 0.100 across BOTH the
+# temperature and the velocity rows, where Table I's printed 0.02 only fits its velocity
+# rows (that 4.3x = sqrt(1836/100) gap is an artifact of its mu = 1836 column).
+#
+# THE PAYOFF: NO COLLISION DIAL. The collisions block below is byte-identical to
+# R1_paper's, and that is the point -- at T_e,ab = 470 eV, `lambda_ab: 20` resolves to
+# lnLambda = 12.23 on its own, a PHYSICAL value (NRL 24-ln(sqrt n/T) = 6.23 at the same
+# n, T). At 47 keV the same target needed 1.22e5, because nu_ei ~ T^-3/2 and dropping
+# T_e,ab by 100x raises nu_ei by ~1000x. This is the main scientific reason to run this.
+#
+# THE PRICE: TWO COSTS, BOTH FROM REAL c, NEITHER AVOIDABLE IN WARPX.
+#  1. 10x the timesteps. max_step 322400 -> 3224046 for the same 220 t_ab, because dt is
+#     CFL-locked to dz/c while t_ab ~ c. The GRID is unchanged (d_e,ab = c/w_pe depends
+#     only on n0 and real c): dz = 65.08 nm, 30000 cells, 1.9525 mm, dt = 1.628e-16 s.
+#  2. dz/lambda_D,ab = 9.89, against 0.99 for PSC. lambda_D is c-INDEPENDENT (v_te/w_pe)
+#     but d_e ~ c, so PSC's d_e,ab is only 3.3 lambda_D while at real c it is 33 -- the
+#     paper's own 0.3 d_e,ab cell is then 9.9 lambda_D wide. THIS WILL GRID-HEAT.
+#     Resolving it needs dz ~10x smaller and dt with it, ~100x on top of the 10x, which
+#     is not affordable. Treat the upstream temperature as an OUTPUT to be monitored, not
+#     a controlled input, and check it against R1_paper before trusting any thermal
+#     diagnostic. A short pilot (~50k steps) is the cheap way to measure the heating rate.
+#
+# THE PILOT RAN, AND THE HEATING IS REAL (RESULTS 2026-08-04). Far upstream warmed +3.9% in
+# 3.41 t_ab where R1_paper gives -0.9% against a 0.3% noise floor. The cause is the AMBIENT
+# Debye length, not the ablation one: dz/lambda_D,amb = 6.07 here against 0.60 for R1_paper,
+# because lambda_D ~ sqrt(T) and R1_paper's upstream is 100x hotter. 3.41 t_ab is 1.5% of
+# the run and CANNOT distinguish the two outcomes that matter:
+#     linear extrapolation   T_0 -> 32.4 eV (3.2x)   M_ms 12.76 -> 10.92   survivable
+#     saturation (dz=lam_D)  T_0 -> 367.9 eV (36.8x) M_ms 12.76 ->  4.87   regime destroyed
+# So the upstream temperature is a MONITORED OUTPUT of this run. Analyse with
+# scripts/grid_heating.py (restrict to the outer 25% -- the global ParticleEnergy mean is
+# dominated by real piston heating and is useless for this).
+#
+# WHICH IS WHY THIS RUN IS NOW ON TWO GPUs -- see numerics.max_grid_size below. At 7.9 h
+# instead of 5.33 d, settling the question above by RUNNING far enough to see it is cheaper
+# than arguing about the extrapolation. Costs measured 2026-08-04, runs/opt_phase/SUMMARY.md:
+#     explicit GPU, 2 cards   0.00801 s/step -> 0.33 d   <- this run (7.9 h)
+#     explicit GPU, one card  0.01415        -> 0.58 d
+#     explicit CPU, 20 thr    0.06143        -> 2.93 d
+#     explicit CPU,  8 thr    0.11169        -> 5.33 d   (the original plan)
+# Launch with `scripts/launch.sh -b -g 0,1 runs/R1_phase/R1_paper_470eV`; -g takes a device
+# list, selects the CUDA build, and runs one MPI rank per device. TWO GPUs give 1.77x (91%
+# parallel efficiency) -> 7.9 h. The GPU binary was validated against the CPU build on this
+# deck (30 rows over 1479 steps, no diverging column, ambient electron count bit-identical),
+# and the 2-rank run against the 1-rank run with a measured RNG noise floor.
+#
+# IF THE HEATING SATURATES, the fix is not more resolution -- it is theta_implicit_em, which
+# conserves energy exactly (theta = 0.5) and so cannot grid-heat at all. Measured at 1.30 d
+# on GPU at cfl 3.0, i.e. 1.92x this run. It needs numerics.evolve_scheme plumbed through
+# make_inputs.py first (no passthrough exists, and decks are never hand-edited).
+#
+# TWO OPERATOR SETTINGS NEEDED CARE (checked against the warpx-cda source, not assumed):
+#  - operators.injector.tau_over_wpe_inv 40 -> 400. TargetInjector.cpp:240 relaxes toward
+#    the target density with fac = (dt_inject/tau)/(1+dt_inject/tau), so `tau` is a
+#    PHYSICAL timescale. PSC's 40/w_pe is 0.1213 t_ab because its t_ab = 329.7/w_pe; here
+#    t_ab = 3297/w_pe, so tau must be 400/w_pe or the ablation would be replenished 10x
+#    faster relative to its own timescale. This also keeps the TOTAL injected plasma (and
+#    hence the final particle count and the run cost) the same as R1_paper's.
+#  - operators.*.intervals stay 20. Both operators integrate the elapsed slice
+#    (dt_heat = gap*dt, ParticleHeater.cpp:354; dt_inject = gap*dt, TargetInjector.cpp:239),
+#    so `intervals` is a pure numerical economy and does not change the applied rate.
+#    The heater needs NO other change: its rate is H = 8 theta^1.5/(sqrt(mu) width/d_e)
+#    [w_pe units, ParticleHeater.cpp:207], so the heating TIME theta/H ~ 1/sqrt(theta) ~ c
+#    scales exactly like t_ab -- 0.5 t_ab in both runs, automatically.
+#
+# DIAGNOSTIC INTERVALS keep 50 plotfiles; plotfile_intervals was rescaled with the truncated
+# max_step so the frame COUNT did not drop to 43. ~18 GiB total output.
+#
+# DOMAIN vs SHOCK TRANSIT -- READ BEFORE TRUSTING LATE-TIME DATA. The domain is Table I's
+# own 900 d_i,ab (= 80.5 d_i0), and this is a DIMENSIONLESS property, so the numbers below
+# are identical for R1_paper:
+#     shock reaches z = hi at  195.7 t_ab = 5.77/wci0   (at the model v_sh = 4.6 C_s,ab)
+#                              190.9 t_ab = 5.63/wci0   (at R1_paper's fitted 4.72 C_s,ab)
+#     run ends at              190.0 t_ab = 5.60/wci0   <- TRUNCATED to just under arrival
+# `field_hi = pec` REFLECTS fields (only particles are absorbed), so anything after arrival
+# is contaminated rather than clean outflow. max_step was cut from Table I's 220 t_ab for
+# exactly that reason -- see numerics.max_step. R1_paper ran the full 220, so compare over
+# the OVERLAPPING window.
+# Worse, the shock does not exist from t = 0: it forms at t*_1 ~ 1.35-1.41 (RESULTS
+# 2026-07-31), leaving only ~4.2-4.4/wci0 of clean shock propagation -- SHORT OF 5.
+# Reaching 5 gyroperiods after formation needs ~1025 d_i,ab, i.e. domain_halfwidth_de
+# ~10500 (35000 cells, +17% cost/step); the run LENGTH is already sufficient (6.49 > 6.4).
+# Left at the paper's 9000 deliberately, so this run stays a like-for-like counterpart of
+# R1_paper. Change it only as a deliberate departure, and say so here if you do.
+#
+# ONE RESIDUAL DEVIATION: beta_0 = 0.1957 against Table I's 0.2, because beta_0 is
+# OVER-DETERMINED (mu0 n_e0 kT_0/B0^2 with B0 already fixed by beta_ab) and the chosen
+# T_0 = 10 eV is Table I's rounded value -- the unrounded 0.002 m_e c_sim^2 is 10.217 eV,
+# which gives exactly 0.2. Keeping the stated 10 eV, T_0/T_e,ab = 0.02128 vs PSC's
+# 0.02174, a 2.1% difference. Harmless; noted so it is not mistaken for an error.
+
+meta:
+  run_id: i1_explicit_villasenor
+  tier: Full
+  description: >
+    R1_paper re-anchored on physical units: T_e,ab = 470 eV and B0 = 7.026 T (from
+    beta_ab = 1150) at m_i/m_e = 100, instead of theta_e,ab = 0.092 at real c. Every
+    Table I dimensionless row is preserved, and lambda_ab = 20 now resolves to a
+    PHYSICAL lnLambda = 12.23 rather than a 1.22e5 dial. Costs 10x the timesteps and
+    under-resolves the Debye length by ~10x (dz/lambda_D = 9.9), so grid heating must
+    be monitored. Direct counterpart of runs/R1_phase/R1_paper.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_i1_explicit_villasenor
+
+reference:
+  n0: 6.0e26                  # [m^-3] = n_e,ab = 6e20 cm^-3. CHOSEN (free parameter 1).
+                              # Unchanged from R1_paper. Now genuinely physical rather
+                              # than a scale factor: it fixes w_pe, d_e,ab and lnLambda.
+  mass_ratio: 100.0           # [-] m_i/m_e. CHOSEN -- physical here, see header.
+  charge_state: 1             # [-] Table I: Z_ab = Z_0 = 1 (single-species H)
+
+plasma:
+  piston:
+    density_over_n0: 2.0      # [n0] Table I: target 2.5 code units / n_e,ab 1.25 code units
+    theta_e_heat: 9.19767056e-4  # [kT_e/m_e c^2] = 470 eV at REAL c. CHOSEN (free
+                              # parameter 2) -- this is where R1_paper's 0.092 (47 keV)
+                              # was the reduced-c value used at real c. Sec. II's
+                              # c = sqrt(mu_p/T_e,ab) C_s,ab makes theta_e,ab and the
+                              # speed of light the same choice; PSC's 0.092 corresponds
+                              # to c_sim/c_phys = 0.100 for this temperature.
+    theta_e_init: 1.95695118e-5  # [kT_e/m_e c^2] = 10 eV. PSC target_Te = 0.002 m_e c_sim^2,
+                              # which IS T_0 -- so this tracks theta_0 below.
+    theta_i_init: 1.95695118e-7  # [kT_i/m_i c^2] ION-normalized, unlike the theta_e rows.
+                              # = 10 eV / (mass_ratio * m_e c^2). PSC target_Ti = target_Te.
+  ambient:
+    density_over_n0: 0.008    # [n0] Table I: n_e0 = 0.01 CODE units = 0.008 n_e,ab.
+                              # CHOSEN. Confirmed by d_i0/d_i,ab = 11.18 (Table I 11.2).
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = T_0 = 10 eV at real c. CHOSEN (see header
+                              # on the 2.1% vs PSC's unrounded 10.217 eV).
+
+field:
+  orientation: perpendicular  # [-] Table I / Sec. II: B0 = B0 x_hat, theta_B0 = 90 deg
+  B0_tesla: 7.026446809478    # [T]
+  # PRIMARY, and DERIVED FROM beta_ab = 1150 (the user's step 4: "the ablation beta then
+  # sets your magnetic field"):
+  #     B0 = sqrt(mu0 * n_e,ab * k T_e,ab / beta_ab)
+  # This is Table I's own SI value (7 T) to 0.38%, and it is 1/10.0 of R1_paper's
+  # 70.273 T -- exactly the reduced-c factor, since B ~ sqrt(T) at fixed n and beta.
+  # Cross-checks, both derived not fitted: M_A = v_sh/v_A = 13.95 (Table I 14) and
+  # 1/w_ci0 = 33.91 t_ab = sqrt(beta_ab) (Table I 33.9).
+
+geometry:
+  dims: 1                     # [-] spatial dimensions (1D3V)
+  normal_axis: z              # [-] shock normal
+  slab_halfwidth_di: 2.0      # [d_i,ab] Sec. II: target occupies 0 < z <= 2 d_i,ab
+  domain_halfwidth_de: 9000.0 # [d_e,ab] Sec. II: 9000 d_e,ab, ONE-SIDED
+  dz_over_de: 0.3             # [d_e,ab] -> 30000 cells, exactly the paper's grid.
+                              # NB at real c this is 9.89 lambda_D,ab, not 0.99 -- the
+                              # Debye-resolution cost documented in the header.
+  layout: one_sided           # [-] see CLAUDE.md
+  boundary:
+    lo: symmetry              # [-] z=0 foil wall
+    hi: open                  # [-]
+
+numerics:
+  cfl: 0.75                   # [-] -> dt*wpe = 0.225, dt = 1.628e-16 s (same as R1_paper:
+                              # dt = 0.75 dz/c and dz ~ d_e,ab ~ c, so dt is c-invariant)
+  particle_shape: 2           # [-] B-spline order
+  current_deposition: villasenor     # [-] CONTROL: the only change from production, so any
+                                     #     effect seen in i0 that also appears here is the
+                                     #     deposition scheme and not the implicit solver.
+  max_step: 149164                # [steps] = 0.30/wci0 -- only far enough to see the pileup form
+                              # 3224046 (= 220 t_ab = 6.49/wci0, Table I's tau_sim), because
+                              # every step past the shock's arrival at the far wall costs
+                              # compute and yields nothing usable:
+                              #   shock at z=hi  190.9 t_ab (5.63/wci0, R1_paper's fitted
+                              #                  v_sh = 4.72 C_s,ab -- the EARLIER estimate)
+                              #                  195.7 t_ab (5.77/wci0, model v_sh = 4.6)
+                              #   Table I end    220.1 t_ab (6.49/wci0)
+                              # `field_hi = pec` REFLECTS fields (only particles are
+                              # absorbed), so post-arrival frames are contaminated, not clean
+                              # outflow. 190.0 sits just under the earlier arrival, keeping a
+                              # small margin. Saves 13.6% of the run (~2.2 h of 0.68 d) and
+                              # costs ZERO science: the discarded steps were all post-arrival.
+                              # NOT cut further to the 186.5 t_ab B-spike onset (RESULTS
+                              # 2026-07-29: ~80x B_perp/B0 at the open boundary from
+                              # t*wci0 ~ 5.5) -- that artifact is LOCALISED and handled by
+                              # cutting the outer 2 d_i0 when quoting B_compression, whereas
+                              # clean shock propagation is already only ~4.2-4.4/wci0 after
+                              # formation at t*_1 ~ 1.35-1.41, short of the 5 wanted. Do not
+                              # trade clean propagation for 0.3 h.
+                              # NB R1_paper ran the full 220 t_ab, so compare over the
+                              # OVERLAPPING window; its own late frames are contaminated too.
+  max_grid_size: 15000        # [cells] = n_cell/2, i.e. TWO boxes -- one per GPU. THIS RUN
+                              # IS FOR TWO GPUs; launch with `-g 0,1`. Boxes must be >= MPI
+                              # ranks or a rank sits idle, and launch.sh refuses that.
+                              # Measured 2026-08-04, 1500 steps each:
+                              #   1 GPU,  1 box (mgs 30000)  0.01415 s/step
+                              #   1 GPU,  2 box (mgs 15000)  0.01462   splitting costs 3.3%
+                              #   2 GPU,  2 box (mgs 15000)  0.00801   1.77x, 91% efficiency
+                              #   2 GPU,  4 box (mgs  7500)  0.00849   fewer, larger wins
+                              # -> 7.9 h instead of 14.0 h. Validated against the 1-GPU run
+                              # with a measured RNG noise floor (two seed-only runs): every
+                              # column within 3x the seed-only scatter, and amb_ions -- the
+                              # bulk plasma -- agreeing to 0.1%. For a SINGLE GPU set 30000.
+                              # Left unset, AMReX picks ~235 grids of 112-128 cells: correct
+                              # for OpenMP over tiles, and 6.5x too fine for a GPU, where
+                              # each kernel launch then gets ~25k of the 6.0e6 particles.
+                              # Measured 2026-08-04 (runs/opt_phase/SUMMARY.md):
+                              #   GPU, 235 boxes (default)  0.09268 s/step -> 4.42 d
+                              #   GPU, one box              0.01415 s/step -> 0.68 d
+                              # A 6.5x swing from this one line -- without it the GPU is
+                              # barely worth using (1.21x over 8 CPU threads instead of
+                              # 7.89x). It is neutral-to-negative on CPU, so if this run is
+                              # ever moved back to CPU, DELETE this key rather than keeping
+                              # it (mgs=64 measured worse at every thread count).
+  ppc:
+    piston: 100               # [particles/cell] matched to R1_paper for a fair comparison
+    ambient: 100              # [particles/cell]
+
+operators:
+  heater:
+    species: piston_electrons # [-]
+    intervals: 20             # [steps] PSC heating_interval = 20. Numerical only: the
+                              # rate is H = 8 theta^1.5/(sqrt(mu) width/d_e) and the
+                              # operator integrates gap*dt. Needs no rescaling -- the
+                              # heating time theta/H is 0.5 t_ab in both runs.
+  injector:
+    species: piston_electrons # [-]
+    neutralizing_species: piston_ions   # [-]
+    intervals: 20             # [steps] PSC inject_interval = 20. Numerical only.
+    tau_over_wpe_inv: 400.0   # [1/wpe] RESCALED from PSC's 40. `tau` is a PHYSICAL
+                              # relaxation time, and t_ab is 3297/wpe here against
+                              # 329.7/wpe in PSC, so 40 -> 400 keeps tau = 0.1213 t_ab.
+                              # Copying 40 verbatim would replenish the ablation 10x
+                              # faster than its own timescale and inflate the particle
+                              # count (and the runtime) by ~10x. See header.
+
+collisions:
+  model: pairwisecoulomb      # [-] WarpX Perez 2012 operator (fully dimensional)
+  pairs: all                  # [-] PSC collides every pair in a cell with one nu
+  target:
+    quantity: lambda_ab       # [-] = mfp/d_e,ab (Sec. II).
+    value: 20.0               # [d_e,ab] Table I. UNCHANGED from R1_paper -- and that is
+                              # the headline result: at T_e,ab = 470 eV this resolves to
+                              # lnLambda = 12.23, a PHYSICAL value, where at 47 keV the
+                              # identical target needed 1.22e5. Do NOT switch to
+                              # `quantity: coulomb_log, value: physical`: that is
+                              # 24-ln(sqrt n/T) = 6.23, a different quantity that would
+                              # not give lambda_ab = 20.
+                              # Safety at this lnLambda: nu_ei*dt = 3.4e-4 (x10 for the
+                              # supercycle = 3.4e-3 << 1) and WarpX's cross-section clamp
+                              # is nowhere near engaging.
+  ndt_supercycle: 10          # [steps] PSC collision_interval = 10
+
+diagnostics:
+  plotfile_intervals: 29833   # 5 frames
+                              # the truncated max_step so the frame COUNT is unchanged. One
+                              # frame every 3.80 t_ab -- and the pilot resolved the grid
+                              # heating over a 3.41 t_ab baseline in total, so the heating
+                              # trajectory (this run's key monitored output) is well sampled
+                              # from the first few frames onward. ~277 MiB each, ~13.9 GiB.
+  reduced_intervals: 1000     # [steps]
+  field_intervals: 7458       # 20 field frames -- the pileup measurement
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I: v_sh = 4.6 C_s,ab. DIMENSIONLESS, so
+                              # unchanged; in SI it is now 4182 km/s (not 980, mu = 100).
+  vp_over_c: 0.0103986833     # [c] Table I's v_p = 0.104 c_sim, converted to real c.
+                              # The c-free invariant is v_p/C_s,ab = 3.4288, giving
+                              # v_p = 3117 km/s. R1_paper's 0.104 was the reduced-c
+                              # number used at real c.
+
+targets:
+  M_A: 14                     # [-] Table I
+  M_ms: 13                    # [-] Table I
+  beta_ab: 1150               # [-] Table I. This is an INPUT here (it sets B0), so it
+                              # reproduces exactly by construction.
+  beta_0: 0.2                 # [-] Table I. DERIVED = 0.1957; the 2.1% is Table I's
+                              # rounding of T_0 (10 vs 10.217 eV), see header.

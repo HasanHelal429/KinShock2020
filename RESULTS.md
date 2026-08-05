@@ -2473,3 +2473,71 @@ Also plumbed: `numerics.filter_npass` now renders `warpx.use_filter` +
 `warpx.filter_npass_each_dir` and round-trips through `key_params` (absent == 1, the WarpX
 default, not off). `queryArrWithParser` reads exactly `AMREX_SPACEDIM` values
 (`WarpX.cpp:843`), so in 1D the deck carries ONE integer, not three.
+
+### The real objection to R1_paper_470eV: the magnetic barrier arrives fully formed
+
+Prompted by a visual comparison of the two runs' ion phase spaces. R1_paper goes through the
+expected stages -- sweep-up, then a distinct reflected population -- while R1_paper_470eV
+accelerates a large fraction of ambient essentially from t = 0 without sweeping it up first.
+
+I first attributed this to the criteria (`"6_reflected_ions": G > 0.0` on a globally counted
+quantity, `metrics.py:247`). **That was wrong.** The criterion IS too loose, but the effect is
+physical. Coherent magnetic compression, B_perp smoothed over 0.2 d_i0 so this is signal not
+noise:
+
+| t*wci0 | R1_paper | R1_paper_470eV |
+|---|---|---|
+| 0.00 | 1.00 | 1.00 |
+| ~0.14 | 3.50 | **10.95** |
+| ~0.29 | 4.91 | **10.82** |
+| ~0.44 | 6.06 | **11.06** |
+
+**R1_paper builds its barrier 3.5 -> 4.9 -> 6.1; the 470 eV run has ~11x at the first output
+frame and stays flat.** The noise-to-coherent ratio is *lower* in the 470 eV run (1.47-1.67 vs
+1.66-2.54), so this is not a field-noise artefact. It accompanies 2.5x faster ambient
+acceleration (G = 0.021 vs 0.008 at t*wci0 ~ 0.65).
+
+Two hypotheses I checked and discarded:
+  * **Pre-heated upstream ions.** Relative heating is similar in both (T_i x5.9 vs x4.8 over
+    the same interval) and both upstreams stay cold against their own v_sh (v_th,i/v_sh = 0.027
+    vs 0.035). Not it. (My first pass here used the 470 eV v_sh for BOTH runs and produced a
+    spurious 10x difference -- discarded.)
+  * **Field noise inflating a domain max.** Ruled out by the smoothing above.
+
+The one controlled difference is **dz/lambda_D,amb = 6.07 vs 0.60**; both resolve d_e
+identically at dz = 0.3 d_e,ab. HYPOTHESIS, not demonstrated: with the ambient Debye length
+unresolved the grid cannot support the charge separation that mediates piston-to-ambient
+coupling, so the field is compressed numerically at the piston edge within the first steps and
+the over-strong barrier promptly reflects ambient ions.
+
+**This is a more serious objection than the beta_0 excursion.** I had been treating grid
+heating as the problem and beta_0 drift as its consequence; if this holds, the Debye
+under-resolution is corrupting shock FORMATION from t = 0, not just the upstream state.
+
+### Staged: `runs/implicit_phase/` — the discriminating test (NOT run)
+
+| run | change | time |
+|---|---|---|
+| `i0_implicit_cfl075` | `evolve_scheme: theta_implicit_em`, Newton, villasenor, no PC | 3.02 h |
+| `i1_explicit_villasenor` | villasenor deposition ONLY — the control | 0.33 h |
+| | | **3.35 h** |
+
+Both run 149,164 steps = t*wci0 0.30, only far enough to watch the barrier form, with 20 field
+frames across it. **cfl stays 0.75 -- the same dt as production -- so the scheme is the only
+thing that changes.** theta_implicit_em is robust to the finite-grid instability at any
+dz/lambda_D, so if the instant pileup is a Debye artefact it should vanish. The fast implicit
+configuration requires villasenor deposition (`ImplicitSolver.cpp:679`), which production does
+not use, hence i1 isolating that change on its own.
+
+    i0 ~= i1 ~= 11x                      -> not the scheme; hypothesis wrong
+    i0 builds gradually, i1 stays ~11x   -> the implicit scheme fixes it: Debye resolution
+    i1 also builds gradually             -> it was the DEPOSITION all along
+
+Note the heat_phase matrix cannot answer this: ppc, shape order and filtering all reduce
+NOISE, and none of them resolves lambda_D. If the hypothesis is right the matrix will show
+modest heating improvements and no change to the pileup.
+
+Also plumbed: `numerics.evolve_scheme`, `numerics.implicit.*` and `numerics.current_deposition`
+now render and round-trip through `key_params`, with the implicit defaults set to the
+configuration measured fastest in runs/opt_phase (Newton + mass matrices + skip_particle_
+picard_init, and NO preconditioner -- pc_curl_curl_mlmg was 54x slower than none).

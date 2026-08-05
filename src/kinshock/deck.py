@@ -239,6 +239,44 @@ def render(cfg: dict) -> str:
         a(f"boundary.reflect_symmetry_axis = {sym_axis}")
     a("")
     a(f"algo.particle_shape = {int(num['particle_shape'])}")
+    # Optional deposition override. The FDTD default is Esirkepov; the implicit scheme
+    # additionally accepts villasenor and direct, and REQUIRES one of the latter two if
+    # implicit.use_mass_matrices_jacobian is on (ImplicitSolver.cpp:679). Changing it is a
+    # real physics change, so it is opt-in and round-trips through key_params.
+    if num.get("current_deposition"):
+        a(f"algo.current_deposition = {num['current_deposition']}")
+
+    # --- evolve scheme -----------------------------------------------------------------
+    # Absent (or "explicit") leaves WarpX at its default explicit FDTD. theta_implicit_em
+    # conserves energy exactly at theta = 0.5, so it cannot drive the finite-grid
+    # instability at all -- which is why it is the controlled test against a deck that
+    # under-resolves the ambient Debye length (RESULTS 2026-08-05).
+    #
+    # Defaults below are the configuration MEASURED fastest on this deck (runs/opt_phase):
+    # Newton with the mass-matrix Jacobian and the cheap particle path, and NO
+    # preconditioner -- pc_curl_curl_mlmg was 54x SLOWER than using none, and pc_jacobi was
+    # indistinguishable from none. Do not add a preconditioner without re-measuring.
+    ev = num.get("evolve_scheme")
+    if ev and ev != "explicit":
+        imp = num.get("implicit") or {}
+        a("")
+        a(f"algo.evolve_scheme = {ev}")
+        a(f"implicit_evolve.theta = {_num(imp.get('theta', 0.5))}")
+        a(f"implicit_evolve.nonlinear_solver = {imp.get('nonlinear_solver', 'newton')}")
+        a(f"implicit_evolve.use_mass_matrices_jacobian = "
+          f"{int(imp.get('use_mass_matrices_jacobian', 1))}")
+        a(f"implicit_evolve.skip_particle_picard_init = "
+          f"{int(imp.get('skip_particle_picard_init', 1))}")
+        if imp.get("pc_type"):
+            a(f"jacobian.pc_type = {imp['pc_type']}")
+            a(f"implicit_evolve.use_mass_matrices_pc = "
+              f"{int(imp.get('use_mass_matrices_pc', 1))}")
+        # require_convergence=0 keeps a bad step from aborting an overnight run, but then a
+        # FAILED solve reports a perfectly plausible s/step -- always grep the log for
+        # "Maximum iteration reached" rather than trusting the timing.
+        a(f"newton.require_convergence = {int(imp.get('require_convergence', 0))}")
+        a(f"newton.verbose = {int(imp.get('verbose', 1))}")
+        a(f"gmres.verbose_int = {int(imp.get('gmres_verbose', 0))}")
     # Bilinear current/charge smoothing. `warpx.use_filter` DEFAULTS TO ON for the explicit
     # evolve scheme (parameters.rst:3842) with filter_npass_each_dir = 1, so a deck that says
     # nothing is already filtering once per step -- 0.16% of runtime in R1_paper_470eV. This
@@ -445,6 +483,11 @@ def key_params(path: str) -> dict:
     # silently changed. 0 is the sentinel for "not set" so the comparison stays numeric.
     out["max_grid_size"] = int(float(d.get("amr.max_grid_size", 0)))
     out["particle_shape"] = int(float(d["algo.particle_shape"]))
+    # Non-numeric settings that change the physics: compared as strings by verify().
+    out["evolve_scheme"] = d.get("algo.evolve_scheme", "explicit")
+    out["current_deposition"] = d.get("algo.current_deposition", "esirkepov")
+    if "implicit_evolve.theta" in d:
+        out["implicit_theta"] = float(d["implicit_evolve.theta"])
     # 1 is the WarpX default (filtering on, one pass), so absent == 1 rather than == off.
     out["filter_npass"] = int(float(d.get("warpx.filter_npass_each_dir", "1").split()[0]))
     out["dims"] = int(float(d.get("geometry.dims", "1")))
