@@ -2177,3 +2177,69 @@ floor. This also **strengthens** the earlier CPU-vs-GPU pass: those differences 
 Note for reuse: the seed-only floor is the right tolerance for any comparison of stochastic
 PIC runs here — thread count, rank count, device, or binary. Comparing to `first` only works
 when the runs start from different RNG draws AND the column is not RNG-dominated.
+
+---
+
+## 2026-08-05 — R1_paper_470eV COMPLETED on 2 GPUs. Grid heating: 11.2x T_0, beta_0 -> 2.20
+
+**2,784,400 / 2,784,400 steps in 10h47m, zero failure signatures**, 51 plotfiles, 20 GB.
+First full-length run of the 470 eV physical-units rebuild.
+
+### Cost: I under-projected by 36%
+Projected 7.9 h from a 1500-step benchmark; actual **10h47m** (0.0139 s/step vs the
+benchmarked 0.00801). Two causes, neither visible in a benchmark at t = 0:
+  * **Particle growth 1.29x** — total macroparticles 6.00e6 -> 7.75e6, with
+    `piston_electrons` going 6,667 -> **1,014,414** (152x). The 1.279 drift factor I applied
+    was right, and is already included in the 7.9 h.
+  * **Load imbalance, ~1.35x** — the remaining gap. Rank 0 owns the piston half of the
+    domain, so it carries ~2e6 extra particles by late time and sets the pace for both
+    ranks. A 2-rank split is balanced at t = 0 and progressively is not.
+Lesson for future GPU projections here: benchmark from a *restart* partway through, or
+apply a load-imbalance factor on top of the particle-growth drift.
+
+### The grid heating: between the two branches, and closer to the bad one
+
+**First measurement was wrong and nearly got reported.** `grid_heating.py`'s default outer-25%
+window reads 3899 eV at t = 190 t_ab — but its own `piston reach` column shows the piston at
+91% of the domain, past the window's inner edge from ~135 t_ab. That number is *shocked
+plasma*, not grid heating. The docstring warns about exactly this ("If `piston reach` ever
+approaches `window lo`, the measurement is contaminated"). Re-measured with
+`--upstream-frac 0.95`:
+
+| t/t_ab | t*wci0 | T_upstream | xT_0 | piston reach |
+|---|---|---|---|---|
+| 0.0 | 0.000 | 9.99 eV | 1.00 | 0.2% |
+| 34.2 | 1.008 | 43.8 eV | 4.38 | 26% |
+| 68.4 | 2.017 | 70.6 eV | 7.06 | 40% |
+| 102.6 | 3.026 | 92.2 eV | 9.22 | 59% |
+| **136.8** | **4.034** | **112.2 eV** | **11.2** | 76% |
+| 148.2 onward | | 238 -> 1343 eV | | 81-91% — CONTAMINATED, do not quote |
+
+Clean window ends ~137 t_ab. The rate **decelerates** (1.2 eV/t_ab early, 0.55 by t = 137),
+consistent with approaching saturation without reaching it: at 112 eV, `dz/lambda_D,amb` has
+fallen 6.07 -> 1.81.
+
+### Consequences for the shock parameters
+
+| T_0 | xT_0 | C_s0 | M_ms | beta_0 | |
+|---|---|---|---|---|---|
+| 10.0 eV | 1.0 | 132.6 km/s | 12.76 | 0.196 | Table I target |
+| 32.4 eV | 3.2 | 238.7 | 10.91 | 0.634 | the pilot's linear extrapolation |
+| **112.2 eV** | **11.2** | **444.2** | **7.80** | **2.196** | **MEASURED at 137 t_ab** |
+| 367.9 eV | 36.8 | 804.4 | 4.87 | 7.201 | saturation ceiling |
+
+**M_A is untouched at 13.95** — v_A depends on B0 and n_amb, not T — so the Alfvenic Mach
+number and everything keyed to it survive. But **M_ms falls 12.76 -> 7.80 and beta_0 rises
+0.196 -> 2.196**, an order of magnitude off Table I, and the upstream stops being
+magnetically dominated. The pilot's linear extrapolation was optimistic by 3.5x; the
+saturation ceiling was pessimistic by 3.3x.
+
+**How to use this run.** The shock forms and propagates and M_A is preserved, so it is not
+worthless -- but after the first ~30 t_ab it is NOT a Table I beta_0 = 0.2 replication.
+Anything depending on upstream beta or the fast-magnetosonic Mach number must be quoted
+against the measured T_0(t) above, not the nominal 10 eV. Treat T_0 as a time-dependent
+output of the run.
+
+**The fix, already measured:** `theta_implicit_em` at cfl 3.0 conserves energy exactly and
+cannot grid-heat -- 1.30 d on one card, so ~0.75 d on both. Blocked only on plumbing
+`numerics.evolve_scheme` (and `implicit_evolve.*`) through `scripts/make_inputs.py`.
