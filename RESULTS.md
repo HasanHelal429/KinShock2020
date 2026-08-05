@@ -2243,3 +2243,35 @@ output of the run.
 **The fix, already measured:** `theta_implicit_em` at cfl 3.0 conserves energy exactly and
 cannot grid-heat -- 1.30 d on one card, so ~0.75 d on both. Blocked only on plumbing
 `numerics.evolve_scheme` (and `implicit_evolve.*`) through `scripts/make_inputs.py`.
+
+### Two latent bugs this run exposed — one of which silently scrambled a figure
+
+**1. Plotfile ordering broke past 1,000,000 steps.** `kinshock.io.plotfiles` and
+`field_plotfiles` used `sorted()` on the *filename*. WarpX pads the step to SIX digits, so a
+run crossing 1e6 steps emits mixed 6- and 7-digit names and string order interleaves them:
+
+    diag_fields100000  <  diag_fields1000000  <  diag_fields997500
+
+Every earlier run was under 1e6 steps (R1_paper 322,400; the 470 eV pilot 50,000), so string
+sorting happened to be correct and the bug could not manifest. This run is 2,784,400 steps and
+it did: the first `tune_shock` streak came out in blocky vertical bands with the whole domain
+saturating after t*wci0 ~ 3.1. Fixed with a numeric `_step_key` on the trailing digits;
+verified monotonic across the boundary (995000, 997500, 1000000, 1002500, ...).
+
+Blast radius: anything that **assumed frame order** was silently wrong — streaks, movies,
+front trajectories. Anything that **reads its own time per frame** was correct in value and
+only mis-ordered on print, which covers `grid_heating.py`, so the heating table above stands
+(its rows were sorted before quoting). Re-rendered streak is clean and physical.
+
+**2. `media/` output escaped the mirrored tree.** `plotting.media_dir(run_id=...)` built
+`media/<run_id>` from the id alone, so after the 2026-08-04 phase regrouping it wrote to a
+flat `media/R1_paper_470eV/` instead of `media/R1_phase/R1_paper_470eV/`. Figures still
+appeared, just outside the mirror — noticed only because `tune_shock` prints its output path.
+`media_dir` now resolves the phase from the filesystem (`runs/*/<run_id>/config.yaml`), which
+keeps all six call sites unchanged and falls back to the flat layout for an unknown id. Stray
+flat directories migrated.
+
+Both are the same shape as the harness bugs from the optimisation sweep: **the failure mode
+was a plausible-looking output, not an error.** A blocky streak could be read as physics if
+you were not expecting it, and a figure in the wrong folder is invisible until someone looks
+for it.

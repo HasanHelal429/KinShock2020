@@ -10,6 +10,7 @@ it (e.g. for the units↔Table-I test).
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -42,13 +43,32 @@ def _yt():
     return yt
 
 
+def _step_key(path):
+    """Numeric sort key from a plotfile's trailing step number.
+
+    WarpX pads the step to SIX digits, so a run that crosses 1,000,000 steps emits a mix of
+    6- and 7-digit names and a plain ``sorted()`` on the string interleaves them:
+
+        diag_fields100000  <  diag_fields1000000  <  diag_fields997500
+
+    Every run before R1_paper_470eV was under 1e6 steps (R1_paper 322,400; the 470 eV pilot
+    50,000), so string sorting happened to be correct and this went unnoticed until the
+    2.78e6-step run produced a visibly blocky B_perp streak (RESULTS 2026-08-05). Anything
+    that reads its own time per frame (e.g. grid_heating.py) was unaffected in VALUE, only in
+    print order; anything that assumed frame order -- streaks, movies, trajectories -- was
+    silently wrong.
+    """
+    m = re.search(r"(\d+)\D*$", os.path.basename(path))
+    return (int(m.group(1)) if m else -1, path)
+
+
 def plotfiles(run_dir, subdirs=("diags_movies", "diags")):
-    """Sorted plotfile paths under a run dir. Tries movie diags first, then diags."""
+    """Step-ordered plotfile paths under a run dir. Tries movie diags first, then diags."""
     for sub, prefix in ((subdirs[0], "plt"), (subdirs[1], "diag1")):
         d = os.path.join(run_dir, sub)
         if os.path.isdir(d):
-            pfs = sorted(os.path.join(d, p) for p in os.listdir(d)
-                         if p.startswith(prefix))
+            pfs = sorted((os.path.join(d, p) for p in os.listdir(d)
+                          if p.startswith(prefix)), key=_step_key)
             if pfs:
                 return pfs
     raise FileNotFoundError(f"no plotfiles under {run_dir}/{{{','.join(subdirs)}}}")
@@ -61,8 +81,8 @@ def field_plotfiles(run_dir):
     that predate the field-only diagnostic."""
     d = os.path.join(run_dir, "diags")
     if os.path.isdir(d):
-        pfs = sorted(os.path.join(d, p) for p in os.listdir(d)
-                     if p.startswith("diag_fields"))
+        pfs = sorted((os.path.join(d, p) for p in os.listdir(d)
+                      if p.startswith("diag_fields")), key=_step_key)
         if pfs:
             return pfs
     return plotfiles(run_dir)

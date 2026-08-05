@@ -7,6 +7,7 @@ driver scripts stay thin. Matplotlib uses the non-interactive Agg backend.
 
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import subprocess
@@ -37,10 +38,35 @@ FFMPEG = (os.environ.get("FFMPEG")
           or os.path.join(sys.exec_prefix, "bin", "ffmpeg"))
 
 
+def _phase_of(run_id):
+    """The ``<phase>_phase`` folder holding ``runs/<phase>_phase/<run_id>/``, or None.
+
+    Runs were grouped by phase on 2026-08-04 and media/ mirrors that, but every caller here
+    passes only a run *id*. Resolving the phase from the filesystem keeps all six call sites
+    unchanged; the alternative was threading the run dir through each of them. Falls back to
+    the flat layout when the id is not found, so an ad-hoc id still writes somewhere sane
+    instead of raising.
+    """
+    for cand in glob.glob(os.path.join(ROOT, "runs", "*", run_id, "config.yaml")):
+        return os.path.basename(os.path.dirname(os.path.dirname(cand)))
+    return None
+
+
 def media_dir(run_id=None, testing=False):
-    """Path under media/: ``media/testing`` (progress) or ``media/<run_id>`` (final)."""
-    d = os.path.join(MEDIA, "testing") if testing else \
-        (os.path.join(MEDIA, run_id) if run_id else MEDIA)
+    """Path under media/: ``media/testing`` (progress) or ``media/<phase>_phase/<run_id>``.
+
+    Mirrors runs/, so a run's figures sit beside its siblings. Before the phase regrouping
+    this returned a flat ``media/<run_id>``, which after the move silently wrote outside the
+    mirrored tree -- figures still appeared, just in the wrong place, which is why it went
+    unnoticed until tune_shock printed its path.
+    """
+    if testing:
+        d = os.path.join(MEDIA, "testing")
+    elif run_id:
+        ph = _phase_of(run_id)
+        d = os.path.join(MEDIA, ph, run_id) if ph else os.path.join(MEDIA, run_id)
+    else:
+        d = MEDIA
     os.makedirs(d, exist_ok=True)
     return d
 
