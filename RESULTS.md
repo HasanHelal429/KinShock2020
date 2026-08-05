@@ -2118,3 +2118,21 @@ useless for this. The 50 plotfiles give a frame every 4.4 t_ab, against the pilo
 
 If it saturates, the fix is `theta_implicit_em` (1.30 d on GPU at cfl 3.0, 1.92x this run),
 which conserves energy exactly and cannot grid-heat — not more resolution, which is ~100x.
+
+**max_step truncated 3224046 -> 2784400 (220.0 -> 190.0 t_ab), so the run is 0.58 d / 14.0 h.**
+`field_hi = pec` reflects fields (only particles are absorbed), so every step after the shock
+reaches the far wall is contaminated rather than clean outflow, and the Table I duration spent
+13.6% of the run there. Arrival is 190.9 t_ab at R1_paper's *fitted* v_sh = 4.72 C_s,ab and
+195.7 t_ab at the model 4.6, so 190.0 sits just under the earlier estimate. This costs zero
+science: the discarded steps were all post-arrival.
+
+Deliberately NOT cut to the 186.5 t_ab B-spike onset (RESULTS 2026-07-29, ~80x B_perp/B0 at
+the open boundary from t*wci0 ~ 5.5). That artifact is *localised* and already handled by
+cutting the outer 2 d_i0 when quoting `B_compression`, whereas clean post-formation shock
+propagation is only ~4.2-4.4/wci0 against the 5 wanted. Trading 4.5 t_ab of clean propagation
+for 0.3 h of compute is the wrong direction.
+
+`plotfile_intervals` rescaled 64481 -> 55688 so the frame COUNT stays 50 rather than dropping
+to 43 — one frame every 3.80 t_ab, against the pilot's entire 3.41 t_ab baseline for the
+heating measurement that is this run's key monitored output. NB R1_paper ran the full
+220 t_ab, so compare over the overlapping window.
