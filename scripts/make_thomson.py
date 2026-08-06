@@ -92,11 +92,58 @@ def species_of(cfg, kind):
     return [n for n, s in cfg["species"].items() if s.get("kind") == kind]
 
 
+def numeric_timesteps(diags, prefix="diag1"):
+    """Indices into the reader's LEXICOGRAPHIC plotfile list, in true step order.
+
+    ``pic_thomson._warpx_plotfiles`` sorts with a plain ``sorted()`` on the directory
+    name. That is fine until a run passes 1e6 steps, at which point ``diag11002384``
+    (step 1002384) sorts BEFORE ``diag1111376`` (step 111376) and every frame after the
+    millionth step is read out of order -- a silently scrambled time axis on both
+    spectrograms, with no error and a perfectly plausible-looking figure. R1_paper_470eV
+    ran 2,784,400 steps and is the first run here to trip it; the same bug bit
+    ``kinshock.io.plotfiles`` and was fixed there on 2026-08-05.
+
+    ``timesteps`` is documented as "indices into the sorted list" and the reader
+    preserves the order it is given, so handing it the numerically-sorted permutation
+    fixes the read without touching the vendored fork.
+
+    Returns None when the lexicographic order is already correct, so short runs keep
+    reading (and caching) exactly as before.
+    """
+    import glob as _glob
+    import re as _re
+
+    names = sorted(os.path.basename(p.rstrip("/"))
+                   for p in _glob.glob(os.path.join(diags, f"{prefix}*"))
+                   if os.path.isdir(p))
+    if not names:
+        return None
+
+    def step(n):
+        m = _re.search(r"(\d+)\D*$", n)
+        return int(m.group(1)) if m else -1
+
+    order = sorted(range(len(names)), key=lambda i: step(names[i]))
+    if order == list(range(len(names))):
+        return None
+    j = next(i for i, k in enumerate(order) if i != k)
+    print(f"  plotfile order: lexicographic sort is WRONG across {len(names)} frames "
+          f"(position {j} is {names[j]!r} lexicographically, {names[order[j]]!r} by step); "
+          f"reading in numeric step order")
+    return order
+
+
+def cache_name(species, order):
+    """Cache file for one species: separate when a numeric reorder is in effect."""
+    return f"{species}.npz" if order is None else f"{species}_ordered.npz"
+
+
 def read_phase_spaces(pt, run_dir, cfg, args, cache_dir):
     """Bin every species' phase space, memoising to *cache_dir*."""
     os.makedirs(cache_dir, exist_ok=True)
     mass_ratio = float(cfg["reference"]["mass_ratio"])
     diags = os.path.join(run_dir, "diags")
+    order = numeric_timesteps(diags)
 
     def read(name, mass, *, is_electron):
         return pt.read_warpx_phase_space(
@@ -105,10 +152,14 @@ def read_phase_spaces(pt, run_dir, cfg, args, cache_dir):
             mass=mass,
             label=None if is_electron else args.ion_label,
             is_electron=is_electron,
-            cache=os.path.join(cache_dir, f"{name}.npz"),
+            # The reader's cache signature does NOT include `timesteps`, so a cache
+            # built before the ordering fix would be reused verbatim and silently
+            # defeat it. Reordered reads therefore get their own cache file rather
+            # than deleting anything the user already paid to build.
+            cache=os.path.join(cache_dir, cache_name(name, order)),
             n_velocity_bins=args.velocity_bins,
             n_position_bins=args.position_bins,
-            timesteps=None,
+            timesteps=order,
         )
 
     electrons = [read(n, ME, is_electron=True) for n in species_of(cfg, "electron")]
@@ -353,8 +404,9 @@ def main():
 
     pt = _pt()
     has_yt, has_torch = _have("yt"), _have("torch")
+    _order = numeric_timesteps(os.path.join(run_dir, "diags"))
     cached = all(
-        os.path.exists(os.path.join(cache_dir, f"{n}.npz"))
+        os.path.exists(os.path.join(cache_dir, cache_name(n, _order)))
         for n in species_of(cfg, "electron") + species_of(cfg, "ion")
     )
 
@@ -386,7 +438,11 @@ def main():
         print("  NOTE alpha < 1: sub-collective, so the ion feature is weak and the IAW "
               "panel is dominated by the electron feature and any bulk drift.")
 
-    out_dir = os.path.join(ROOT, "media", run_id)
+    # media_dir() mirrors runs/<phase>/<ID> as media/<phase>/<ID>. Building the path by
+    # hand here wrote a FLAT media/<ID> that escaped the phase mirror, so a run had its
+    # Thomson output in a different place from every other figure it owns.
+    from kinshock import plotting as P          # local: pulls matplotlib, which the
+    out_dir = P.media_dir(run_id=run_id)        # read stage does not need
     os.makedirs(out_dir, exist_ok=True)
     probe = args.probe_wavelength
     stamp = f"{probe:.0f} nm probe, {args.angle:.0f} deg"

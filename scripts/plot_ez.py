@@ -91,6 +91,16 @@ def main():
                     help="field-frame stride for the streak (default 4)")
     ap.add_argument("--smooth-di0", type=float, default=1.0,
                     help="boxcar width for the streak, in d_i0 (default 1.0)")
+    ap.add_argument("--tmax", type=float, default=None,
+                    help="stop at this t*wci0 (default: whole run). Frames are read in step "
+                         "order and reading STOPS at the limit, so an early window is cheap "
+                         "even on a run with 1000+ frames.")
+    ap.add_argument("--zmax", type=float, default=None,
+                    help="clip the z axis at this z/d_i0 (default: whole domain). Use to "
+                         "zoom the piston boundary, where the non-propagating feature sits.")
+    ap.add_argument("--suffix", default=None,
+                    help="output is efield_ez<suffix>.png (default: '_early' when --tmax "
+                         "is given, else '')")
     args = ap.parse_args()
 
     cfg = kinshock.load(args.run_dir)
@@ -99,21 +109,37 @@ def main():
     v_sh = fit.v_sh if fit is not None else sc.vsh_model
     E_scale = v_sh * sc.B0                        # motional field, the natural unit
 
-    pfs = kio.field_plotfiles(args.run_dir)[::args.stride]
-    t, rows, raws = [], [], []
+    # Read in step order and STOP at --tmax rather than loading everything and slicing:
+    # R1_paper has 1291 field frames and an early window needs ~60 of them.
+    all_pfs = kio.field_plotfiles(args.run_dir)
+    t, rows, raws, kept = [], [], [], []
     w = max(1, int(round(args.smooth_di0 * sc.di0 / sc.dz)))
-    for p in pfs:
+    for i, p in enumerate(all_pfs):
         fr = kio.load_frame(p, fields=("Ez",))
+        tt = fr.time * sc.wci0
+        if args.tmax is not None and tt > args.tmax:
+            break
+        if i % args.stride:
+            continue
         ez = fr.comps.get("Ez")
         if ez is None:
             continue
-        t.append(fr.time * sc.wci0)
+        t.append(tt)
+        kept.append(p)
         raws.append(ez)
         rows.append(boxcar(ez, w))
+    if not kept:
+        print(f"no Ez frames within t*wci0 <= {args.tmax}; run has "
+              f"{len(all_pfs)} field plotfiles")
+        return 1
+    pfs = kept
     t = np.array(t)
     Es = np.array(rows) / E_scale
     zc = np.asarray(kio.load_frame(pfs[0]).z_centers) / sc.di0
     R = np.array(raws) / E_scale
+    # The two rms figures are computed over the WHOLE domain even when --zmax zooms the
+    # plot, because the footer calls them "ALL z" and "far upstream" -- quoting a zoomed
+    # number under those labels would be a lie about what was measured.
     rms_raw = float(np.sqrt(np.mean(R ** 2)))
     # The GLOBAL rms is dominated by the shocked plasma and says nothing about the far
     # upstream, where the grid heating was measured. Quote both: on R1_paper_470eV the
@@ -121,6 +147,9 @@ def main():
     nz = R.shape[1]
     up = R[:, int(0.95 * nz):]
     rms_up_early = float(np.sqrt(np.mean(up[: max(1, len(up) * 3 // 4)] ** 2)))
+    if args.zmax is not None:
+        m = zc <= args.zmax
+        zc, Es, R = zc[m], Es[:, m], R[:, m]
 
     fig = plt.figure(figsize=(12.4, 5.2), dpi=200, facecolor=SURFACE)
     gs = fig.add_gridspec(1, 2, width_ratios=[1.5, 1], wspace=0.26)
@@ -157,7 +186,7 @@ def main():
     picks = [int(f * (len(pfs) - 1)) for f in (0.25, 0.55, 0.85)]
     sig = []
     for i in picks:
-        resid = raws[i] / E_scale - Es[i]
+        resid = R[i] - Es[i]        # R, not raws: R is the --zmax-clipped copy
         sig.append(boxcar(resid ** 2, w) ** 0.5)
     span = 2.6 * float(np.nanpercentile(np.concatenate(sig), 90))
     off = 0.0
@@ -198,7 +227,8 @@ def main():
              fontsize=8, color=MUTED)
     fig.subplots_adjust(left=0.055, right=0.975, top=0.90, bottom=0.235,
                         wspace=0.26)
-    out = os.path.join(P.media_dir(run_id=cfg["meta"]["run_id"]), "efield_ez.png")
+    sfx = args.suffix if args.suffix is not None else ("_early" if args.tmax else "")
+    out = os.path.join(P.media_dir(run_id=cfg["meta"]["run_id"]), f"efield_ez{sfx}.png")
     fig.savefig(out, facecolor=SURFACE)
     plt.close(fig)
     print(f"wrote {out}")

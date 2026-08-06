@@ -2681,3 +2681,51 @@ formation while R1_paper_470eV accelerates ambient immediately -- is untouched b
 this. The B_perp story built to explain it was measuring the wrong thing. The open question
 is now the strong, narrow, NON-PROPAGATING field feature at the piston boundary, plus a real
 but modest 1.4x difference in the actual ramp.
+
+## 2026-08-06 — E_z at early times; two `make_thomson.py` bugs; 470 eV fig7 was the default-times imposter
+
+### `make_thomson.py`: plotfile sort, output directory, and a cache that hid the fix
+1. **Sort.** `pic_thomson._warpx_plotfiles` orders with a plain `sorted()` on the directory
+   name. Past 1e6 steps `diag11002384` (step 1002384) sorts BEFORE `diag1111376`
+   (step 111376), so every frame after the millionth was read out of order -- a scrambled
+   time axis on both spectrograms, no error, a plausible-looking figure. `R1_paper_470eV`
+   (2,784,400 steps) is the first run here to trip it; the identical bug hit
+   `kinshock.io.plotfiles` on 2026-08-05. Fixed in OUR script, not the vendored fork, by
+   passing the numerically-sorted permutation as `timesteps` (documented as "indices into
+   the sorted list", and the reader preserves the order it is given). `numeric_timesteps()`
+   returns None when lexicographic order is already correct, so short runs are untouched.
+   **The fork is still wrong for any other caller.**
+2. **Output directory.** `out_dir` was built by hand as `media/<run_id>`, escaping the
+   `media/<phase>/<run_id>` mirror every other figure uses. Now `P.media_dir()`.
+3. **The cache would have hidden fix 1.** The reader's cache signature does NOT include
+   `timesteps`, so a cache built before the fix is reused verbatim and silently defeats it.
+   Reordered reads now get their own `<species>_ordered.npz` rather than deleting anything
+   already paid for.
+
+Verified: `thomson_spectra{,_scaled}.npz` now have strictly monotonic `t` over 51 frames.
+Regenerated for `R1_paper_470eV`, both unscaled and `--velocity-scale-factor physical`
+(R = 18.36, v/4.285): alpha_epw 0.67-4.46 unscaled, 2.88-19.2 scaled -- i.e. the unscaled
+spectra are partly SUB-COLLECTIVE (alpha < 1) while the scaled ones are collective
+throughout. IAW doublet +/-2.3 nm unscaled, +/-0.5 nm scaled.
+
+### fig7: `R1_paper_470eV` was another default-times imposter
+`media/R1_phase/R1_paper_470eV/` had `shock_fig7.png` but no `shock_fig7_rho_i0.png` --
+exactly the tell documented at RESULTS 2026-07-27 and hit again on R1_paper 2026-08-03.
+Regenerated on the convention times with both x-unit variants; it now picks up the by-eye
+fit automatically (v_sh = 0.0165c, M_A = 16.50).
+
+**The 470 eV run's particle cadence cannot resolve early formation.** 51 frames over
+t*wci0 = 0..5.60 is 0.11 spacing, so the first fig7 panel snaps 0.15 -> 0.11, and only
+THREE particle frames exist below t*wci0 = 0.3 (0.00, 0.11, 0.22). The field diagnostics
+have 1115 frames over the same span but carry no particles (`write_species = 0`). Early
+phase space needs a rerun with the cadence inverted, not re-plotting.
+
+### `plot_ez.py`: `--tmax`, `--zmax`
+Reading STOPS at `--tmax` rather than loading all 1291 frames and slicing, so an early
+window is cheap. `--zmax` clips the spatial axis; the two footer rms figures are still
+computed over the WHOLE domain, because they are labelled "ALL z" and "far upstream" and a
+zoomed number under those labels would misreport what was measured.
+
+**Normalizations are NOT comparable across the two unit systems.** v_sh*B0 is 3.01e9 V/m
+for R1_paper against 3.48e7 for R1_paper_470eV -- 87x, from B0 10x and v_sh 8.7x. The
+apparent "2.0 vs 23.0" rms E_z is mostly denominator, not physics.
