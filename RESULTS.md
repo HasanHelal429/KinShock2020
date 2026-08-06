@@ -2729,3 +2729,57 @@ zoomed number under those labels would misreport what was measured.
 **Normalizations are NOT comparable across the two unit systems.** v_sh*B0 is 3.01e9 V/m
 for R1_paper against 3.48e7 for R1_paper_470eV -- 87x, from B0 10x and v_sh 8.7x. The
 apparent "2.0 vs 23.0" rms E_z is mostly denominator, not physics.
+
+## 2026-08-06 (addendum) — Thomson panel restructured; the convention flags for `R1_paper_470eV`
+
+### The command — a bare re-run reverts the windows, exactly like fig7
+```
+python scripts/make_thomson.py runs/R1_phase/R1_paper_470eV \
+    --velocity-scale-factor physical --notch 525 541 --epw-max 625 --iaw-halfwidths 8
+```
+(read stage first under `physics`, this is the model stage under `tsnn`.)
+
+Unlike fig7, the artifact now **records its own settings**: `thomson_spectra*.npz` carries
+`epw_notch_nm`, `epw_max_nm`, `iaw_halfwidths`, `velocity_scale_factor`, and the
+`species_fraction` line-out. A default-window file is now identifiable by its contents
+instead of by mtime archaeology.
+
+### Why each flag
+* **`--epw-max 625`** (new flag). The derived window is 2 sigma of the electron feature,
+  which `--velocity-scale-factor physical` shrinks by sqrt(18.36) = 4.3x -- it was +/-26.4 nm
+  and cut the satellites off. Now +/-93 nm (439-625). The satellites run ~508/557 nm early
+  to ~487/575 nm at 200 ps, then break into broad structure after 280 ps that the old
+  window did not contain at all.
+* **`--iaw-halfwidths 8`** (+/-4.3 nm, was the 2.5 default = +/-1.3 nm). The window is sized
+  from C_s, but after ~170 ps the bulk drift far exceeds C_s and carried the feature out of
+  frame: **30 of 51 frames had their peak PINNED to the window edge**, which read as a flat
+  bright band along the bottom and is a clipping artifact, not physics. Now 0/51 pinned,
+  median 0.04% of power in the outer 3 bins. What the clipping was hiding: a resolved
+  doublet before ~170 ps, a sharp blue shift to ~529 nm at 200-240 ps, then recovery to
+  ~530 and a slow red drift back toward line centre.
+* **`--notch 525 541`** (default is exactly the IAW window). Verified blanked: mean AND max
+  are 0.0 across the band. 541 rather than 535 because residual power sat at 535-540 with
+  the brightest bin at 539.2 nm.
+
+### Middle panel: species fraction, not per-timestep normalisation
+`--no-species-fraction` restores the old panel. The new one is the piston density fraction
+**in the probe volume** (a line-out at z/d_i0 = 40.2, no spatial axis -- the spectra come
+from one position, so that position's is the only comparable information).
+
+**It dates the piston arrival, which the spectra alone cannot:** the fraction is ~0.00 until
+~230 ps, then rises almost vertically to 1.00 by ~260 ps, crossing 50% at **245 ps**.
+
+That timing changes the reading of the IAW panel. The blue shift BEGINS at ~200 ps while the
+probe volume is still pure ambient, and the piston does not arrive for another ~45 ps -- so
+the first thing the diagnostic sees is **the shock foot pushing ambient ions ahead of the
+contact**, not piston material. The two-stage structure (shift at 200-240, settled band at
+~530 nm after) maps onto compressed-ambient-then-piston.
+
+Contact speed from the 0.5 contour: **0.0133 c**, against the by-eye shock fit of 0.0165c.
+Different surfaces -- contact discontinuity vs shock front -- and a shock outrunning its
+driver by ~25% is the expected ordering, so this is a consistency check that passes.
+
+Cost note: the alpha panel is unchanged, and the run is collective throughout under the
+scaling (alpha 2.87-19.2). The UNSCALED spectra dip to alpha = 0.67, i.e. partly
+sub-collective, where the IAW panel shows the electron feature and bulk drift rather than a
+true ion feature -- read the reported alpha before interpreting either.

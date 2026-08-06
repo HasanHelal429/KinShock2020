@@ -232,6 +232,15 @@ def model(pt, electrons, ions, cfg, scales, args):
           + (f"  ->  {i_sigma / vscale:.4g} ({i_sigma / vscale / c:.5f} c)" if R else ""))
 
     epw_half = 2.0 * doppler_nm(e_sigma / vscale, args.probe_wavelength, angle, c)
+    if args.epw_max is not None:
+        # Explicit red edge. The derived window is 2 sigma of the electron feature, which
+        # under --velocity-scale-factor physical shrinks by sqrt(18.36) = 4.3x and can cut
+        # the satellite wings off. Widening costs nothing but resolution: --wavelength-bins
+        # is fixed, so a wider window is a coarser one.
+        epw_half = float(args.epw_max) - args.probe_wavelength
+        if epw_half <= 0:
+            raise SystemExit(f"--epw-max {args.epw_max} must exceed the probe "
+                             f"wavelength {args.probe_wavelength}")
     # Size the IAW window from the ion-acoustic speed, NOT the ion thermal sigma:
     # the piston drift dominates that sigma, and using it widens the window ~6x
     # until the doublet spans 2-3 pixels.
@@ -292,8 +301,32 @@ def model(pt, electrons, ions, cfg, scales, args):
     ), R
 
 
-def panel(out_dir, kind, data, wavelengths_m, alpha, t, probe_nm, title, fname):
-    """Spectrogram: absolute, per-timestep normalised, and alpha."""
+def species_fraction(phase_spaces, names, di0, key="piston"):
+    """Piston fraction of the density at every (t, x): 1 = pure piston, 0 = pure ambient.
+
+    The zeroth moment of each species' f(t, v, x) over v, summed by population. This is
+    what tells you WHERE the ambient ends and the piston starts, which the spectrogram
+    alone cannot -- Thomson samples one position, so the spectra say only that something
+    arrived, not what.
+
+    Returns (fraction[t, x], x/d_i0) or None if the run has no species matching *key*.
+    """
+    tot = pist = None
+    for ps, name in zip(phase_spaces, names):
+        n = np.trapezoid(np.asarray(ps.f), np.asarray(ps.v), axis=1)   # (t, v, x) -> (t, x)
+        tot = n if tot is None else tot + n
+        if key in name:
+            pist = n if pist is None else pist + n
+    if pist is None or tot is None:
+        return None
+    with np.errstate(invalid="ignore", divide="ignore"):
+        frac = np.where(tot > 0, pist / tot, np.nan)   # vacuum is undefined, not zero
+    return frac, np.asarray(phase_spaces[0].x) / di0
+
+
+def panel(out_dir, kind, data, wavelengths_m, alpha, t, probe_nm, title, fname,
+          frac=None, sample_x_di0=None):
+    """Spectrogram: absolute, piston fraction (or per-timestep normalised), and alpha."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -318,21 +351,55 @@ def panel(out_dir, kind, data, wavelengths_m, alpha, t, probe_nm, title, fname):
     fig.colorbar(im, ax=axes[0], label="S(k, w)")
     axes[0].set_title("absolute")
 
-    # The scattered power climbs ~2 decades as the piston arrives, which would
-    # otherwise saturate the late frames and black out the early ones.
-    with np.errstate(invalid="ignore"):
-        norm = data / np.nanmax(data, axis=1, keepdims=True)
-    im = axes[1].imshow(
-        norm.T, origin="lower", aspect="auto",
-        extent=[t_ps[0], t_ps[-1], nm[0], nm[-1]], cmap="inferno", vmin=0.0, vmax=1.0,
-    )
-    fig.colorbar(im, ax=axes[1], label="S(k, w) / max per timestep")
-    axes[1].set_title("normalised per timestep")
+    if frac is not None:
+        # A LINE-OUT at the probe volume, not a map: the spectra come from one position,
+        # so the only spatial information that can be compared against them is that
+        # position's. Time axis shared with the spectrogram, so a feature at time T can
+        # be read straight across.
+        f1 = np.asarray(frac)
+        axes[1].fill_between(t_ps, 0, f1, color="#eb6834", alpha=0.25, lw=0)
+        axes[1].fill_between(t_ps, f1, 1, color="#2a78d6", alpha=0.18, lw=0)
+        axes[1].plot(t_ps, f1, color="#8f3714", lw=1.8)
+        axes[1].axhline(0.5, color="0.45", ls=":", lw=1.0)
+        axes[1].set_ylim(0, 1)
+        axes[1].set_xlim(t_ps[0], t_ps[-1])
+        cross = np.where(f1 > 0.5)[0]
+        if cross.size:
+            tc = t_ps[cross[0]]
+            axes[1].axvline(tc, color="#0b0b0b", ls="--", lw=1.1)
+            # inside the axes: at y=1.02 this collided with the panel title
+            axes[1].annotate(f"50% at {tc:.0f} ps", xy=(tc, 0.5),
+                             xytext=(-8, 0), textcoords="offset points",
+                             fontsize=8.5, color="#0b0b0b", ha="right", va="center",
+                             rotation=90)
+        # Label each population where it actually dominates, not at a fixed height --
+        # the shaded bands swap sides as the interface passes.
+        axes[1].text(t_ps[-1] * 0.03, 0.5, "ambient", ha="left", va="center",
+                     fontsize=9.5, color="#1d5aa5")
+        axes[1].text(t_ps[-1] * 0.97, 0.5, "piston", ha="right", va="center",
+                     fontsize=9.5, color="#8f3714")
+        axes[1].set_xlabel("time (ps)")
+        axes[1].set_ylabel("piston / (piston + ambient) density")
+        where = "" if sample_x_di0 is None else rf" at $z/d_{{i0}}$ = {sample_x_di0:.1f}"
+        axes[1].set_title(f"species fraction in the probe volume{where}")
+    else:
+        # The scattered power climbs ~2 decades as the piston arrives, which would
+        # otherwise saturate the late frames and black out the early ones.
+        with np.errstate(invalid="ignore"):
+            norm = data / np.nanmax(data, axis=1, keepdims=True)
+        im = axes[1].imshow(
+            norm.T, origin="lower", aspect="auto",
+            extent=[t_ps[0], t_ps[-1], nm[0], nm[-1]], cmap="inferno", vmin=0.0, vmax=1.0,
+        )
+        fig.colorbar(im, ax=axes[1], label="S(k, w) / max per timestep")
+        axes[1].set_title("normalised per timestep")
+        axes[1].axhline(probe_nm, color="cyan", ls="--", lw=0.8, alpha=0.8)
+        axes[1].set_xlabel("time (ps)")
+        axes[1].set_ylabel("wavelength (nm)")
 
-    for ax in axes[:2]:
-        ax.axhline(probe_nm, color="cyan", ls="--", lw=0.8, alpha=0.8)
-        ax.set_xlabel("time (ps)")
-        ax.set_ylabel("wavelength (nm)")
+    axes[0].axhline(probe_nm, color="cyan", ls="--", lw=0.8, alpha=0.8)
+    axes[0].set_xlabel("time (ps)")
+    axes[0].set_ylabel("wavelength (nm)")
 
     alpha = np.asarray(alpha)
     axes[2].semilogy(t_ps, alpha, lw=1.4)
@@ -363,6 +430,13 @@ def main():
                     help="sampling position in m (default: domain centre)")
     ap.add_argument("--ion-label", default="p+",
                     help="physical species the simulation ions stand for")
+    ap.add_argument("--no-species-fraction", action="store_true",
+                    help="restore the old per-timestep-normalised middle panel instead of "
+                         "the piston/ambient fraction")
+    ap.add_argument("--epw-max", type=float, default=None, metavar="NM",
+                    help="red edge of the EPW window in nm; the window is symmetric, so "
+                         "625 with a 532 probe gives 439-625. Default: 2 sigma of the "
+                         "electron feature, which the velocity rescaling shrinks 4.3x.")
     ap.add_argument("--iaw-halfwidths", type=float, default=2.5, metavar="N",
                     help="IAW window half-width in units of the C_s Doppler shift")
     ap.add_argument("--velocity-scale-factor", default=None, metavar="R",
@@ -451,13 +525,30 @@ def main():
     tag = args.tag if args.tag is not None else ("scaled" if R is not None else "")
     suffix = f"_{tag}" if tag else ""
 
+    # Species fraction from the ELECTRONS: quasineutrality makes the two populations
+    # track each other, and the electron phase spaces are the ones the spectra are
+    # built from, so the panel describes the same particles.
+    sample_x = float(spec.position) / scales.di0
+    frac = None
+    if not args.no_species_fraction:
+        fx = species_fraction(electrons, species_of(cfg, "electron"), scales.di0)
+        if fx is not None:
+            F, xd = fx
+            j = int(np.argmin(np.abs(xd - sample_x)))    # the probe volume's row
+            frac = F[:, j]
+            cross = np.where(frac > 0.5)[0]
+            when = (f"crosses 50% at t = {np.asarray(spec.t)[cross[0]] * 1e12:.0f} ps"
+                    if cross.size else "never reaches 50%")
+            print(f"  species fraction at z/d_i0 = {xd[j]:.2f} (probe volume): "
+                  f"{np.nanmin(frac):.2f}..{np.nanmax(frac):.2f}, {when}")
+
     panel(out_dir, "epw", spec.epw, spec.epw_wavelengths, spec.alpha_epw, spec.t,
           probe, f"{run_id} — Thomson EPW (electron feature), {stamp}",
-          f"thomson_epw{suffix}.png")
+          f"thomson_epw{suffix}.png", frac=frac, sample_x_di0=sample_x)
     if spec.iaw is not None:
         panel(out_dir, "iaw", spec.iaw, spec.iaw_wavelengths, spec.alpha_iaw, spec.t,
               probe, f"{run_id} — Thomson IAW (ion-acoustic feature), {stamp}",
-              f"thomson_iaw{suffix}.png")
+              f"thomson_iaw{suffix}.png", frac=frac, sample_x_di0=sample_x)
 
     npz = os.path.join(out_dir, f"thomson_spectra{suffix}.npz")
     np.savez_compressed(
@@ -477,6 +568,15 @@ def main():
         scattering_angle_deg=args.angle,
         # np.nan, not 0, so an unscaled file cannot be misread as R = 0.
         velocity_scale_factor=(np.nan if R is None else float(R)),
+        # The window settings, so a file is self-describing. Without these there is no
+        # way to tell a convention-flag figure from a default-window one except by mtime
+        # -- exactly the trap that let a default-times shock_fig7.png sit around twice.
+        epw_notch_nm=(np.zeros(0) if args.no_notch or args.notch is None
+                      else np.asarray(args.notch, dtype=float)),
+        epw_max_nm=(np.nan if args.epw_max is None else float(args.epw_max)),
+        iaw_halfwidths=float(args.iaw_halfwidths),
+        species_fraction=(np.zeros(0) if frac is None else np.asarray(frac)),
+        species_fraction_x_di0=(np.nan if frac is None else float(sample_x)),
     )
     print(f"  wrote {npz}")
 
