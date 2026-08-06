@@ -2783,3 +2783,87 @@ Cost note: the alpha panel is unchanged, and the run is collective throughout un
 scaling (alpha 2.87-19.2). The UNSCALED spectra dip to alpha = 0.67, i.e. partly
 sub-collective, where the IAW panel shows the electron feature and bulk drift rather than a
 true ion feature -- read the reported alpha before interpreting either.
+
+## 2026-08-06 — h2 NEGATIVE. The 470 eV upstream noise is the parameter point, not a numerical artifact
+
+`h2_shape3` ran 440,000 steps (30.0 t_ab) in 1h21m on two GPUs, clean, 23 field frames.
+It was staged as the decisive test of an aliasing hypothesis. It refuted it.
+
+### Result: cubic splines do essentially nothing
+
+| variant | dT_0 | E_z rms upstream (t*wci0 = 0.08) | grid-scale part |
+|---|---|---|---|
+| `h0_baseline` (shape 2) | 29.7 eV | 30.51 | 18.65 |
+| `h1_filter8` | 26.0 eV | 19.55 | **5.29** |
+| `h2_shape3` | **28.0 eV** | **30.00** | **18.27** |
+| `R1_paper` (reference) | -- | 2.25 | 0.85 |
+
+E_z rms moves **1.7%**, grid-scale noise 2%. h2 is also WORSE than h1 on dT_0 (5.7% vs
+12.5%). Filtering does cut grid-scale noise (72%) yet bought only 12.5% on heating, so the
+heating is not dominated by the grid-scale component either -- the aliasing story fails from
+both directions.
+
+All E fields here are normalised by **v_A * B0**, configured quantities. Never the fitted
+v_sh: that is the thing under investigation (see Retraction 1).
+
+### The actual diagnosis: E_th/(v_A B0) = beta * c/v_ti
+
+The thermal electrostatic scale is E_th = sqrt(n T / eps0), which gives the exact identity
+**E_th/(v_A B0) = beta * c/v_ti**.
+
+```
+              beta_0   T0[eV]   c/v_ti   beta*c/v_ti   measured   meas/pred   N per lambda_D
+R1_paper      0.2000   1022.0    223.6       44.7        2.25       0.050        166.7
+h0_baseline   0.1957     10.0   2260.5      442.5       30.51       0.069         16.5
+```
+
+Both runs sit at the **same 5-7% of their own thermal noise scale**. Nothing is anomalous
+about the 470 eV run's noise physics. beta_0 is identical by construction, but c/v_ti is 10x
+larger, so identical relative noise is 10x larger measured against the MHD field scale.
+
+**This is the reduced-c trick being undone.** R1_paper reaches the parameter point with a
+reduced c (c/v_ti = 224); the 470 eV rebuild uses real c at real temperatures and gets
+c/v_ti = 2261. The upstream electrostatic noise floor relative to v_A B0 rises by exactly
+that ratio, and it drives ambient ions before any shock exists.
+
+This is the same trap CLAUDE.md already records for lambda_ab: the paper's §II says the
+scaling "ensures that dimensionless quantities are correct, but [collisionality] relative to
+global scales is only quantitatively matched **at physical mass ratios**." The knob that
+buys both is mu_p = 1836, not a reduced c -- and not a numerical lever.
+
+### No cheap lever closes a 10x
+Noise ~ 1/sqrt(N_lambda_D), and there are **16.5 particles per Debye length against
+R1_paper's 167**. Recovering 10x needs ~100x ppc, or ~6x finer cells (~36x cost with the
+CFL). **This retires h4** (`ppc: 400` buys sqrt(4) = 2x) and h3 (filter+shape, and shape
+contributes nothing). The remaining choices are to return to reduced-c for this physics, or
+to accept the 470 eV run as upstream-noise-dominated and not comparable to R1_paper on early
+shock formation. That is a physics-setup decision, not a numerics one.
+
+### RETRACTION 1 — "there is no false shock" was circular
+Earlier today I compared the two runs at equal SHOCK TRAVEL (z_sh = M_A * t*wci0), found the
+accelerated-ambient fraction collapsing to a few percent, noted the time offset (1.159)
+matched the M_A ratio (1.154) to 0.4%, and concluded the false shock was a normalisation
+artifact. **That is circular.** Both runs are configured with the identical dimensionless
+driver, v_p/v_A = 10.4. M_A is therefore an OUTPUT that should agree; measuring 16.50 against
+14.30 IS the anomaly. I divided by the signal and reported that it vanished.
+
+The reflected-ion fraction is also the wrong diagnostic -- it is a ratio that normalises out
+the effect. The right quantities are the ambient phase-space STRUCTURE and the B and E
+fields, which is where the 13x upstream E_z shows up immediately.
+
+### RETRACTION 2 — the aliasing hypothesis, and an over-read of i0/i1
+Having found the E_z excess, I attributed it to finite-grid aliasing at dz/lambda_D = 6.07
+and predicted `particle_shape: 3` would cut it. h2 shows it does not (1.7%).
+
+I also over-read the implicit result. i0/i1 showed theta_implicit_em and Villasenor
+deposition change nothing -- correct, and they do rule out energy non-conservation. They do
+NOT rule out a Debye-resolution cause, which is what I claimed at the time. Corroborating:
+i0 and i1 reach T_up = 12.50 vs 12.46 eV, indistinguishable.
+
+Three hypotheses tested and rejected in order -- energy non-conservation (i0/i1), aliasing
+(h2), and "it is only a normalisation" (retraction 1). What survives is the parameter point.
+
+### Cost: still not measured
+h2 ran at 0.0110 s/step on an IDLE box against h0's 0.0103 under load 18.3 -- so cubic
+splines look ~free here, but the two differ in load as much as in shape order. The cost of
+`particle_shape: 3` remains unmeasured on this deck.
