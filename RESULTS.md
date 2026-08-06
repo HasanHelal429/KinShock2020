@@ -2613,3 +2613,71 @@ Measured **0.0807 s/step on one contended card** -> ~3.3 h for 149,164 steps, ag
 the implicit scheme is Newton-iteration-bound rather than bandwidth-bound and would not.
 Newton converges in **2 iterations to rel 4.6e-10** at cfl 0.75, so the runs/opt_phase
 solver retune holds at this timestep.
+
+## 2026-08-05 — implicit test NEGATIVE; and the "11x instant barrier" was a wall spike
+
+`i0_implicit_cfl075` (theta_implicit_em) and `i1_explicit_villasenor` (deposition-only
+control) both ran to 149,164 steps (t*wci0 = 0.30) on ONE GPU, zero failure signatures,
+Newton at 2 iterations to rel 4.6e-10 throughout. i0 3h19m at 0.0802 s/step; i1 0h43m at
+0.0173 s/step. i1's progress logger died before writing its DONE marker -- completion was
+verified from `run.log` (`STEP 149164 ends`), not the progress log.
+
+### Result: neither the scheme nor the deposition
+
+Pre-registered three-way read (staged 2026-08-05, both configs' headers):
+
+    i0 ~ i1 ~ 11x                     -> not the scheme; hypothesis wrong   <- THIS ONE
+    i0 builds gradually, i1 stays 11x -> implicit fixes it: Debye resolution is the cause
+    i1 also builds gradually          -> it was the DEPOSITION all along
+
+max coherent |B_perp|/B0 at t*wci0 = 0.29, smoothed over 0.2 d_i0:
+
+| run | wall spike | ramp (z > 0.5 d_i0) |
+|---|---|---|
+| `R1_paper` | 4.78 | 4.25 |
+| `R1_paper_470eV` | 10.70 | 5.98 |
+| `i0_implicit_cfl075` | 12.19 | 5.51 |
+| `i1_explicit_villasenor` | 10.97 | 6.88 |
+
+Exact energy conservation at theta = 0.5 does NOT remove the effect, and neither does
+Villasenor deposition. **The finite-grid instability is not the cause.** Whatever separates
+R1_paper from R1_paper_470eV is upstream of both the field solve and the deposition.
+
+### CORRECTION 1: the 11x was a boundary feature, not a shock ramp
+
+The 2026-08-05 entry above reported R1_paper_470eV at ~11x coherent B_perp against
+R1_paper's 3.5-6.1, and called it the major finding. That comparison took the max over the
+WHOLE domain, and a non-propagating feature at z ~ 0.10 d_i0 owns it in every run. At
+t*wci0 = 0.14 the shock should be at M_A * 0.14 = 2.3 d_i0, so the maximum was never the
+ramp. Excluding z < 0.5 d_i0, the propagating structure differs by **~1.4x, not ~2.3x**
+(5.98 vs 4.25 at t*wci0 = 0.29).
+
+Corroborating: the wall feature's FWHM is 0.25-0.47 d_i0 in the 470 eV runs against
+2.5-4.7 d_i0 in R1_paper. At 0.2 d_i0 smoothing, 0.25 d_i0 is the kernel width itself --
+an unresolved spike, not a structure. The noise-ratio check that was supposed to catch
+artifacts did not catch this one: it tests noise-vs-coherent, not where the max sits.
+
+### CORRECTION 2: it is not "instant" either
+
+With 22 field frames instead of three sampled times, the rise is fully resolved:
+
+    t*wci0    0.00  0.014  0.029  0.043  0.057  0.086  0.114  0.143
+    R1_paper  1.00   2.17   2.83   2.77   2.84   3.11   3.57   3.58
+    470eV     1.00   2.27   2.80   3.52   5.12   7.82   9.92  11.70
+    i0        1.00   2.23   3.08   4.08   5.35   9.01  11.29  12.30
+
+All three share the same initial climb to ~2.2 by t*wci0 = 0.014 and diverge only after
+~0.03. "~11x at the first output frame and stays flat" came from sampling three widely
+spaced times in a run that had 1115 frames on disk.
+
+### Method now reproducible
+`scripts/plot_bperp_pileup.py` replaces the ad-hoc script that produced the retracted
+numbers. It still defaults to a domain-wide max -- **add boundary exclusion before reusing
+it**; the wall spike is the default answer otherwise.
+
+### What survives
+The user's original phase-space observation -- R1_paper passes through the stages of shock
+formation while R1_paper_470eV accelerates ambient immediately -- is untouched by any of
+this. The B_perp story built to explain it was measuring the wrong thing. The open question
+is now the strong, narrow, NON-PROPAGATING field feature at the piston boundary, plus a real
+but modest 1.4x difference in the actual ramp.
