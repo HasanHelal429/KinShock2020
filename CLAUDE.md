@@ -73,6 +73,16 @@ Paths below are relative to `runs/`; each id also has a `media/<phase>_phase/<id
   (RESULTS 2026-08-04).
 
 **`R2_phase/`**, **`R3_phase/`** — `R2`, `R3` controls.
+**`heat_phase/`**, **`implicit_phase/`** — mitigation attempts at the *production* resolution
+(filtering, spline order, θ-implicit, Villasenor). All negative; see RESULTS 2026-08-05.
+**`H_phase/`**, **`S_phase/`** — the two resolution sweeps that replaced them (staged
+2026-08-11, **not launched**). Both are 2-D grids in (dz/λ_D, N_D = ppc·λ_D/dz), because
+refining dz improves *both* aliasing and particle noise while ppc improves only noise — so
+a 1-D dz scan cannot say which matters, and at fixed N_D ppc is 4× cheaper. `H_phase` is a
+piston-free uniform ambient box (grid heating, measured straight off `EP`/`PN`); `S_phase`
+is the production deck truncated to 12 d_i0 and t·ω_ci0 = 0.30 (early shock formation).
+**Read `runs/<phase>/README.md` before touching either** — they carry the design, the
+control runs, and the measured cost of every point and of the production rerun.
 **`xcheck_phase/`** — `xcheck_flatfoil_1d`, a PSC cross-check deck (no `config.yaml`, so it is
 absent from `--all` by design).
 **`opt_phase/`** — performance sweeps, not physics runs: no `config.yaml`, one dir per
@@ -104,6 +114,7 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 | `make_thomson.py` | synthetic Thomson EPW/IAW spectrograms (two-env: reads under `physics`, models under `tsnn`) |
 | `run_progress_logger.py` | sidecar wall-clock progress/ETA log (`<run_dir>/progress.log`) |
 | `bfield_diagnostic.py` | B-field fluctuation: physical vs numerical (spectra/polarization/particle-response) |
+| `heating_rate.py` | grid heating of an `H_phase` box from `EP`/`PN` (**piston-free runs only** — use `grid_heating.py` for a production run) |
 
 ## Hard-won conventions & gotchas
 - **Shock kinematics come from `runs/<ID>/shock_fit.yaml`, fit BY EYE** (`scripts/tune_shock.py`),
@@ -188,6 +199,12 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 - **Performance.** Launch with `OMP_NUM_THREADS=8 OMP_PROC_BIND=spread OMP_PLACES=cores`
   — near-linear to 8 cores (~1.8× vs 4), memory-bandwidth-bound beyond. `max_grid_size`,
   tiling, and `sort_intervals` were **benchmarked as neutral-to-negative** here — don't bother.
+  ⚠ That "neutral-to-negative" holds for *finer* decompositions only. **One box is a 7.3×
+  penalty on CPU** (measured 2026-08-11, `hs_dz1_ppc400` at 8 threads: 0.1073 s/step at
+  `max_grid_size = n_cell` vs 0.0148 at 64) — AMReX does not tile in 1D, so one box is one
+  tile and one working thread. But `max_grid_size = n_cell` is exactly what a *GPU* wants
+  and what `launch.sh -g` requires, so the same key is right on one device and 7× wrong on
+  the other. Moving a run between them means editing `config.yaml` and regenerating.
 - **Physics caveat.** dz/λ_D ≈ 7 (Debye under-resolved) → grid heating. Near-shock foot
   turbulence is physical (converged); far-upstream small-scale (lambda<~2-3 d_e) hash is
   numerical grid noise (filter_npass=8 cuts it 31%). See `studies/bfield_convergence/` + RESULTS.

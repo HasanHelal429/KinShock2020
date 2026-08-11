@@ -1,0 +1,128 @@
+# ss_dz4_ppc25 -- early-shock-formation resolution sweep, point (dz/4, ppc 25).
+#
+# READ runs/S_phase/README.md FIRST. It carries the design, the (dz/lambda_D, N_D)
+# grid, the domain-truncation control, and how to read the result.
+#
+# THIS POINT
+#   dz/lambda_D,amb = 1.516   (production R1_paper_470eV is 6.066; R1_paper is 0.600)
+#   N_D = ppc*lambda_D/dz = 16.5 particles per Debye length   (production is 16.5)
+#   dz = 0.075 d_e,ab -> 17920 cells over a 12.021 d_i0 one-sided domain
+#   max_step = 600000 = 0.3018/wci0
+#   cost = 4 x the ss_dz1_ppc100 point
+#
+# WHAT THIS RUN IS. R1_paper_470eV's physics EXACTLY -- same piston, heater, injector,
+# collisions, B0, densities, temperatures -- on a domain truncated to 12.0 d_i0 and a
+# window truncated to t*wci0 = 0.30. That window brackets the anomaly: at t*wci0 = 0.39
+# the 470 eV run already has accelerated ambient ions where R1_paper has none
+# (RESULTS 2026-08-05, scripts/compare_phase.py), so whatever starts it starts inside
+# this window. By t*wci0 = 0.30 the piston has travelled 3.12 d_i0 and the model shock
+# 4.19 d_i0, so the domain gives 2.9x head-room ahead of the front.
+#
+# THE ONE THING TO CHECK BEFORE TRUSTING THIS DOMAIN. `field_hi = open` is pec, which
+# REFLECTS fields; only particles are absorbed. Light crosses 12.0 d_i0 in 6000 steps,
+# so the piston turn-on precursor makes ~25 round trips inside this window where in the
+# full 80.5 d_i0 domain it makes ~4. That is a real difference, and it is why the
+# (ss_dz1_ppc100) point is a CONTROL, not just the cheapest sweep point: it must reproduce the
+# full R1_paper_470eV run over t*wci0 <= 0.30 before any other point here means
+# anything. The full run's diag_fields cadence (2500 steps) gives ~60 frames in that
+# window, so the comparison costs no new compute.
+
+meta:
+  run_id: ss_dz4_ppc25
+  tier: Sweep
+  description: >
+    R1_paper_470eV on a truncated domain and window,
+    dz = 0.075 d_e,ab (dz/lambda_D = 1.516), ppc 25 (N_D = 16.5).
+    Early-formation resolution sweep point; see runs/S_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_ss_dz4_ppc25
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.19767056e-4   # 470 eV
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 1344.0
+  dz_over_de: 0.075          # [d_e,ab] -> dz/lambda_D,amb = 1.516
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2           # [-] baseline. h2_shape3 showed order 3 moves the
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 600000
+  max_grid_size: 17920      # [cells] = n_cell, i.e. ONE box: correct for a single
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 25
+    ambient: 25
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 20000     # 30 frames (phase space -- the ion
+                              # acceleration signature)
+  field_intervals: 4000       # 150 field-only frames. THE PRIMARY OUTPUT:
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 2000       # 300 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.0103986833     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.

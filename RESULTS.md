@@ -2867,3 +2867,116 @@ Three hypotheses tested and rejected in order -- energy non-conservation (i0/i1)
 h2 ran at 0.0110 s/step on an IDLE box against h0's 0.0103 under load 18.3 -- so cubic
 splines look ~free here, but the two differ in load as much as in shape order. The cost of
 `particle_shape: 3` remains unmeasured on this deck.
+
+---
+
+## 2026-08-11 — Two resolution sweeps staged: `H_phase` (heating) and `S_phase` (early shock)
+
+`R1_paper_470eV` is settled as the baseline. Two defects remain, and both are suspected to
+be under-resolution: **(a)** a shock that forms too early, via an upstream E-field pileup,
+and **(b)** numerical heating of the upstream. This entry stages a separate sweep for each,
+benchmarks every point, and prices the production rerun. **Nothing has been launched.**
+
+### The framing that shapes both sweeps: two knobs, not one
+
+Every previous mitigation attempt varied one knob at the production resolution and failed —
+`h1_filter8` (12.5 %), `h2_shape3` (1.7 %), `i0`/`i1` (indistinguishable). What was never
+varied is the pair that actually sets the physics of an under-resolved PIC plasma:
+
+- **dz/λ_D,amb = 6.07** — aliasing, which drives the finite-grid instability. `R1_paper`,
+  which behaves, sits at 0.60.
+- **N_D = ppc·λ_D/dz = 16.5** — particles per Debye length, which sets the *amplitude* of
+  the thermal-fluctuation noise (∼1/√N_D). `R1_paper`: 167.
+
+Refining dz improves **both**; raising ppc improves **only** N_D. A one-dimensional dz scan
+therefore cannot say which one matters — and the answer sets the price, because at fixed
+N_D **ppc is 4× cheaper than dz** (cost ∝ ppc, but ∝ dz⁻² once dt follows the CFL). Both
+sweeps are built as grids where lines of constant N_D cross lines of constant dz/λ_D, so
+the two effects separate. Designs, grids and readings: `runs/H_phase/README.md`,
+`runs/S_phase/README.md`.
+
+### `H_phase` — 8 runs, uniform ambient box, no piston
+
+A periodic 2.06 d_i0 box of ambient plasma and nothing else: no piston, no heater, no
+injector, no shock. Everything else byte-identical to `R1_paper_470eV`, including the
+collision block. Window 440 000 steps = 30.0 t_ab — **the same window `h0_baseline`
+measured (+29.7 eV)**, so `hs_dz1_ppc100` is both the production parameter point and the
+control.
+
+With no piston and no injector the domain-wide mean energy per particle *is* the
+temperature, so `EP`/`PN` carry the whole measurement — free, ~1000 rows, no plotfile
+binning. This is precisely what `grid_heating.py`'s docstring says the reduced diagnostic
+cannot do in the full deck. New `scripts/heating_rate.py` reads it. Verified on the
+benchmark output: 153 600 macroparticles exactly constant, T = 10.01 eV for both species at
+step 0.
+
+### `S_phase` — 6 runs, R1_paper_470eV truncated to 12.0 d_i0 and t·ω_ci0 = 0.30
+
+Identical physics to the production run — same piston, heater, injector, collisions, B₀ —
+on 1/6.7 of the domain and 1/19 of the window. By t·ω_ci0 = 0.30 the piston has gone
+3.12 d_i0 and the model shock 4.19 d_i0, so there is 2.9× head-room; the anomaly is visible
+by 0.39, so it starts inside the window.
+
+⚠ **The truncated domain is not free.** `field_hi = open` is pec, which *reflects* fields.
+Light crosses 12 d_i0 in ~6000 steps, so the turn-on precursor makes ~25 round trips here
+against ~4 in the full domain. `ss_dz1_ppc100` is therefore a **control, not just the
+cheapest point**: it must reproduce the full run over t·ω_ci0 ≤ 0.30 before anything else
+in the phase means anything. The full run's `diag_fields` gives ~60 frames in that window,
+so the comparison costs no compute.
+
+### Cost, measured (2026-08-11, 1× RTX 4070, 1200-step benchmarks)
+
+`s/step` from WarpX's cumulative `Evolve time` between steps 200 and 1200, so init drops
+out. Harness validated against a known number: the production deck measured 0.01533 s/step
+against 0.01415 recorded 2026-08-04.
+
+| | serial, 1 GPU | both cards | output |
+|---|---|---|---|
+| `H_phase`, 8 runs | 5 h 43 m | **2 h 51 m** | 3.2 GB |
+| `S_phase`, 6 runs | 3 h 37 m | **1 h 48 m** | 17.7 GB |
+| **both sweeps** | 9 h 20 m | **4 h 40 m** | 21 GB |
+
+Cheapest first: `ss_dz1_ppc100` (the control) is **8 min**; the whole constant-N_D aliasing
+line in `H_phase` — `dz1_ppc100`, `dz2_ppc50`, `dz4_ppc25` — is **48 min together**.
+
+**Production rerun**, same 9000 d_e,ab domain and 2 784 400-step window, scaled from the
+measured anchor with the ×1.279 growth factor. Cost goes as **k²·(ppc/100)**:
+
+| dz/λ_D | ppc | N_D | 2 GPUs |
+|---|---|---|---|
+| 6.07 | 100 | 16.5 | **8.6 h** ← what already ran |
+| 3.03 | 50 | 16.5 | 17.1 h |
+| 6.07 | 400 | 65.9 | 34.3 h |
+| 3.03 | 100 | 33.0 | 34.3 h |
+| 1.52 | 25 | 16.5 | 34.3 h |
+| 1.52 | 100 | 65.9 | 5.7 d |
+| 0.76 | 50 | 65.9 | 11.4 d |
+
+**The three 34.3 h rows are the decision.** The same budget buys N_D 16.5 → 66 with
+aliasing untouched, *or* aliasing 2× better at N_D 33, *or* aliasing 4× better with the
+noise untouched. Nothing measured so far distinguishes them. ~9 h of sweep decides how
+34 h — or 5.7 d — of production gets spent.
+
+Device memory is never the constraint: **331 MB for the production deck's 6×10⁶ particles**
+(55 B/particle), so even dz/8 at ppc 100 is 3.4 GB. Cap `amrex.the_arena_init_size` anyway
+when sharing a card — AMReX allocates 3/4 of *total* device memory at init regardless.
+
+### `max_grid_size = n_cell` costs 7.3× on CPU — measured, not inferred
+
+Every sweep config sets `numerics.max_grid_size = n_cell` (one box), which is right for a
+single GPU and required by `launch.sh -g`. On CPU it is a trap: AMReX does not tile in 1D,
+so one box is one tile and only one OpenMP thread gets work. Measured directly on
+`hs_dz1_ppc400` at 8 threads: **0.1073 s/step with one box vs 0.0148 with
+`max_grid_size = 64`.** The existing note ("neutral-to-negative on CPU") understates this
+badly for a *one-box* decomposition. To run any sweep point on CPU, delete the key from
+`config.yaml` and regenerate. Even then the GPU is ~6× faster on these decks.
+
+### Code
+
+`kinshock.deck.render` now treats `operators:` as **optional** — a run with no piston
+species emits no heater and no injector. This is not cosmetic: `particle_heater`'s rate is
+H ∼ 1/foil_width (`ParticleHeater.cpp:207`), and `slab_halfwidth_di: 0` — which is what
+makes the ambient profile uniform — would be a division by zero, not a no-op.
+`deck.key_params` guards both operator blocks so `--verify` still catches an operator that
+silently vanishes. All 26 pre-existing decks re-render byte-identically (`--check`) and
+`tests/` is 15/15.

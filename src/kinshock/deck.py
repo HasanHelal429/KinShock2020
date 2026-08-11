@@ -153,7 +153,15 @@ def render(cfg: dict) -> str:
     """Build a WarpX input deck (as a string) from a loaded KinShock2020 config."""
     ref, pis = cfg["reference"], cfg["plasma"]["piston"]
     amb, geo, num = cfg["plasma"]["ambient"], cfg["geometry"], cfg["numerics"]
-    ops, meta = cfg["operators"], cfg.get("meta", {})
+    # `operators` is OPTIONAL. A run with no piston species -- e.g. the uniform ambient
+    # box of runs/H_phase, which measures grid heating with nothing else happening -- has
+    # nothing to heat and nothing to replenish, and emitting the blocks anyway would be
+    # actively wrong: particle_heater's rate is H ~ 1/foil_width (ParticleHeater.cpp:207),
+    # so a zero-width foil (slab_halfwidth_di = 0, which is what makes the ambient
+    # profile uniform) is a division by zero rather than a no-op. The `plasma.piston`
+    # block itself STAYS required even then, because theta_e_heat defines C_s,ab and
+    # hence t_ab -- the time unit every normalization in this repo is drawn against.
+    ops, meta = cfg.get("operators") or {}, cfg.get("meta", {})
     sc = units.derive(cfg)
 
     one_sided = geo.get("layout", "symmetric") == "one_sided"
@@ -326,41 +334,43 @@ def render(cfg: dict) -> str:
         a("")
 
     # heater --------------------------------------------------------------
-    h = ops["heater"]
-    a("# --- laser-ablation surrogate: heat the piston slab (ParticleHeater) ---")
-    a(f"particle_heater.species   = {h['species']}")
-    a(f"particle_heater.intervals = {int(h['intervals'])}")
-    a("particle_heater.profile   = foil")
-    a("particle_heater.foil.normal      = z")
-    # foil.lo/hi stay [-slab, +slab] even one-sided: the foil WIDTH sets the PSC
-    # heating rate (H ~ 1/width), so keeping the full symmetric width reproduces
-    # the full-domain rate; the one-sided domain then clips the heated region to
-    # [0, slab]. (Using [0, slab] here would halve the width and double the rate.)
-    a("particle_heater.foil.lo          = -slab")
-    a("particle_heater.foil.hi          =  slab")
-    a("particle_heater.foil.spot_radius = 0.")
-    a("particle_heater.foil.n0          = n0")
-    a("particle_heater.foil.mass_ratio  = mass_ratio")
-    a(f"particle_heater.{h['species']}.theta = theta_e_heat")
-    a("")
+    h = ops.get("heater")
+    if h:
+        a("# --- laser-ablation surrogate: heat the piston slab (ParticleHeater) ---")
+        a(f"particle_heater.species   = {h['species']}")
+        a(f"particle_heater.intervals = {int(h['intervals'])}")
+        a("particle_heater.profile   = foil")
+        a("particle_heater.foil.normal      = z")
+        # foil.lo/hi stay [-slab, +slab] even one-sided: the foil WIDTH sets the PSC
+        # heating rate (H ~ 1/width), so keeping the full symmetric width reproduces
+        # the full-domain rate; the one-sided domain then clips the heated region to
+        # [0, slab]. (Using [0, slab] here would halve the width and double the rate.)
+        a("particle_heater.foil.lo          = -slab")
+        a("particle_heater.foil.hi          =  slab")
+        a("particle_heater.foil.spot_radius = 0.")
+        a("particle_heater.foil.n0          = n0")
+        a("particle_heater.foil.mass_ratio  = mass_ratio")
+        a(f"particle_heater.{h['species']}.theta = theta_e_heat")
+        a("")
 
     # injector ------------------------------------------------------------
-    inj = ops["injector"]
-    isp, nsp = inj["species"], inj["neutralizing_species"]
-    ispec, nspec = species[isp], species[nsp]
-    a("# --- replenish the ablated piston slab (TargetInjector) ---")
-    a(f"target_injector.species              = {isp}")
-    a(f"target_injector.neutralizing_species = {nsp}")
-    a(f"target_injector.intervals            = {int(inj['intervals'])}")
-    a(f"target_injector.tau                  = {_num(inj['tau_over_wpe_inv'])}/wpe")
-    a("target_injector.lo                   = -slab")
-    a("target_injector.hi                   =  slab")
-    a("target_injector.density              = nt")
-    a("target_injector.reference_density    = n0")
-    a(f"target_injector.ppc_reference        = {ppc_piston}")
-    a(f"target_injector.{isp}.u_std = sqrt({_init_theta(ispec['role'], ispec['kind'])})")
-    a(f"target_injector.{nsp}.u_std = sqrt({_init_theta(nspec['role'], nspec['kind'])})")
-    a("")
+    inj = ops.get("injector")
+    if inj:
+        isp, nsp = inj["species"], inj["neutralizing_species"]
+        ispec, nspec = species[isp], species[nsp]
+        a("# --- replenish the ablated piston slab (TargetInjector) ---")
+        a(f"target_injector.species              = {isp}")
+        a(f"target_injector.neutralizing_species = {nsp}")
+        a(f"target_injector.intervals            = {int(inj['intervals'])}")
+        a(f"target_injector.tau                  = {_num(inj['tau_over_wpe_inv'])}/wpe")
+        a("target_injector.lo                   = -slab")
+        a("target_injector.hi                   =  slab")
+        a("target_injector.density              = nt")
+        a("target_injector.reference_density    = n0")
+        a(f"target_injector.ppc_reference        = {ppc_piston}")
+        a(f"target_injector.{isp}.u_std = sqrt({_init_theta(ispec['role'], ispec['kind'])})")
+        a(f"target_injector.{nsp}.u_std = sqrt({_init_theta(nspec['role'], nspec['kind'])})")
+        a("")
 
     # collisions ----------------------------------------------------------
     coll = cfg.get("collisions") or {}
@@ -497,9 +507,15 @@ def key_params(path: str) -> dict:
                  "boundary.particle_lo", "boundary.particle_hi"):
         if bkey in d:
             out[bkey] = d[bkey].lower()
-    out["heater.intervals"] = int(float(d["particle_heater.intervals"]))
-    out["injector.intervals"] = int(float(d["target_injector.intervals"]))
-    out["injector.tau"] = _eval(d["target_injector.tau"], ns)
+    # Both operator blocks are optional (a piston-free box has neither). Absent from
+    # BOTH decks is a match; absent from only one shows up as a `missing from` warning
+    # in verify(), which is the behaviour wanted -- an operator that silently vanished
+    # between config and deck must not pass.
+    if "particle_heater.intervals" in d:
+        out["heater.intervals"] = int(float(d["particle_heater.intervals"]))
+    if "target_injector.intervals" in d:
+        out["injector.intervals"] = int(float(d["target_injector.intervals"]))
+        out["injector.tau"] = _eval(d["target_injector.tau"], ns)
     for sp in d.get("particles.species_names", "").split():
         k = f"{sp}.num_particles_per_cell_each_dim"
         if k in d:

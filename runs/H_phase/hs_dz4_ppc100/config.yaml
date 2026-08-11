@@ -1,0 +1,117 @@
+# hs_dz4_ppc100 -- grid-heating resolution sweep, point (dz/4, ppc 100).
+#
+# READ runs/H_phase/README.md FIRST. It carries the design, the (dz/lambda_D, N_D)
+# grid, and how to read the result. This header only records what is special here.
+#
+# THIS POINT
+#   dz/lambda_D,amb = 1.516   (production R1_paper_470eV is 6.066; R1_paper is 0.600)
+#   N_D = ppc*lambda_D/dz = 65.9 particles per Debye length   (production is 16.5)
+#   dz = 0.075 d_e,ab -> 3072 cells over a 2.061 d_i0 periodic box
+#   max_step = 1760000 = 30.0 t_ab, the SAME window h0_baseline measured
+#     (RESULTS 2026-08-05: dT_0 = +29.7 eV there, in the full piston-driven deck)
+#   cost = 16 x the hs_dz1_ppc100 point
+#
+# WHAT THIS RUN IS. A uniform, periodic, magnetized ambient plasma and nothing else:
+# no piston, no heater, no injector, no shock. n = 4.8e24 m^-3, T_e = T_i = 10 eV,
+# B0 = 7.026 T along x. The only thing that can change the temperature is the
+# discretization, so <KE>/particle straight out of the ParticleEnergy reduced diag IS
+# the grid-heating measurement -- no spatial windowing, no piston contamination. That
+# is exactly what grid_heating.py's docstring says EP cannot do in the full deck, and
+# it is why this box exists.
+#
+# WHY IT IS ALLOWED TO HAVE NO OPERATORS. `operators:` is absent, so no heater and no
+# injector are emitted (kinshock.deck.render, 2026-08-11). Emitting them would be
+# actively wrong, not merely redundant: particle_heater's rate is H ~ 1/foil_width
+# (ParticleHeater.cpp:207) and slab_halfwidth_di = 0 -- which is what makes the
+# ambient density profile namb*(abs(z)>=0), i.e. uniform -- gives a zero-width foil.
+#
+# BOX SIZE. 230.4 d_e,ab = 2.061 d_i0 = 4.66 thermal ion gyroradii = 4659 lambda_D.
+# Held FIXED in metres across the whole sweep, so every point offers the same
+# spectrum of long-wavelength modes and only the grid changes. 768 cells at the
+# coarsest dz, which is divisible by AMReX's blocking_factor of 8 at every
+# refinement in the sweep -- 750 was the natural 2 d_i0 choice and AMReX aborts on it.
+
+meta:
+  run_id: hs_dz4_ppc100
+  tier: Sweep
+  description: >
+    Uniform periodic ambient box,
+    dz = 0.075 d_e,ab (dz/lambda_D = 1.516), ppc 100 (N_D = 65.9).
+    Grid-heating resolution sweep point; see runs/H_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_hs_dz4_ppc100
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.19767056e-4   # 470 eV
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 0.0      # [d_i,ab] ZERO -> the ambient profile namb*(abs(z)>=slab) is
+                              # uniform over the whole box. See the header.
+  domain_halfwidth_de: 115.2
+  dz_over_de: 0.075          # [d_e,ab] -> dz/lambda_D,amb = 1.516
+  layout: symmetric
+  boundary:
+    lo: periodic
+    hi: periodic
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2           # [-] baseline. h2_shape3 showed order 3 moves the
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 1760000
+  max_grid_size: 3072      # [cells] = n_cell, i.e. ONE box: correct for a single
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+species:
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [amb_ions]
+ambient_ion_species: [amb_ions]
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+diagnostics:
+  plotfile_intervals: 88000    # 20 frames -- distribution-shape
+                              # check only; the measurement is the reduced diag.
+  reduced_intervals: 1760      # 1000 rows of EP/PN. THE PRIMARY OUTPUT:
+                              # with no piston and no injector, <KE>/particle from
+                              # EP is the temperature, domain-wide and unwindowed.
+  field_intervals: 8800       # 200 field-only frames -> E_z noise level,
+                              # the quantity S_phase is really about.
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.0103986833     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.
