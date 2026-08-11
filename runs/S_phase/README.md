@@ -116,9 +116,9 @@ window — the production run grows 1.279× over 220 t_ab and this window is 10.
 | `ss_dz1_ppc100` | 0.00315 | **8 m** | 5 h 15 m | 1.4 GB |
 | `ss_dz2_ppc50` | 0.00303 | **16 m** | 10 h 14 m | 1.4 GB |
 | `ss_dz1_ppc400` | 0.01013 | **27 m** | 22 h | 5.2 GB |
-| `ss_dz2_ppc100` | 0.00517 | **28 m** | — | 2.7 GB |
-| `ss_dz4_ppc25` | 0.00300 | **33 m** | — | 1.6 GB |
-| `ss_dz4_ppc100` | 0.00932 | **1 h 42 m** | — | 5.4 GB |
+| `ss_dz2_ppc100` | 0.00517 | **28 m** | 21 h | 2.7 GB |
+| `ss_dz4_ppc25` | 0.00300 | **33 m** | 27 h | 1.6 GB |
+| `ss_dz4_ppc100` | 0.00932 | **1 h 42 m** | 84 h | 5.4 GB |
 | **all six** | | **3 h 37 m** serial · **1 h 48 m** on both cards | | 17.7 GB |
 
 `ss_dz1_ppc100` — the control that has to pass before the rest mean anything — is **8

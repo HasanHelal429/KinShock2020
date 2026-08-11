@@ -147,3 +147,10 @@ one tile and only one OpenMP thread gets work. Measured directly on `hs_dz1_ppc4
 penalty.** To run these on CPU, delete the key from `config.yaml` and regenerate the deck
 — do not override it on the command line, which `--verify` would then flag. Even then the
 GPU is ~6× faster on this deck, so use it unless both cards are taken.
+
+⚠ **The same trap is live in `R1_paper_470eV` itself.** That config gained
+`max_grid_size: 15000` on 2026-08-04 *for GPU*, which is two boxes — and two boxes on 8
+threads measures **0.3924 s/step against the 0.11169 in `runs/opt_phase/SUMMARY.md`, 3.5×**
+(2026-08-11, this harness). The opt_phase CPU rows were measured before that key existed,
+so **every CPU projection in that table is stale for the config as it now stands**: the
+5.33 d at 8 threads is really ~18 d. The GPU rows are unaffected.

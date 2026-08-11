@@ -2971,6 +2971,15 @@ so one box is one tile and only one OpenMP thread gets work. Measured directly o
 badly for a *one-box* decomposition. To run any sweep point on CPU, delete the key from
 `config.yaml` and regenerate. Even then the GPU is ~6× faster on these decks.
 
+**And the trap is already live in `R1_paper_470eV`.** That config gained
+`max_grid_size: 15000` on 2026-08-04 *for GPU* — two boxes, which on 8 threads measures
+**0.3924 s/step against the 0.11169 baseline in `runs/opt_phase/SUMMARY.md`, 3.5×.** The
+opt_phase CPU rows predate that key, so **every CPU projection in that table is stale for
+the config as it now stands**: the quoted 5.33 d at 8 threads is really ~18 d, and 2.93 d
+at 20 threads is not attainable without editing the config back. The GPU rows are
+unaffected and remain the ones to use. This was not a hypothesis carried over from the
+sweep decks — it was measured on the production deck itself with the same harness.
+
 ### Code
 
 `kinshock.deck.render` now treats `operators:` as **optional** — a run with no piston
