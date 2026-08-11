@@ -1,9 +1,11 @@
 # Running KinShock2020 on Perlmutter (NERSC)
 
-> **None of this has been executed.** It was written on chablis, which has no Perlmutter
-> access, so treat the first submission as a shakeout. Everything marked ⚠ below is a
-> specific thing I could not verify from here. The build environment is not invented —
-> it comes from upstream `Tools/machines/perlmutter-nersc/` in the `warpx-cda` tree.
+> **Status 2026-08-11.** Verified against the real machine: NERSC reachable from chablis
+> with the existing ssh cert, account `m5032_g`, `$PSCRATCH=/pscratch/sd/h/hhelal`, and
+> the QOS table below via `sbatch --test-only`. **Not yet executed:** the build and any
+> actual run — treat the first submission as a shakeout. Remaining unverified items are
+> marked ⚠. The build environment is not invented; it comes from upstream
+> `Tools/machines/perlmutter-nersc/` in the `warpx-cda` tree.
 
 ## What Perlmutter actually buys here
 
@@ -12,21 +14,16 @@ points are latency-bound rather than bandwidth-bound, so the low end is likelier
 win is concurrency**: all six S_phase points run at once, so wall-clock is the *longest
 single run* (~1 h) instead of the 3 h 37 m serial total measured on chablis.
 
-## Blocker: the cherry-picks are local-only
+## The `reflect_symmetry_axis` fix is on origin (2026-08-11)
 
-`fcb48c9fe` (= `acc2d6621` + `d5f2e9917` + `05d74af41`, the `reflect_symmetry_axis`
-fix) exists **only in the chablis clone**. Perlmutter clones from
-`git@github.com:Schaeffer-Lab/warpx-cda.git` and will not find it. Before building
-binary B:
+`feature/hybrid-laser` was advanced `acc2d6621..fcb48c9fe` on
+`Schaeffer-Lab/warpx-cda` — a clean fast-forward of two commits, 8 files, +232/−0, all
+additive. So a fresh Perlmutter clone can build **both** binaries:
 
-```bash
-# on chablis, after you're satisfied with the cherry-pick
-cd ~/warpx-cda && git push origin feature/hybrid-laser
-```
-
-That pushes to a **shared lab branch**, so it is your call, not a mechanical step. If you
-would rather not move `feature/hybrid-laser`, push it as its own branch
-(`git push origin feature/hybrid-laser:build/symwall`) and point `WARPX_COMMIT_B` at that.
+| tag | commit | wall |
+|---|---|---|
+| A | `acc2d6621` | specular — what every existing result used |
+| B | `fcb48c9fe` | π-rotation — what the configs have always asked for |
 
 ## One-time setup
 
