@@ -28,6 +28,49 @@ import kinshock  # noqa: E402
 from kinshock import deck  # noqa: E402
 
 
+def _unused_parmparse(run_dir: str) -> list[str]:
+    """Inputs WarpX PARSED BUT NEVER USED, read out of the run's own run.log.
+
+    WHY --verify CANNOT SEE THESE ON ITS OWN. It compares config against
+    ``warpx_used_inputs``, and AMReX omits unused variables from that file entirely --
+    so a key the binary does not implement is absent from BOTH sides of the comparison
+    and matches perfectly. That is not hypothetical: `boundary.reflect_symmetry_axis`
+    is a fork-only input living on an UNMERGED branch, so 27 runs asked for the
+    pi-rotation symmetry wall, silently got plain specular reflection, and passed
+    --verify every time (found 2026-08-11). AMReX prints the list under "Unused
+    ParmParse Variables"; this reads it back, which is the only place the information
+    survives.
+
+    Returns warning strings so a stale binary reads as a MISMATCH, not an OK.
+    """
+    log = os.path.join(run_dir, "run.log")
+    if not os.path.isfile(log):
+        return []
+    unused, grabbing = [], False
+    with open(log, errors="replace") as fh:
+        for line in fh:
+            if line.startswith("Unused ParmParse Variables:"):
+                grabbing = True
+                continue
+            if grabbing:
+                s = line.strip()
+                # the block is indented "[TOP]::key(nvals = N)  :: [value]" lines and
+                # ends at the first line that is not one of them
+                if not s.startswith("["):
+                    grabbing = False
+                    continue
+                key = s.split("::", 1)[-1].split("(", 1)[0].strip()
+                # my_constants.* are DECLARATIONS, not directives: an unused one changes
+                # nothing about what was simulated, and the piston-free H_phase box
+                # deliberately carries several (it keeps plasma.piston so theta_e_heat can
+                # define t_ab, while no species has role: piston). Only a real SETTING
+                # going unused means the run diverged from the config.
+                if key and not key.startswith("my_constants.") and key not in unused:
+                    unused.append(key)
+    return [f"{k}: in the deck but UNUSED by the binary — the run did not do what the "
+            f"config asked for (missing feature, or a typo)" for k in unused]
+
+
 def _deck_path(cfg: dict, run_dir: str) -> str:
     name = cfg.get("meta", {}).get("deck") or f"inputs_kinshock_{cfg['meta']['run_id']}"
     return os.path.join(run_dir, name)
@@ -53,7 +96,7 @@ def main():
         used = os.path.join(args.run_dir, "warpx_used_inputs")
         if not os.path.isfile(used):
             sys.exit(f"no warpx_used_inputs in {args.run_dir} (run WarpX first)")
-        warns = deck.verify(cfg, used)
+        warns = deck.verify(cfg, used) + _unused_parmparse(args.run_dir)
         print(f"{rid}: warpx_used_inputs vs config —",
               "OK (WarpX ran exactly this config)" if not warns else "MISMATCH")
         for w in warns:

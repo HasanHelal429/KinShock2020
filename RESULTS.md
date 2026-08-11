@@ -3105,3 +3105,56 @@ dependency**, so in the piston-free deck `slab = 0.*di` survives while `di` is p
 piston-free run, defeating the "config = what was simulated" guarantee. Decks we generate
 are still resolved strictly. Confirmed the check is not weakened: a tampered `max_step` in
 `warpx_used_inputs` is still caught. All 40 decks `--check` clean, tests 15/15.
+
+---
+
+## 2026-08-11 (later still) — `boundary.reflect_symmetry_axis` has never done anything
+
+Found while checking what a Perlmutter build would need. **27 runs ask for the π-rotation
+symmetry wall and none of them got it.**
+
+`boundary.reflect_symmetry_axis` is a fork-only input that exists **only on
+`warpx-cda` branch `feature/reflect-symmetry-axis`, which is not merged into anything we
+have ever built.** Neither the OMP nor the CUDA binary contains the string. WarpX parses
+the line, never uses it, and says so — every affected `run.log` carries
+
+```
+Unused ParmParse Variables:
+  [TOP]::boundary.reflect_symmetry_axis(nvals = 1)  :: [x]
+```
+
+Confirmed directly: running with `amrex.abort_on_unused_inputs=1` aborts on exactly that
+key. So `_BC_MAP`'s `("pec", "reflecting")` is all that took effect and the z=0 wall has
+been **plain specular reflection** — which flips only v_z, not the gyro-coupled v_perp.
+CLAUDE.md puts that at a ~5 % near-wall artifact (RESULTS 2026-07-23).
+
+**`symmetry` and `reflecting` have therefore been the same simulation.** `R0_half` and
+`R0_half_sym` differ in `key_params` by *nothing*; their decks differ by one ignored line.
+Any comparison between them measured RNG, not a boundary condition.
+
+Affected: `R1_paper`, `R1_paper_470eV`, `R1_paper_470eV_pilot`, `R1_warm`, `R1_coll`,
+`R1_cal`, `R1_recal`, `R1_half`, `R1_core_half_sym`, `R1_paper_phys`, `R1_paper_dial`,
+`R0_half_sym`, `R2`, `R3`, all of `heat_phase`, both of `implicit_phase`, and all six
+`S_phase` configs.
+
+### Why --verify passed it 27 times, and the fix
+
+`deck.verify` compares config against `warpx_used_inputs` — and **AMReX omits unused
+variables from that file**, so an unimplemented key is absent from *both* sides and
+matches perfectly. The guarantee "config = what was simulated" had a hole exactly the
+shape of a missing feature.
+
+`make_inputs.py --verify` now also reads the run's own `run.log` and reports anything
+under "Unused ParmParse Variables" as a MISMATCH (`_unused_parmparse`). `my_constants.*`
+are excluded: they are declarations rather than directives, and the piston-free `H_phase`
+box deliberately carries unused ones (it keeps `plasma.piston` so `theta_e_heat` can define
+t_ab while no species has `role: piston`). Verified precise — clean on `hs_dz1_ppc100`,
+MISMATCH on `ss_dz1_ppc100`, `R1_paper_470eV` and `h0_baseline`.
+
+### Not yet decided
+
+The two commits that add it (`d5f2e9917`, `05d74af41`) are self-contained: 7 files,
++220/−0, and they merge cleanly onto `feature/hybrid-laser`. Whether to build **with** them
+is a scientific call, not a cleanup: turning the correct wall on makes new runs
+**non-comparable to every existing result**, including `R1_paper_470eV` — which is the
+reference `ss_dz1_ppc100` exists to reproduce. Deferred to the user.
