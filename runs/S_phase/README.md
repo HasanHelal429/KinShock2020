@@ -1,5 +1,19 @@
 # S_phase — why does the 470 eV run make a shock too early?
 
+> ## Status 2026-08-11 — control PASSED, role changed
+>
+> `ss_dz1_ppc100` reproduces the full run to **4 % at t·ω_ci0 = 0.02**, drifting to ~24 %
+> by 0.30 (`scripts/check_domain_control.py`). Usable for **relative** comparison across
+> the sweep — every point shares the domain — but do not quote its absolute upstream E_z
+> against the full run.
+>
+> Meanwhile `H_phase` established that the upstream defects are set by **c/v_ti**, not by
+> resolution (RESULTS 2026-08-11 later). So this sweep now tests a **prediction**: if the
+> early ion acceleration is driven by c/v_ti, refining dz and raising ppc will **not**
+> remove it. That is falsifiable, costs 1 h 48 m on two cards, and a positive result
+> (acceleration *does* retreat with resolution) would overturn the c/v_ti account.
+
+
 **The question.** At t·ω_ci0 = 0.39 `R1_paper_470eV` already shows ambient ions
 accelerated into a shock-like structure. `R1_paper` — the *same dimensionless problem*,
 identical n_amb, dz, dt, ρ_i0/dz, β₀ and M_ms — has no shock structure at all that early

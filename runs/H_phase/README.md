@@ -1,5 +1,24 @@
 # H_phase — where does the upstream heat come from?
 
+> ## ⛔ SUPERSEDED 2026-08-11 — do not run the remaining 7 points
+>
+> The control point `hs_dz1_ppc100` ran, and **it heats by 0.00 eV** (10.00 → 9.98 eV over
+> 30 t_ab) where the full deck `h0_baseline` heats 10.0 → 40.7 eV over the same window at
+> the same dz/λ_D and N_D. The box is not inert — it carries the production upstream's
+> E_z noise exactly (29–30 v_A B₀ against 30.2) — so the noise and the heating are
+> **different problems**, and the quiescent discretization does not heat this plasma.
+>
+> `h0`'s own data agrees: its far upstream is flat at 9.98 eV until t = 2.50 t_ab and
+> rises only after the **light-crossing time of 2.59 t_ab**, with no piston particle ever
+> arriving. `R1_paper` shows the identical behaviour at *its* light-crossing time of
+> 25.9 t_ab. The upstream is heated by an EM precursor whose arrival is set by **c/v_ti**,
+> which is 10× too large here — and **no dz and no ppc changes c/v_ti**.
+>
+> Full argument and numbers: RESULTS.md 2026-08-11 (later). The design below is kept
+> because the *box* is sound and correctly measured a real null; it is the premise that
+> was wrong. Anything reusing it should ask a question about a quiescent plasma.
+
+
 **The question.** `R1_paper_470eV` warms its far upstream by ~+30 eV over 30 t_ab
 (`h0_baseline`, RESULTS 2026-08-05) from a nominal T₀ = 10 eV. The production run is
 190 t_ab. If that rate persists the upstream is no longer the 10 eV plasma the Table I

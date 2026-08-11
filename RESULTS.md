@@ -2989,3 +2989,119 @@ makes the ambient profile uniform — would be a division by zero, not a no-op.
 `deck.key_params` guards both operator blocks so `--verify` still catches an operator that
 silently vanishes. All 26 pre-existing decks re-render byte-identically (`--check`) and
 `tests/` is 15/15.
+
+---
+
+## 2026-08-11 (later) — Controls run. The upstream heating is not grid heating, and both sweeps' premise is falsified
+
+Launched the two cheapest points of the new sweeps as controls before committing to the
+rest. The `H_phase` control **failed**, and chasing why produced the result below. Total
+cost: 15 minutes of GPU.
+
+### `hs_dz1_ppc100` — the production parameter point, quiescent, heats by nothing
+
+A periodic 2.06 d_i0 ambient box at **identical** dz/λ_D = 6.07, N_D = 16.5, collisions,
+B₀, n, T₀, dt, particle_shape and filtering to the production run, over the identical
+30 t_ab window:
+
+| | ΔT over 30 t_ab |
+|---|---|
+| `h0_baseline`, full piston-driven deck, outer 25 %, amb_electrons | **10.0 → 40.7 eV** |
+| `hs_dz1_ppc100`, quiescent box, domain-wide | **10.00 → 9.98 eV** |
+
+Macroparticle count exactly constant (153 600), so the mean energy really is a temperature.
+
+**The box is not inert, and this is the key check:** its rms E_z settles at **29.3–30.1
+v_A B₀**, which is precisely the production run's far-upstream value (30.2, RESULTS
+2026-08-05) and 6.8 % of the exact thermal scale E_th/(v_A B₀) = β·c/v_ti = 442.5. So the
+box reproduces the production upstream's field noise **exactly** — and that noise does not
+heat the plasma. **The E_z excess and the upstream heating are two different problems.**
+
+### h0's own data says the same thing, independently
+
+Spatially and temporally resolving `h0_baseline` (existing plotfiles, no new compute):
+
+- Heating is **uniform** across the far upstream — 41.9, 41.3, 41.1, 41.0, 41.0, 41.1,
+  40.3 eV at z = 28…76 d_i0 at t = 30 t_ab — while the piston has reached only ~16 d_i0.
+- At z = 70–80 d_i0 the temperature is **flat at 9.98 eV until t = 2.50 t_ab**, then rises
+  linearly at 1.24 eV/t_ab. **Light reaches z = 76.5 d_i0 at t = 2.59 t_ab.**
+- **No piston particle ever gets there**: 0 macroparticles beyond 60 d_i0 at t = 30 t_ab,
+  and thermal transit at 470 eV would take 85 t_ab.
+- The heated distribution is a **perfect undrifting Maxwellian** (v/v_th percentiles match
+  to 1 %, mean drift 0.002 v_th).
+- Mean |B_perp|/B₀ in that window rises **1.00 → 2.11**, starting at the same t = 2.6.
+  ⚠ Checked with a 0.2 d_i0 boxcar, not a raw max — the raw max runs 2.2–2.8× the smoothed
+  value, which is exactly the trap behind the retracted "11× instant barrier".
+
+So the far upstream is heated by an **electromagnetic disturbance arriving at c**, not by
+the finite-grid instability, and not by any particle that got there.
+
+### And it is the same c/v_ti that explains everything else
+
+`R1_paper` and `R1_paper_470eV` have the same geometry in metres, the same dz, the same
+pec boundaries, the same dimensionless piston — and t_ab differing by 10×. So the domain's
+light-crossing time differs by 10× **in units of t_ab**, and each run's far upstream is
+disturbed exactly at its own:
+
+| run | T₀ | c/v_ti | L/c [t_ab] | measured onset |
+|---|---|---|---|---|
+| `R1_paper` | 1022 eV | 224 | **25.9** | 22.5–26.3 |
+| `R1_paper_470eV` | 10 eV | 2261 | **2.59** | 2.5–3.8 |
+| `h0_baseline` | 10 eV | 2261 | **2.59** | 2.50–5.00 |
+
+`R1_paper`'s far upstream sits at |B_perp|/B₀ = 1.0000 and E_z = 2.15 v_A B₀, both dead
+flat, until ~25 t_ab. It is not a better-resolved run; it is the same run with the
+precursor clocked 10× slower.
+
+**Both defects therefore trace to one quantity — c/v_ti, 10× too large because the
+reduced-c trick was undone** (RESULTS 2026-08-05 derived this for E_z; it turns out to set
+the precursor crossing time too). **Neither is a resolution problem: no dz and no ppc
+changes c/v_ti.**
+
+### Consequences for the sweeps
+
+- **`H_phase` is superseded — do not run the remaining 7 points.** Its premise was that
+  grid heating at dz/λ_D = 6.07 warms the upstream. The baseline point measures zero. The
+  other points would measure zero more precisely for 5 h 36 m.
+- **`S_phase` survives, with its role changed.** Its control passed (below), and it now
+  tests a *prediction*: if the early ion acceleration is driven by c/v_ti and not by
+  resolution, then refining dz and raising ppc will **not** remove it. That is falsifiable
+  and costs 1 h 48 m on two cards.
+
+### `ss_dz1_ppc100` — the domain control, marginal pass
+
+Truncated 12.0 d_i0 domain vs the full 80.5 d_i0 run over t·ω_ci0 ≤ 0.30, on a fixed
+8–12 d_i0 upstream window (`scripts/check_domain_control.py` — plot_ez.py's "outer 5 %"
+would compare 11.4–12.0 d_i0 against 76.5–80.5 d_i0, i.e. different plasma):
+
+| t·ω_ci0 | rms E_z, trunc / full | coherent \|B_perp\|, trunc / full |
+|---|---|---|
+| 0.02 | 31.1 / 29.8 = **1.04** | 1.46 / 1.27 = 1.15 |
+| 0.10 | 35.8 / 32.4 = **1.11** | 4.16 / 2.99 = 1.39 |
+| 0.20 | 44.3 / 34.8 = **1.27** | 6.00 / 5.35 = 1.12 |
+| 0.30 | 49.3 / 39.8 = **1.24** | 6.75 / 6.09 = 1.11 |
+
+4 % at t = 0.02, drifting to ~24 % by 0.30 — the direction and growth expected if pec
+traps precursor energy in a 6.7× smaller box. **Usable for relative comparison across the
+sweep** (every point shares the domain), **not for quoting absolute upstream E_z** against
+the full run. Both runs do form a real barrier (|B_perp|/B₀ 1.3 → 6), so the truncation
+does not suppress the physics under test.
+
+### Open, and not claimed
+
+Whether the precursor is **physical** (a real ablation plasma does radiate) or an
+**artifact** — of the heater operator's abruptness, or of the pec far boundary trapping
+radiation that should escape — is **not established here**. Silver-Mueller is unavailable
+while a background B is set (`kinshock.deck._BC_MAP`), so the cheap discriminator is domain
+size: if it is trapped radiation, the far-upstream heating rate should fall as the domain
+grows.
+
+### Code
+
+`resolve_constants` gained `allow_unresolved`, and `verify` uses it for the file under
+test. WarpX prunes unused `my_constants` from `warpx_used_inputs` **by name, not by
+dependency**, so in the piston-free deck `slab = 0.*di` survives while `di` is pruned —
+`--verify` then raised `ValueError: could not resolve my_constants: ['slab']` on every
+piston-free run, defeating the "config = what was simulated" guarantee. Decks we generate
+are still resolved strictly. Confirmed the check is not weakened: a tampered `max_step` in
+`warpx_used_inputs` is still caught. All 40 decks `--check` clean, tests 15/15.

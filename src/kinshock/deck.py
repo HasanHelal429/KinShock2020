@@ -450,8 +450,25 @@ def _eval(expr: str, ns: dict) -> float:
     return float(eval(py, {"__builtins__": {}}, {**ns, **_FUNCS}))
 
 
-def resolve_constants(d: dict) -> dict:
-    """Numerically resolve all my_constants.* expressions (iterative dependency pass)."""
+def resolve_constants(d: dict, allow_unresolved: bool = False) -> dict:
+    """Numerically resolve all my_constants.* expressions (iterative dependency pass).
+
+    ``allow_unresolved`` exists for ``warpx_used_inputs``, which is a PRUNED file: WarpX
+    drops constants its parser never queried, and it prunes by name rather than by
+    dependency, so a surviving constant can reference a dropped one. The piston-free
+    H_phase deck hits this exactly -- ``slab = 0.*di`` survives (it is used in the
+    density function) while ``di`` is pruned, because nothing else asks for ``di`` and
+    the parser folds the ``0.*`` away. Raising there would make ``--verify`` fail on
+    every piston-free run, which is the one guarantee this module exists to provide.
+
+    Unresolved names are simply omitted from the result. That is safe because
+    :func:`verify` only value-checks ``const:`` keys present in BOTH decks, and the
+    scalar settings that carry the strict comparison (max_step, n_cell, prob_hi, tau,
+    ppc, ...) are evaluated separately -- if one of THOSE needs a missing name, ``_eval``
+    still raises rather than quietly comparing nothing.
+
+    Left strict by default so a deck WE generate must still resolve completely.
+    """
     exprs = {k[len("my_constants."):]: v for k, v in d.items()
              if k.startswith("my_constants.")}
     resolved = dict(CONSTS)
@@ -469,12 +486,12 @@ def resolve_constants(d: dict) -> dict:
                 continue
         if not progressed:
             break
-    if pending:
+    if pending and not allow_unresolved:
         raise ValueError(f"could not resolve my_constants: {list(pending)}")
-    return {k: resolved[k] for k in exprs}
+    return {k: resolved[k] for k in exprs if k in resolved}
 
 
-def key_params(path: str) -> dict:
+def key_params(path: str, allow_unresolved: bool = False) -> dict:
     """Resolve the deck at ``path`` to a flat dict of comparable numeric quantities.
 
     Used to prove two decks are physically equivalent (generated vs authored) and
@@ -482,7 +499,7 @@ def key_params(path: str) -> dict:
     comments, or whether a value was written as ``20.*de`` or ``2.0*di``.
     """
     d = parse_inputs(path)
-    c = resolve_constants(d)
+    c = resolve_constants(d, allow_unresolved=allow_unresolved)
     ns = {**CONSTS, **c}
     out = {f"const:{k}": v for k, v in c.items()}
     out["max_step"] = int(float(d["max_step"]))
@@ -551,8 +568,11 @@ def verify(cfg: dict, inputs_path: str, rtol: float = 1e-6) -> list[str]:
         fh.write(render(cfg))
         gen_path = fh.name
     try:
+        # strict for the deck we just rendered -- our generator must produce something
+        # fully resolvable -- but tolerant for the file under test, which may be a
+        # pruned warpx_used_inputs (see resolve_constants).
         want = key_params(gen_path)
-        got = key_params(inputs_path)
+        got = key_params(inputs_path, allow_unresolved=True)
     finally:
         os.unlink(gen_path)
 
