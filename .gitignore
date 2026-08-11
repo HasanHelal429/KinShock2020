@@ -41,3 +41,7 @@ tmp/
 
 # --- progress-logger stdout (the findings live in progress.log / RESULTS.md) ---
 runs/**/*.out
+
+# Perlmutter site-specific settings (account code, scratch paths)
+perlmutter/site.conf
+perlmutter/.runlists/

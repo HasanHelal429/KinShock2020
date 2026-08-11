@@ -228,6 +228,17 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   window was specified in.
 - **Env.** conda env at `/opt/anaconda3/envs/physics`; WarpX binary
   `/home/hhelal/warpx-cda/build/bin/warpx.1d` (OMP/CPU, double precision).
+- **Perlmutter (NERSC).** `perlmutter/` carries the build + Slurm layer: `site.conf`
+  (gitignored) for account/paths, `build_warpx.sh` for the A100 build at a *detached
+  commit* (provenance is a SHA, not "whatever the branch was"), and `submit.sh
+  {sweep|ab}` for single-GPU job arrays. Read `perlmutter/README.md` first — **none of it
+  has been executed**, and the `reflect_symmetry_axis` cherry-picks it depends on exist
+  only in the chablis `warpx-cda` clone until someone pushes them.
+- **`boundary.reflect_symmetry_axis` did nothing until 2026-08-11.** It is fork-only and
+  lived on an unmerged branch, so all 27 one-sided runs used plain specular reflection and
+  `symmetry` ≡ `reflecting`. `--verify` now reads `run.log`'s "Unused ParmParse Variables"
+  block and reports a MISMATCH, which is the only place that information survives —
+  AMReX omits unused keys from `warpx_used_inputs` entirely.
 
 ## Working preferences
 - Work in the **regular repo folders** (not git worktrees). Commit to `main`.

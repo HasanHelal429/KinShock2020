@@ -1,0 +1,30 @@
+# Copy to perlmutter/site.conf (gitignored) and fill in. Everything machine-specific
+# lives here so nothing personal or path-dependent is committed.
+
+# NERSC project. GPU allocations MUST end in "_g" -- a CPU project code here is the
+# single most common sbatch rejection on Perlmutter.
+NERSC_ACCOUNT=mXXXX_g
+
+# Where the repo and the WarpX source/builds live. Put BOTH on $PSCRATCH: run dirs
+# receive the plotfiles (scripts/launch.sh and the sbatch cd into them), and $HOME is
+# quota'd and not meant for parallel I/O.
+KINSHOCK_ROOT=${PSCRATCH:-${SCRATCH:-$HOME}}/KinShock2020
+WARPX_SRC=${PSCRATCH:-${SCRATCH:-$HOME}}/warpx-cda
+
+# Build directories. Two, because the A/B wall test needs both binaries; the sweep
+# itself only needs the one you choose.
+#   A = feature/hybrid-laser @ acc2d6621   (no reflect_symmetry_axis -> specular wall,
+#                                           matches every existing result)
+#   B = fcb48c9fe                          (+ cherry-picks d5f2e9917, 05d74af41)
+WARPX_BUILD_A=$WARPX_SRC/build_pm_a
+WARPX_BUILD_B=$WARPX_SRC/build_pm_b
+WARPX_COMMIT_A=acc2d6621
+WARPX_COMMIT_B=fcb48c9fe
+
+# Which binary the S_phase sweep uses. Set to A or B.
+SWEEP_BUILD=B
+
+# QOS for the sweep array. "shared" bills per-GPU and fits these single-GPU runs;
+# "regular" takes whole 4-GPU nodes. See perlmutter/README.md.
+SWEEP_QOS=shared
+SWEEP_TIME=03:00:00
