@@ -3158,3 +3158,35 @@ The two commits that add it (`d5f2e9917`, `05d74af41`) are self-contained: 7 fil
 is a scientific call, not a cleanup: turning the correct wall on makes new runs
 **non-comparable to every existing result**, including `R1_paper_470eV` — which is the
 reference `ss_dz1_ppc100` exists to reproduce. Deferred to the user.
+
+---
+
+## 2026-08-11 (Perlmutter) — queue characteristics, measured
+
+`sbatch --test-only` on Perlmutter (validates + estimates, submits nothing), for the
+single-GPU resource spec `S_phase` needs (`-C gpu -N 1 -n 1 -c 32 -G 1`). Account
+`m5032_g`; `$PSCRATCH = /pscratch/sd/h/hhelal`.
+
+| QOS | partition | resources | max wall | max jobs/user | would start |
+|---|---|---|---|---|---|
+| `shared` | `shared_gpu_ss11` | 1 GPU / 32 cores | 2 d | 5000 | **+11 h** |
+| `debug` | `gpu_ss11` | whole node | **30 min** | **5** | **+5 h** |
+| `regular` | `gpu_ss11` | whole node | 2 d | 5000 | **+6 days** |
+
+**`shared` works for GPU jobs** — the association carries `gpu_shared`, and `-q shared -C
+gpu` resolves to partition `shared_gpu_ss11` with exactly the 1 GPU / 32 cores requested.
+That settles the open question in `perlmutter/README.md`; `SWEEP_QOS=shared` is right.
+
+`regular` is **six days** deep and would take a whole 4-GPU node per single-GPU task,
+idling three. It is not a fallback worth having for this work.
+
+**The A/B belongs in `debug`**: four ~8-minute runs sits exactly inside debug's 5-job and
+30-minute limits and starts ~6 h sooner. The sweep cannot — `ss_dz4_ppc25` (~33 min) and
+`ss_dz4_ppc100` (~1 h 42 m) exceed the walltime cap and six tasks exceed the job cap.
+`submit.sh` gained `--qos`/`--time` overrides and refuses `--qos debug` above 30 minutes.
+
+⚠ `--test-only` reports "will start no later than", so real starts may be earlier; the
+ordering (debug < shared << regular) is the durable part, not the absolute times.
+
+The `reflect_symmetry_axis` cherry-picks are now on `origin/feature/hybrid-laser`
+(`acc2d6621..fcb48c9fe`, 8 files, +232/−0), so Perlmutter can build binary B.

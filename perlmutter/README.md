@@ -73,10 +73,30 @@ perlmutter/submit.sh sweep         # six S_phase points, one GPU each
 perlmutter/submit.sh ab            # the wall A/B, two runs per binary
 ```
 
-⚠ **QOS.** `site.conf` defaults to `SWEEP_QOS=shared`, which bills per-GPU and suits
-these single-GPU runs. If `shared` is not available for GPU jobs on your allocation, set
-`SWEEP_QOS=regular` — that takes whole 4-GPU nodes per task and wastes three of them, so
-prefer `shared` if it works. Confirm with `sacctmgr show assoc user=$USER format=qos%40`.
+**QOS — verified on Perlmutter 2026-08-11** with `sbatch --test-only` (validates and
+estimates, submits nothing). `shared` works for GPU jobs and is by far the right choice:
+
+| QOS | partition | resources | max wall | max jobs | would start |
+|---|---|---|---|---|---|
+| `shared` | `shared_gpu_ss11` | 1 GPU / 32 cores | 2 d | 5000 | **+11 h** |
+| `debug` | `gpu_ss11` | whole node | **30 min** | **5** | **+5 h** |
+| `regular` | `gpu_ss11` | whole node | 2 d | 5000 | **+6 days** |
+
+`regular` is six days deep and wastes three of four GPUs per task — do not use it for this.
+`--test-only` reports an upper bound, so real starts may be sooner, but the ordering is
+the point.
+
+**Put the A/B in `debug`.** It is four ~8-minute runs, which is exactly within debug's
+5-job and 30-minute limits, and it starts about 6 h sooner:
+
+```bash
+perlmutter/submit.sh ab --qos debug --time 00:30:00
+```
+
+`submit.sh` refuses `--qos debug` with a walltime over 30 min rather than letting you
+discover it after the wait. The sweep cannot use debug — `ss_dz4_ppc25` (~33 min) and
+`ss_dz4_ppc100` (~1 h 42 m) exceed the cap, and six tasks exceed the job limit — so it
+goes to `shared`.
 
 Each array task is one run, ordered cheapest-first so a mistake surfaces on the 8-minute
 run rather than the 100-minute one.

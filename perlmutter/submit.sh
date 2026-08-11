@@ -16,7 +16,15 @@ export KINSHOCK_PM
 source "$KINSHOCK_PM/_common.sh"
 
 WHAT="${1:-}"; shift || true
-DRY=0; [[ "${1:-}" == "--dry" ]] && DRY=1
+DRY=0; QOS_OVERRIDE=""; TIME_OVERRIDE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry)  DRY=1; shift ;;
+        --qos)  QOS_OVERRIDE="$2"; shift 2 ;;
+        --time) TIME_OVERRIDE="$2"; shift 2 ;;
+        *) echo "unknown option '$1'" >&2; exit 2 ;;
+    esac
+done
 
 case "$WHAT" in
   sweep)
@@ -67,8 +75,15 @@ cat -n "$RUNLIST" | sed 's/^/    /'
 
 submit() {   # submit <array> <binary> <name>
     local arr="$1" bin="$2" name="$3"
-    local cmd=(sbatch -A "$NERSC_ACCOUNT" -q "${SWEEP_QOS:-shared}"
-               -t "${SWEEP_TIME:-03:00:00}" --array="$arr" -J "$name"
+    local qos="${QOS_OVERRIDE:-${SWEEP_QOS:-shared}}"
+    local wall="${TIME_OVERRIDE:-${SWEEP_TIME:-03:00:00}}"
+    # debug is capped at 30 min AND 5 jobs per user (measured 2026-08-11) -- catch the
+    # walltime mistake here rather than after the queue wait.
+    if [[ "$qos" == "debug" && "$wall" > "00:30:00" ]]; then
+        echo "submit: -q debug caps walltime at 00:30:00 (asked $wall)" >&2; return 2
+    fi
+    local cmd=(sbatch -A "$NERSC_ACCOUNT" -q "$qos"
+               -t "$wall" --array="$arr" -J "$name"
                --export="ALL,KINSHOCK_PM=$KINSHOCK_PM,RUNLIST=$RUNLIST,BINARY=$bin,WORKROOT=$WORKROOT"
                "$KINSHOCK_PM/job.sbatch")
     echo "+ ${cmd[*]}"
