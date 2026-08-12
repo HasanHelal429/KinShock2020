@@ -231,14 +231,34 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 - **Perlmutter (NERSC).** `perlmutter/` carries the build + Slurm layer: `site.conf`
   (gitignored) for account/paths, `build_warpx.sh` for the A100 build at a *detached
   commit* (provenance is a SHA, not "whatever the branch was"), and `submit.sh
-  {sweep|ab}` for single-GPU job arrays. Read `perlmutter/README.md` first — **none of it
-  has been executed**, and the `reflect_symmetry_axis` cherry-picks it depends on exist
-  only in the chablis `warpx-cda` clone until someone pushes them.
+  {sweep|ab}` for single-GPU job arrays. Read `perlmutter/README.md` first.
+  **Executed 2026-08-11** and it worked as written; the cherry-picks are pushed, so
+  `feature/hybrid-laser`'s tip *is* `fcb48c9fe` = `WARPX_COMMIT_B`. Repos at
+  `$PSCRATCH/{KinShock2020,warpx-cda}`; binaries `build_pm_{a,b}/bin/warpx.1d`.
+  Four machine facts that cost time (RESULTS 2026-08-11 Perlmutter): the default
+  `python3` is **3.6.15** and cannot parse `from __future__ import annotations` (use the
+  venv the WarpX profile activates); the system `ffmpeg` has **no H.264 encoder**, so all
+  movie jobs die in `plotting.py:encode` until you `export FFMPEG=$(python -c "import
+  imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")`; upstream's
+  `install_gpu_dependencies.sh` hard-codes `$HOME/src/warpx/requirements.txt` (symlink it);
+  and the **A100 is not faster than chablis per GPU** on these 1D decks — the win is
+  running all six sweep points at once.
 - **`boundary.reflect_symmetry_axis` did nothing until 2026-08-11.** It is fork-only and
-  lived on an unmerged branch, so all 27 one-sided runs used plain specular reflection and
-  `symmetry` ≡ `reflecting`. `--verify` now reads `run.log`'s "Unused ParmParse Variables"
-  block and reports a MISMATCH, which is the only place that information survives —
-  AMReX omits unused keys from `warpx_used_inputs` entirely.
+  lived on an unmerged branch (now pushed), so all 27 one-sided runs used plain specular
+  reflection and `symmetry` ≡ `reflecting`. `--verify` now reads `run.log`'s "Unused
+  ParmParse Variables" block and reports a MISMATCH, which is the only place that
+  information survives — AMReX omits unused keys from `warpx_used_inputs` entirely.
+  **And it turns out not to matter — measured, not assumed.** The A/B (`scripts/ab_wall_test.py`,
+  binary A vs B on identical configs) found nothing above the GPU noise floor:
+  time-averaged |A−B|/floor = 1.34 (rms E_z), 0.47 (coherent B⊥), 0.48 (piston front). The
+  one ratio that looked like a detection (17.59, E_z at t·ω_ci0 = 0.20) was a **collapsed
+  denominator** — the floor there was 19× smaller than at neighbouring times, from a single
+  replicate pair — not a signal. So the **~5 % near-wall artifact attributed to specular
+  reflection (RESULTS 2026-07-23) is not detectable**, the 27 affected runs are not
+  invalidated by it, and `SWEEP_BUILD=A` is the right default. Caveat: one resolution,
+  one-sided, t·ω_ci0 ≤ 0.30 — a longer or finer run could still resolve a difference.
+  **Never quote a bare |A−B| without the same-binary replicate floor**: WarpX on GPU is not
+  reproducible even at fixed seed (ablastr `RandomSeed.H`).
 
 ## Working preferences
 - Work in the **regular repo folders** (not git worktrees). Commit to `main`.

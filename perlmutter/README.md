@@ -1,32 +1,40 @@
 # Running KinShock2020 on Perlmutter (NERSC)
 
-> **None of this has been executed.** It was written on chablis, which has no Perlmutter
-> access, so treat the first submission as a shakeout. Everything marked ⚠ below is a
-> specific thing I could not verify from here. The build environment is not invented —
-> it comes from upstream `Tools/machines/perlmutter-nersc/` in the `warpx-cda` tree.
+> **Executed 2026-08-11.** This was written blind on chablis; it has since been run
+> end-to-end on Perlmutter and needed no changes beyond one bug in `build_warpx.sh`'s
+> self-check (fixed). Both binaries built, the wall A/B ran 4/4 clean, and the S_phase
+> sweep followed. The ⚠ marks below were the author's unverifiable guesses — each one is
+> now annotated with what actually happened. See RESULTS 2026-08-11 (Perlmutter).
 
 ## What Perlmutter actually buys here
 
-Not per-GPU speed. An A100 is maybe 1.5–2.5× an RTX 4070 on these decks, and the small
-points are latency-bound rather than bandwidth-bound, so the low end is likelier. **The
-win is concurrency**: all six S_phase points run at once, so wall-clock is the *longest
-single run* (~1 h) instead of the 3 h 37 m serial total measured on chablis.
+Not per-GPU speed — and **measurement (2026-08-11) was harsher than the guess above it.**
+The A100 turned in **479 s for the cost-1 point** (`ss_dz1_ppc100`: WarpX `Total Time`
+483.1 s and 475.6 s over two runs), against the ~459 s/point the chablis estimate implied.
+So the A100 was **not faster at all** here, let alone the 1.5–2.5× guessed — these 1D
+decks are latency-bound, and one box on one GPU leaves an A100 badly under-occupied.
 
-## Blocker: the cherry-picks are local-only
+**The win is entirely concurrency.** All six S_phase points run at once, so wall-clock is
+the *longest single run* — `ss_dz4_ppc100` at 16 cost units ≈ **2 h 09 m** — instead of the
+31-unit, ~4.1 h serial total. Note the original "~1 h" here was too optimistic by 2×: it
+overlooked that the longest point is 16× the baseline, not ~8×.
 
-`fcb48c9fe` (= `acc2d6621` + `d5f2e9917` + `05d74af41`, the `reflect_symmetry_axis`
-fix) exists **only in the chablis clone**. Perlmutter clones from
-`git@github.com:Schaeffer-Lab/warpx-cda.git` and will not find it. Before building
-binary B:
+Scaling that holds: cost = `n_cell × ppc × max_step`, i.e. the README table's 1/2/4/4/4/16,
+at **479 s/unit** plus ~43 s/job of Slurm + logger overhead. One caveat — `ss_dz4_ppc25`
+has 16× the reference's *cell*-steps but only 4× its *particle*-steps, so it is
+under-costed by this model and may run ~40–50 min rather than 33.
 
-```bash
-# on chablis, after you're satisfied with the cherry-pick
-cd ~/warpx-cda && git push origin feature/hybrid-laser
-```
+## ~~Blocker: the cherry-picks are local-only~~ — RESOLVED 2026-08-11
 
-That pushes to a **shared lab branch**, so it is your call, not a mechanical step. If you
-would rather not move `feature/hybrid-laser`, push it as its own branch
-(`git push origin feature/hybrid-laser:build/symwall`) and point `WARPX_COMMIT_B` at that.
+The cherry-picks were pushed to the shared lab branch, and `feature/hybrid-laser`
+fast-forwarded `acc2d6621 → fcb48c9fe`. **That tip is `WARPX_COMMIT_B` verbatim** — the
+rebuilt commit reproduced the chablis SHA exactly, so `site.conf.example` needed no
+change and `build_warpx.sh both` works as written. Nothing to do here.
+
+⚠ **Do not build B from `origin/feature/reflect-symmetry-axis`.** `d5f2e9917` and
+`05d74af41` are on that branch too, but it forked *before* the heater merge and carries
+**zero** `ParticleHeater`/`TargetInjector` files (15 commits behind `development`). B must
+come from `feature/hybrid-laser`. Checked out and confirmed 2026-08-11.
 
 ## One-time setup
 

@@ -3185,9 +3185,10 @@ not usable as build B**: it forked before the heater merge and carries zero
 `ParticleHeater`/`TargetInjector` files (15 behind `development`). B has to come from
 `feature/hybrid-laser`.
 
-⚠ Three places still assert the stale "chablis-local" claim and should be corrected:
-`perlmutter/README.md` ("Blocker: the cherry-picks are local-only"), `CLAUDE.md`
-(Perlmutter bullet), and `build_warpx.sh`'s closing `echo`. Not touched in this commit.
+Three places asserted the stale "chablis-local" claim — `perlmutter/README.md`, `CLAUDE.md`
+(Perlmutter bullet), and `build_warpx.sh`'s closing `echo`. **All corrected later the same
+day** (see the addendum at the end of this entry). Remaining "chablis" mentions in
+`perlmutter/` are historical provenance (where a measurement was taken), not stale claims.
 
 **Binaries** (A100, `AMREX_CUDA_ARCH=8.0`, 1D CUDA, double, OPENPMD+EB+QED, 535 MB each):
 
@@ -3320,7 +3321,37 @@ change it before submitting the sweep, or accept that the control needs re-readi
 
 ### Next
 
-- Decide `SWEEP_BUILD` (recommend `A`) and submit `submit.sh sweep` — six points, one GPU
-  each, wall-clock ≈ the longest run.
-- Correct the three stale "chablis-local" claims.
+- ~~Decide `SWEEP_BUILD` and submit the sweep~~ — done, see addendum.
+- ~~Correct the three stale "chablis-local" claims~~ — done, see addendum.
 - Optional: 2 more replicates per binary to firm up the noise floor.
+
+### Addendum (same day) — sweep submitted, docs corrected, and the A100 is not faster
+
+**`SWEEP_BUILD=A`**, on the A/B evidence above, and `SWEEP_TIME` raised `03:00:00 →
+04:00:00` (`shared` bills actual elapsed, not requested, so the hour is nearly free).
+
+**Sweep submitted as job `56715249`, array `1-5` — not `0-5`.** Index 0 is
+`ss_dz1_ppc100`, which the A/B already produced *on binary A*, i.e. exactly what the sweep
+asks for; its `diags/` would in any case have tripped `run_warpx`'s in-place overwrite
+guard. Re-running it would have burned ~9 GPU-min to reproduce data already on disk — and
+not bit-identically, since GPU runs are not reproducible. The sweep's baseline point is
+therefore the A/B's A1 run.
+
+Estimates, anchored to the measured cost unit: 17 min / 33 / 33 / 33–50 / **2 h 09 m**
+for indices 1–5; wall-clock ≈ the longest, ~3.9 GPU-h total.
+
+**Per-GPU, Perlmutter is not a speed-up.** The A100 turned in **479 s for the cost-1
+point** (WarpX `Total Time` 483.1 s and 475.6 s across the two A-binary runs) against the
+~459 s/point implied by chablis's own estimate (7.9 h × 2 GPUs / 124). So the
+`perlmutter/README.md` guess of "1.5–2.5× an RTX 4070" was **wrong in the wrong direction**
+— there is no per-card gain at all. These 1D decks are latency-bound, and
+`max_grid_size = n_cell` puts one box on one GPU, which leaves an A100 badly
+under-occupied. The README's central thesis survives intact and is in fact strengthened:
+**the win is concurrency, not per-GPU speed.** Its "~1 h" wall-clock figure was also 2×
+optimistic (it missed that the longest point is 16× the baseline); corrected to ~2 h 09 m.
+
+Docs corrected in `perlmutter/README.md` (banner, blocker section, the speed/wall-clock
+paragraph), `CLAUDE.md` (Perlmutter bullet + the `reflect_symmetry_axis` bullet, which now
+carries the A/B verdict), and `build_warpx.sh` (header + closing echo). One new warning
+recorded while doing it: **do not build B from `origin/feature/reflect-symmetry-axis`** —
+it forked before the heater merge and carries zero `ParticleHeater`/`TargetInjector` files.

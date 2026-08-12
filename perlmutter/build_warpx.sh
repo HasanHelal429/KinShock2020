@@ -5,12 +5,19 @@
 #   perlmutter/build_warpx.sh B     # + reflect_symmetry_axis (the pi-rotation wall)
 #   perlmutter/build_warpx.sh both
 #
-# WHY TWO BINARIES. `boundary.reflect_symmetry_axis` is fork-only and lived on an
-# unmerged branch, so every result this project has produced silently used plain specular
-# reflection instead of the pi-rotation symmetry wall its config asked for (RESULTS
-# 2026-08-11). A is what produced those results; B is A plus the two cherry-picked commits
-# that implement it. The A/B pair is the first measurement of the difference -- see
-# scripts/ab_wall_test.py. If you only want the sweep, build whichever SWEEP_BUILD names.
+# WHY TWO BINARIES. `boundary.reflect_symmetry_axis` is fork-only, and until it was pushed
+# it lived on an unmerged branch -- so every result this project produced before 2026-08-11
+# silently used plain specular reflection instead of the pi-rotation symmetry wall its
+# config asked for (RESULTS 2026-08-11). A is what produced those results; B is A plus the
+# two cherry-picked commits that implement it. Both are now reachable from origin:
+# feature/hybrid-laser's tip IS fcb48c9fe.
+#
+# The A/B pair was run on 2026-08-11 (scripts/ab_wall_test.py) and found NOTHING above the
+# GPU noise floor -- time-averaged |A-B|/floor = 1.34 (rms E_z), 0.47 (B_perp), 0.48
+# (piston front). So the two walls are indistinguishable on this problem, and site.conf
+# sets SWEEP_BUILD=A to stay comparable with all 27 existing runs. Keep both build paths:
+# the pair is the only thing that measures the wall, and a longer or finer run may yet
+# resolve a difference. If you only want the sweep, build whichever SWEEP_BUILD names.
 #
 # The heavy lifting is upstream's: Tools/machines/perlmutter-nersc/ carries the module
 # set, AMREX_CUDA_ARCH=8.0 (A100) and an installer for boost/adios2/blaspp/lapackpp.
@@ -78,5 +85,6 @@ case "$WHICH" in
     *)    echo "usage: $0 [A|B|both]" >&2; exit 2 ;;
 esac
 echo
-echo "Reminder: commit $WARPX_COMMIT_B must be REACHABLE FROM ORIGIN for this to work"
-echo "on Perlmutter. As of 2026-08-11 the cherry-picks exist only in the chablis clone."
+echo "Note: both commits are reachable from origin as of 2026-08-11 -- the cherry-picks"
+echo "were pushed and feature/hybrid-laser fast-forwarded acc2d6621 -> fcb48c9fe, which"
+echo "reproduced the chablis SHA exactly. Built and run on Perlmutter the same day."
