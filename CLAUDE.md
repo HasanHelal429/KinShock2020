@@ -241,8 +241,12 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   movie jobs die in `plotting.py:encode` until you `export FFMPEG=$(python -c "import
   imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")`; upstream's
   `install_gpu_dependencies.sh` hard-codes `$HOME/src/warpx/requirements.txt` (symlink it);
-  and the **A100 is not faster than chablis per GPU** on these 1D decks — the win is
-  running all six sweep points at once.
+  and **GPU cost is strongly non-linear in problem size** — one box on one GPU means the
+  small points leave an A100 under-occupied, so s/unit runs 479 at cost 1 down to 179 at
+  cost 16 (a 2.7× efficiency gain). **Never size a job by extrapolating the cheapest
+  point**: doing that over-predicted `ss_dz4_ppc100` by 2.7× (2 h 09 m predicted, 48 m
+  actual). Overall the A100 is ~1.7× chablis per GPU, ~2.3× where it is fed; the bigger
+  win is still running all six sweep points at once (~49 min wall-clock).
 - **`boundary.reflect_symmetry_axis` did nothing until 2026-08-11.** It is fork-only and
   lived on an unmerged branch (now pushed), so all 27 one-sided runs used plain specular
   reflection and `symmetry` ≡ `reflecting`. `--verify` now reads `run.log`'s "Unused

@@ -8,21 +8,33 @@
 
 ## What Perlmutter actually buys here
 
-Not per-GPU speed — and **measurement (2026-08-11) was harsher than the guess above it.**
-The A100 turned in **479 s for the cost-1 point** (`ss_dz1_ppc100`: WarpX `Total Time`
-483.1 s and 475.6 s over two runs), against the ~459 s/point the chablis estimate implied.
-So the A100 was **not faster at all** here, let alone the 1.5–2.5× guessed — these 1D
-decks are latency-bound, and one box on one GPU leaves an A100 badly under-occupied.
+Both, as it turns out — the guess above was about right, and **the whole sweep was measured
+on 2026-08-11** (job `56715249`). Concurrency is still the bigger win.
 
-**The win is entirely concurrency.** All six S_phase points run at once, so wall-clock is
-the *longest single run* — `ss_dz4_ppc100` at 16 cost units ≈ **2 h 09 m** — instead of the
-31-unit, ~4.1 h serial total. Note the original "~1 h" here was too optimistic by 2×: it
-overlooked that the longest point is 16× the baseline, not ~8×.
+**Per-GPU: ~1.7× overall, and the cost model is NOT linear on GPU.** Cost per unit falls
+steeply with problem size, because these 1D decks put `max_grid_size = n_cell` — one box —
+on one GPU, and the small points leave an A100 badly under-occupied:
 
-Scaling that holds: cost = `n_cell × ppc × max_step`, i.e. the README table's 1/2/4/4/4/16,
-at **479 s/unit** plus ~43 s/job of Slurm + logger overhead. One caveat — `ss_dz4_ppc25`
-has 16× the reference's *cell*-steps but only 4× its *particle*-steps, so it is
-under-costed by this model and may run ~40–50 min rather than 33.
+| point | cost | measured | s/unit |
+|---|---|---|---|
+| `ss_dz1_ppc100` | 1 | 7 m 59 s | **479** |
+| `ss_dz2_ppc50` | 2 | 12 m 39 s | 380 |
+| `ss_dz2_ppc100` | 4 | 18 m 25 s | 276 |
+| `ss_dz1_ppc400` | 4 | 19 m 54 s | 298 |
+| `ss_dz4_ppc25` | 4 | 22 m 46 s | 342 |
+| `ss_dz4_ppc100` | 16 | 47 m 44 s | **179** |
+
+479 → 179 s/unit is a **2.7× efficiency gain** from the smallest point to the largest.
+Total 7 767 GPU-s (2.16 GPU-h) against chablis's projected 12 960 GPU-s (3.6 GPU-h) →
+**1.67× overall**, ~2.3× at the largest point. So *"an A100 is 1.5–2.5× an RTX 4070"* was
+right, but only where the GPU is fed; at cost 1 there is no gain at all.
+
+⚠ **Do not size jobs by extrapolating the cost-1 point** — it over-predicts the large runs
+by ~2.7×. A pre-run estimate anchored there put `ss_dz4_ppc100` at 2 h 09 m; it took 48 m.
+
+**Concurrency is still the main win.** All six points run at once, so wall-clock is the
+longest single run — **~49 min** — instead of the 2.16 GPU-h serial total. The original
+"~1 h" here was very nearly right.
 
 ## ~~Blocker: the cherry-picks are local-only~~ — RESOLVED 2026-08-11
 

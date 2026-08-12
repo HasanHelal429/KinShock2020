@@ -3325,7 +3325,7 @@ change it before submitting the sweep, or accept that the control needs re-readi
 - ~~Correct the three stale "chablis-local" claims~~ — done, see addendum.
 - Optional: 2 more replicates per binary to firm up the noise floor.
 
-### Addendum (same day) — sweep submitted, docs corrected, and the A100 is not faster
+### Addendum (same day) — sweep submitted, docs corrected
 
 **`SWEEP_BUILD=A`**, on the A/B evidence above, and `SWEEP_TIME` raised `03:00:00 →
 04:00:00` (`shared` bills actual elapsed, not requested, so the hour is nearly free).
@@ -3340,18 +3340,166 @@ therefore the A/B's A1 run.
 Estimates, anchored to the measured cost unit: 17 min / 33 / 33 / 33–50 / **2 h 09 m**
 for indices 1–5; wall-clock ≈ the longest, ~3.9 GPU-h total.
 
-**Per-GPU, Perlmutter is not a speed-up.** The A100 turned in **479 s for the cost-1
-point** (WarpX `Total Time` 483.1 s and 475.6 s across the two A-binary runs) against the
-~459 s/point implied by chablis's own estimate (7.9 h × 2 GPUs / 124). So the
-`perlmutter/README.md` guess of "1.5–2.5× an RTX 4070" was **wrong in the wrong direction**
-— there is no per-card gain at all. These 1D decks are latency-bound, and
-`max_grid_size = n_cell` puts one box on one GPU, which leaves an A100 badly
-under-occupied. The README's central thesis survives intact and is in fact strengthened:
-**the win is concurrency, not per-GPU speed.** Its "~1 h" wall-clock figure was also 2×
-optimistic (it missed that the longest point is 16× the baseline); corrected to ~2 h 09 m.
+**Per-GPU speed — a claim made here prematurely, and retracted below.** From the cost-1
+point alone (479 s/unit vs the ~459 s/point chablis's estimate implied) it looked as though
+the A100 gave *no* per-card gain, and `README.md`/`CLAUDE.md` were edited to say so. **That
+was wrong**, and the sweep measured it directly a few hours later — see the second addendum.
+The error was extrapolating a linear cost model from the smallest, most under-occupied
+point. What survives unchanged is the README's thesis that **the win is concurrency**.
 
 Docs corrected in `perlmutter/README.md` (banner, blocker section, the speed/wall-clock
 paragraph), `CLAUDE.md` (Perlmutter bullet + the `reflect_symmetry_axis` bullet, which now
 carries the A/B verdict), and `build_warpx.sh` (header + closing echo). One new warning
 recorded while doing it: **do not build B from `origin/feature/reflect-symmetry-axis`** —
 it forked before the heater merge and carries zero `ParticleHeater`/`TargetInjector` files.
+
+---
+
+## 2026-08-11 (Perlmutter, later) — S_phase: the upstream E_z is 1/sqrt(ppc) particle noise. The c/v_ti account is FALSIFIED
+
+The sweep ran and its own premise failed, in the informative direction. `H_phase`
+concluded the upstream defects were set by **c/v_ti** — a *physical* thermal-fluctuation
+level — and predicted that refining dz and raising ppc **would not** remove them. Raising
+ppc removes them, on a clean power law. **It is particle discreteness noise.**
+
+### The runs
+
+Job `56715249`, array `1-5`, binary A, one A100 each, 5/5 COMPLETED exit `0:0`, 183
+diagnostic dumps apiece. Index 0 (`ss_dz1_ppc100`) was deliberately not resubmitted — the
+A/B had already produced it *on binary A*, i.e. exactly what the sweep asks for.
+
+### The measurement
+
+`scripts/check_domain_control.measure`, upstream window 8–12 d_i0, identical parameters to
+the A/B table above, so the two are directly comparable.
+
+**rms E_z / (v_A B0)**
+
+| run | dz/λ_D | ppc | N_D | t*=0.05 | 0.10 | 0.20 | 0.29 |
+|---|---|---|---|---|---|---|---|
+| `ss_dz4_ppc25` | 1.52 | 25 | 16.5 | 56.79 | 61.62 | 73.02 | 81.90 |
+| `ss_dz2_ppc50` | 3.03 | 50 | 16.5 | 43.36 | 48.51 | 57.08 | 66.35 |
+| `ss_dz1_ppc100` | 6.07 | 100 | 16.5 | 31.08 | 34.75 | 43.05 | 48.91 |
+| `ss_dz2_ppc100` | 3.03 | 100 | 33.0 | 30.06 | 31.51 | 36.87 | 41.87 |
+| `ss_dz4_ppc100` | 1.52 | 100 | 66.0 | 26.52 | 27.96 | 30.42 | 32.89 |
+| `ss_dz1_ppc400` | 6.07 | 400 | 66.0 | 15.77 | 15.94 | 17.15 | 19.07 |
+
+**It is a 1/sqrt(ppc) law, to within 8% over a 16x range**, anchored on the ppc = 100 mean
+(29.22) at t*ω_ci0 = 0.05:
+
+| ppc | 25 | 50 | 100 | 400 |
+|---|---|---|---|---|
+| observed | 56.79 | 43.36 | 29.22 | 15.77 |
+| 1/√ppc predicted | 58.44 | 41.32 | 29.22 | 14.61 |
+| obs / pred | 0.97 | 1.05 | 1.00 | 1.08 |
+
+**dz barely matters.** At fixed ppc = 100, refining dz/λ_D from 6.07 → 1.52 (4x) moves
+E_z only 31.08 → 26.52, **−15%**. Aliasing is a secondary effect here; the ppc term
+dominates completely.
+
+The two controlled comparisons say the same thing from both directions:
+
+- **Fixed N_D = 16.5, dz refined 4x** — E_z *rises* by 1.68–1.83x. That is not a paradox:
+  holding N_D = ppc·λ_D/dz fixed while refining dz **forces ppc down** 100 → 25, and
+  √(100/25) = 2. It is the ppc law again, wearing the grid's clothes.
+- **Fixed dz, ppc raised 4x** — ratio 0.39–0.51 at dz/λ_D = 6.07 and 0.40–0.47 at 1.52,
+  against **0.500** for pure 1/√ppc and **~1.0** for a resolution-independent physical
+  level. Both pairs land on the noise prediction.
+
+### Why this overturns H_phase
+
+A physical thermal-fluctuation field E_th = √(nT/ε₀) is a property of the plasma state,
+so E_th/(v_A B0) = β·c/v_ti is **independent of ppc by construction**. The measured E_z is
+not: it falls as 1/√N_particles, which is the signature of finite-particle sampling noise,
+not of a physical field. The H_phase argument (RESULTS 2026-08-11 earlier) correctly showed
+that both runs sit at 5–7% of *their own* thermal scale, but that consistency check cannot
+distinguish "the physical thermal level" from "discreteness noise that happens to scale
+with the same n and T". The ppc scan can, and does.
+
+**Consequence:** the early ambient-ion acceleration in `R1_paper_470eV` is a
+**resolution artifact after all**, and the fix is ppc, not dz. Criterion-2-style
+conclusions that leaned on the c/v_ti account should be revisited.
+
+### The caveat that matters for what to do next
+
+**There is no plateau.** The ppc 100 → 400 ratio is still ~0.4–0.5, i.e. still tracking
+1/√ppc with no sign of bottoming out on a physical floor. So E_z at ppc = 400 is **still
+discreteness-dominated**, and ppc = 1600 would roughly halve it again. ppc = 400 is
+therefore a 2x noise reduction, **not** a converged value, and it must be justified by
+whether the early ion acceleration is *gone* — an observable of the ambient phase space —
+rather than by E_z having converged. Do not quote ppc = 400 as "resolved" without that check.
+
+### Everything else is flat
+
+`coherent max|B_perp|/B0` and `piston front z/d_i0` show no systematic resolution trend
+(front within ±3% across all six points, 0.53–0.56 d_i0 at t* = 0.05 rising to 3.53–4.06 at
+0.29). The piston dynamics are converged; it is only the upstream noise that moves.
+
+### Movies
+
+Phase-space animations for all six points plus the symwall twin:
+`media/S_phase/*/shock_phase.mp4` (gitignored, regenerable). A light corroboration of the
+above, from an unexpected direction: the h264 file sizes fall monotonically with ppc —
+187K at ppc = 25, 176K at 50, 166/125/96K at 100, **87K at 400** — because the encoder
+compresses a smooth phase space better than a noisy one. Suggestive, not evidence.
+
+### Cost, and the estimate that was wrong by 2.7x
+
+| point | cost | wall | s/unit |
+|---|---|---|---|
+| `ss_dz1_ppc100` | 1 | 7m59s | **479** |
+| `ss_dz2_ppc50` | 2 | 12m39s | 380 |
+| `ss_dz2_ppc100` | 4 | 18m25s | 276 |
+| `ss_dz1_ppc400` | 4 | 19m54s | 298 |
+| `ss_dz4_ppc25` | 4 | 22m46s | 342 |
+| `ss_dz4_ppc100` | 16 | 47m44s | **179** |
+
+**GPU cost is not linear in the cost model.** s/unit falls 479 → 179 (2.7x) from the
+smallest point to the largest, because `max_grid_size = n_cell` puts one box on one GPU and
+the small points leave an A100 under-occupied. A pre-run estimate anchored on the cost-1
+point predicted 2 h 09 m for `ss_dz4_ppc100`; it took 48 m. **Never size a job by
+extrapolating the cheapest point** — that error is now recorded in CLAUDE.md.
+
+This also **retracts the claim made in the previous entry** that the A100 gives no per-GPU
+gain. Measured over the whole sweep: 7 767 GPU-s against chablis's projected 12 960 →
+**~1.67x overall**, ~2.3x at the largest point, i.e. inside `perlmutter/README.md`'s
+original "1.5–2.5x an RTX 4070" guess. That guess was right and the retraction of it was
+wrong; the error was extrapolating from the single most under-occupied point. What survives
+is the README's actual thesis, that **the win is concurrency**: wall-clock for the whole
+sweep was ~49 min against 2.16 GPU-h of serial work.
+
+### Staged, not yet reported: `R1_paper_470eV_ppc400`
+
+`runs/R1_phase/R1_paper_470eV_ppc400` — `R1_paper_470eV` with **ppc 100 → 400 and nothing
+else**. The generated deck differs from its parent in exactly five lines: the four species'
+`num_particles_per_cell_each_dim`, plus `target_injector.ppc_reference`, which
+`kinshock.deck` propagated on its own. Every derived scale is identical (M_A 13.95,
+M_ms 12.76, β_ab 1150, lnΛ 12.23), confirming it is a controlled counterpart.
+
+**It is on FOUR GPUs, not two.** The parent's `max_grid_size = 15000` (two boxes) was tuned
+on chablis, a two-card machine, and is an artifact of that hardware; a Perlmutter GPU node
+carries four A100s, so two boxes idles half the node. Changed to `7500` = four boxes, one
+per GPU. The parent's note *"2 GPU, 4 box — fewer, larger wins"* is **not** an argument
+against this: it measured two boxes *per GPU*, i.e. over-decomposition relative to rank
+count; four boxes on four GPUs is one box per GPU, the same shape as the 2-box/2-GPU case
+that measured 91% efficiency. NB `gpu_shared` caps at `gres/gpu=2`, so >2 GPUs means the
+`regular` QOS and a whole node billed (~13% more allocation for ~1.8x less wall-clock).
+
+New `perlmutter/job_multigpu.sbatch` carries this: one job = one run, ranks/GPUs from the
+submit line, defaulting to 4. It sources `_common.sh` and calls `run_warpx`, so the
+cd-before-launch invariant, the progress logger, the overwrite guard and the post-run
+`--verify` are not duplicated. `job.sbatch` stays single-GPU for the one-box S_phase array.
+
+Submitted: pilot `56729828` (5 000 steps, 4 GPUs) and the full run `56729831` (48 h,
+`gpu_regular`). **Neither has reported** — cost is projected at 3.5–4x the parent's 7.9 h
+on two GPUs before any 4-GPU speed-up, and given the 2.7x miss above that projection should
+be replaced by the pilot's measured s/step rather than trusted. Output ~59 GiB.
+
+### Next
+
+- Read the pilot's s/step; if 4-GPU scaling disappoints, revert to 2 GPUs on `shared`.
+- When `R1_paper_470eV_ppc400` lands: check the **ambient phase space** against `R1_paper`
+  for whether the early acceleration is gone. That, not E_z, is the acceptance test.
+- Revisit anything that leaned on the c/v_ti account.
+- Consider a ppc = 1600 point to find where E_z finally departs from 1/√ppc — that
+  departure is the physical floor, and nothing measured so far has located it.

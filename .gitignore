@@ -45,3 +45,8 @@ runs/**/*.out
 # Perlmutter site-specific settings (account code, scratch paths)
 perlmutter/site.conf
 perlmutter/.runlists/
+
+# Slurm job-wrapper logs, written to the submit CWD by job.sbatch -o/-e.
+# Regenerable, one pair per array task; same category as the run logs above.
+slurm-*.out
+slurm-*.err
