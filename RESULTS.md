@@ -3526,7 +3526,7 @@ submit line, defaulting to 4. It sources `_common.sh` and calls `run_warpx`, so 
 cd-before-launch invariant, the progress logger, the overwrite guard and the post-run
 `--verify` are not duplicated. `job.sbatch` stays single-GPU for the one-box S_phase array.
 
-⚠ **QUEUE-DEPTH RISK, surfaced on merge.** The queue survey two entries above measured
+⚠ ~~**QUEUE-DEPTH RISK, surfaced on merge.**~~ **MEASURED AND ACTED ON — see below.** The queue survey two entries above measured
 `regular` at **+6 days** against `shared` at +11 h (`sbatch --test-only`, single-GPU spec).
 Four GPUs *forces* `regular`, because `gpu_shared` caps at `gres/gpu=2`. So the 2 → 4 GPU
 switch buys order 13 h of runtime and may cost days of queue — plausibly a net loss in
@@ -3538,6 +3538,34 @@ Submitted: pilot `56729828` (5 000 steps, 4 GPUs) and the full run `56729831` (4
 `gpu_regular`). **Neither has reported** — cost is projected at 3.5–4x the parent's 7.9 h
 on two GPUs before any 4-GPU speed-up, and given the 2.7x miss above that projection should
 be replaced by the pilot's measured s/step rather than trusted. Output ~59 GiB.
+
+**RESOLVED 2026-08-12 — reverted to two GPUs.** `sbatch --test-only` settled it:
+
+| config | QOS | would start | wait |
+|---|---|---|---|
+| 4 GPU, 48 h | `regular` | 2026-08-17 20:35 | **~5.8 days** |
+| 4 GPU, 24 h | `regular` | 2026-08-17 20:46 | ~5.8 days |
+| 2 GPU, 48 h | `shared` | 2026-08-12 06:35 | **~6.5 h** |
+| 2 GPU, 24 h | `shared` | 2026-08-12 06:35 | ~6.5 h |
+
+Time-to-result is ~36 h on two GPUs (6.5 h queue + ~30 h run) against ~6.5 days on four
+(5.8 d queue + ~17 h run). **The slower configuration finishes about five days sooner**,
+and shortening the walltime ask does not help `regular` at all — 24 h and 48 h return the
+same date, so that lever is useless.
+
+`max_grid_size` reverted 7500 → 15000, deck regenerated, jobs `56729828`/`56729831`
+cancelled (neither had started, no compute consumed) and resubmitted as pilot `56731351`
+and full run `56731356`, both `-n 2 -G 2 -q shared`.
+
+**The lesson is the general one, not the number.** The 4-GPU switch was argued purely on
+node utilisation — four A100s per node, one box per GPU, 91% efficiency precedent — and
+every one of those statements is still true. It was wrong anyway, because on a shared
+machine *time-to-result is queue + runtime*, and only the second term was optimised. The
+queue term was measurable the whole time with `--test-only`, which is free and submits
+nothing. **Measure the queue before choosing a resource shape**, not after. The
+configuration knowledge is kept in the run's `config.yaml` so the four-box option can be
+revived if the queue ever favours it — this is a property of the queue on the day, not of
+the deck.
 
 ### Next
 

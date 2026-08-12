@@ -98,9 +98,18 @@ at `gres/gpu=2` (`sacctmgr show qos`), so anything above two GPUs — e.g.
 `R1_paper_470eV_ppc400` at `max_grid_size = n_cell/4`, four boxes on four GPUs — must go to
 `regular` and be billed a whole node. Weigh that against the six-day queue depth above: for
 a ~30 h run, going 2 → 4 GPUs saves order 13 h of *runtime* and can cost days of *queue*.
-Two GPUs on `shared` (2 boxes, `mgs = n_cell/2`) may well finish sooner in wall-clock terms
-even though it is the slower configuration. Measure the queue with `--test-only` before
-choosing, and note `--test-only`'s estimate moves with load.
+**Measured 2026-08-12, and it is not close:**
+
+| config | QOS | would start | wait |
+|---|---|---|---|
+| 4 GPU | `regular` | 2026-08-17 | **~5.8 days** |
+| 2 GPU | `shared` | 2026-08-12 | **~6.5 h** |
+
+Time-to-result was ~36 h on two GPUs against ~6.5 days on four, so `R1_paper_470eV_ppc400`
+runs on **two**. Shortening the walltime ask does not help `regular` — 24 h and 48 h return
+the same date. **Measure the queue with `--test-only` before choosing a resource shape**;
+it is free, submits nothing, and the runtime win from more GPUs is easily swamped by it.
+The estimate moves with load, so re-measure rather than trusting this table.
 
 **Put the A/B in `debug`.** It is four ~8-minute runs, which is exactly within debug's
 5-job and 30-minute limits, and it starts about 6 h sooner:
