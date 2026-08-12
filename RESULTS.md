@@ -3557,6 +3557,34 @@ same date, so that lever is useless.
 cancelled (neither had started, no compute consumed) and resubmitted as pilot `56731351`
 and full run `56731356`, both `-n 2 -G 2 -q shared`.
 
+### Pilot result 2026-08-12 — ppc x4 costs only 1.32x, not 4x
+
+Pilot `56731351`: 5 000 steps, 2 GPUs, exit 0, 69 s wall.
+
+    Avg. per step = 0.010571 s      (ppc = 400, 2 GPUs)
+    parent        = 0.00801  s      (ppc = 100, 2 GPUs, measured 2026-08-04)
+    ratio         = 1.32x for 4x the particles
+
+**Projected evolve time: 0.010571 x 2 784 400 = 29 437 s = 8.2 h**, against the 28–32 h
+projected from a "particle-dominated, so 3.5–4x" argument. **That estimate was ~3x too
+high** — the third time today that predicting instead of measuring produced a wrong number
+(after the 2.7x sweep miss and the retracted A100 claim), and the reason is the same one
+the sweep already established: **these decks are GPU-under-occupied**, so adding particles
+is nearly free until the card is actually fed. The production deck at ppc = 100 was itself
+under-occupied — two A100-40GBs running with ~350 MB of pinned arena in use.
+
+⚠ The pilot does NOT include plotfile I/O: `plotfile_intervals = 55688`, so the first
+plotfile falls outside a 5 000-step run. Only two `field_intervals` writes are represented.
+The parent's quoted 7.9 h against its own 6.2 h of pure evolve implies ~1.7 h of I/O at
+~18 GiB; this run writes ~59 GiB, so budget more. Total is still expected well inside the
+48 h request.
+
+**This makes a ppc = 1600 point look cheap and worth having.** The sweep found no plateau
+in the 1/sqrt(ppc) law, so the physical floor of the upstream E_z has never been located.
+If ppc x4 really costs only ~1.3x here, that point is affordable, and it is the measurement
+that would say where discreteness noise stops dominating — which is exactly the question
+ppc = 400 leaves open.
+
 **The lesson is the general one, not the number.** The 4-GPU switch was argued purely on
 node utilisation — four A100s per node, one box per GPU, 91% efficiency precedent — and
 every one of those statements is still true. It was wrong anyway, because on a shared
