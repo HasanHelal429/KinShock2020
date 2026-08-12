@@ -3161,6 +3161,42 @@ reference `ss_dz1_ppc100` exists to reproduce. Deferred to the user.
 
 ---
 
+## 2026-08-11 (Perlmutter) — queue characteristics, measured
+
+`sbatch --test-only` on Perlmutter (validates + estimates, submits nothing), for the
+single-GPU resource spec `S_phase` needs (`-C gpu -N 1 -n 1 -c 32 -G 1`). Account
+`m5032_g`; `$PSCRATCH = /pscratch/sd/h/hhelal`.
+
+| QOS | partition | resources | max wall | max jobs/user | would start |
+|---|---|---|---|---|---|
+| `shared` | `shared_gpu_ss11` | 1 GPU / 32 cores | 2 d | 5000 | **+11 h** |
+| `debug` | `gpu_ss11` | whole node | **30 min** | **5** | **+5 h** |
+| `regular` | `gpu_ss11` | whole node | 2 d | 5000 | **+6 days** |
+
+**`shared` works for GPU jobs** — the association carries `gpu_shared`, and `-q shared -C
+gpu` resolves to partition `shared_gpu_ss11` with exactly the 1 GPU / 32 cores requested.
+That settles the open question in `perlmutter/README.md`; `SWEEP_QOS=shared` is right.
+
+`regular` is **six days** deep and would take a whole 4-GPU node per single-GPU task,
+idling three. It is not a fallback worth having for this work.
+
+**The A/B belongs in `debug`**: four ~8-minute runs sits exactly inside debug's 5-job and
+30-minute limits and starts ~6 h sooner. The sweep cannot — `ss_dz4_ppc25` (~33 min) and
+`ss_dz4_ppc100` (~1 h 42 m) exceed the walltime cap and six tasks exceed the job cap.
+`submit.sh` gained `--qos`/`--time` overrides and refuses `--qos debug` above 30 minutes.
+
+⚠ `--test-only` reports "will start no later than", so real starts may be earlier; the
+ordering (debug < shared << regular) is the durable part, not the absolute times.
+
+The `reflect_symmetry_axis` cherry-picks are now on `origin/feature/hybrid-laser`
+(`acc2d6621..fcb48c9fe`, 8 files, +232/−0), so Perlmutter can build binary B.
+
+**What actually happened (added on merge).** The A/B was submitted to `shared`, not
+`debug`, and all four runs started and finished within ~9 minutes each — so the +11 h
+`shared` estimate was a loose upper bound in practice, as the ⚠ above anticipated. The
+sweep likewise ran in `shared` without a long wait. `debug` remains the right call on
+paper; it was simply not needed. The `--qos`/`--time` overrides added to `submit.sh` here
+are untested for that reason.
 ## 2026-08-11 (Perlmutter) — first NERSC execution: the A/B wall test says the wall is invisible
 
 Answers the "Not yet decided" that closes the previous entry. The two cherry-picks were
@@ -3489,6 +3525,14 @@ New `perlmutter/job_multigpu.sbatch` carries this: one job = one run, ranks/GPUs
 submit line, defaulting to 4. It sources `_common.sh` and calls `run_warpx`, so the
 cd-before-launch invariant, the progress logger, the overwrite guard and the post-run
 `--verify` are not duplicated. `job.sbatch` stays single-GPU for the one-box S_phase array.
+
+⚠ **QUEUE-DEPTH RISK, surfaced on merge.** The queue survey two entries above measured
+`regular` at **+6 days** against `shared` at +11 h (`sbatch --test-only`, single-GPU spec).
+Four GPUs *forces* `regular`, because `gpu_shared` caps at `gres/gpu=2`. So the 2 → 4 GPU
+switch buys order 13 h of runtime and may cost days of queue — plausibly a net loss in
+wall-clock. Two GPUs on `shared` (`mgs = n_cell/2`) is the slower configuration that may
+well finish sooner. This was decided before that measurement was visible in this clone;
+re-check with `--test-only` and revert to 2 GPUs if the estimate holds.
 
 Submitted: pilot `56729828` (5 000 steps, 4 GPUs) and the full run `56729831` (48 h,
 `gpu_regular`). **Neither has reported** — cost is projected at 3.5–4x the parent's 7.9 h

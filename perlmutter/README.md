@@ -1,47 +1,34 @@
 # Running KinShock2020 on Perlmutter (NERSC)
 
-> **Executed 2026-08-11.** This was written blind on chablis; it has since been run
-> end-to-end on Perlmutter and needed no changes beyond one bug in `build_warpx.sh`'s
-> self-check (fixed). Both binaries built, the wall A/B ran 4/4 clean, and the S_phase
-> sweep followed. The ⚠ marks below were the author's unverifiable guesses — each one is
-> now annotated with what actually happened. See RESULTS 2026-08-11 (Perlmutter).
+> **Executed 2026-08-11.** Written blind on chablis, then verified and run on the real
+> machine. Verified from chablis first: NERSC reachable with the existing ssh cert, account
+> `m5032_g`, `$PSCRATCH=/pscratch/sd/h/hhelal`, and the QOS table below via
+> `sbatch --test-only`. Then executed end-to-end on Perlmutter — both binaries built, the
+> wall A/B ran 4/4 clean, and the S_phase sweep followed — needing no changes beyond one bug
+> in `build_warpx.sh`'s self-check (fixed). The ⚠ marks below were the author's unverifiable
+> guesses; each is now annotated with what actually happened. The build environment is not
+> invented; it comes from upstream `Tools/machines/perlmutter-nersc/` in the `warpx-cda`
+> tree. See RESULTS 2026-08-11 (Perlmutter).
 
 ## What Perlmutter actually buys here
 
 Both, as it turns out — the guess above was about right, and **the whole sweep was measured
 on 2026-08-11** (job `56715249`). Concurrency is still the bigger win.
 
-**Per-GPU: ~1.7× overall, and the cost model is NOT linear on GPU.** Cost per unit falls
-steeply with problem size, because these 1D decks put `max_grid_size = n_cell` — one box —
-on one GPU, and the small points leave an A100 badly under-occupied:
-
-| point | cost | measured | s/unit |
-|---|---|---|---|
-| `ss_dz1_ppc100` | 1 | 7 m 59 s | **479** |
-| `ss_dz2_ppc50` | 2 | 12 m 39 s | 380 |
-| `ss_dz2_ppc100` | 4 | 18 m 25 s | 276 |
-| `ss_dz1_ppc400` | 4 | 19 m 54 s | 298 |
-| `ss_dz4_ppc25` | 4 | 22 m 46 s | 342 |
-| `ss_dz4_ppc100` | 16 | 47 m 44 s | **179** |
-
-479 → 179 s/unit is a **2.7× efficiency gain** from the smallest point to the largest.
-Total 7 767 GPU-s (2.16 GPU-h) against chablis's projected 12 960 GPU-s (3.6 GPU-h) →
-**1.67× overall**, ~2.3× at the largest point. So *"an A100 is 1.5–2.5× an RTX 4070"* was
-right, but only where the GPU is fed; at cost 1 there is no gain at all.
-
-⚠ **Do not size jobs by extrapolating the cost-1 point** — it over-predicts the large runs
-by ~2.7×. A pre-run estimate anchored there put `ss_dz4_ppc100` at 2 h 09 m; it took 48 m.
-
-**Concurrency is still the main win.** All six points run at once, so wall-clock is the
-longest single run — **~49 min** — instead of the 2.16 GPU-h serial total. The original
-"~1 h" here was very nearly right.
-
 ## ~~Blocker: the cherry-picks are local-only~~ — RESOLVED 2026-08-11
 
-The cherry-picks were pushed to the shared lab branch, and `feature/hybrid-laser`
-fast-forwarded `acc2d6621 → fcb48c9fe`. **That tip is `WARPX_COMMIT_B` verbatim** — the
-rebuilt commit reproduced the chablis SHA exactly, so `site.conf.example` needed no
-change and `build_warpx.sh both` works as written. Nothing to do here.
+`feature/hybrid-laser` was advanced `acc2d6621..fcb48c9fe` on `Schaeffer-Lab/warpx-cda` — a
+clean fast-forward of two commits, 8 files, +232/−0, all additive. The rebuilt commit
+**reproduced the chablis SHA exactly**, so `site.conf.example` needed no change and
+`build_warpx.sh both` works as written. A fresh Perlmutter clone can build **both**:
+
+| tag | commit | wall |
+|---|---|---|
+| A | `acc2d6621` | specular — what every existing result used |
+| B | `fcb48c9fe` | π-rotation — what the configs have always asked for |
+
+Both were built on Perlmutter 2026-08-11 and confirmed by `strings`: A carries 0 hits of
+`reflect_symmetry_axis`, B carries 12.
 
 ⚠ **Do not build B from `origin/feature/reflect-symmetry-axis`.** `d5f2e9917` and
 `05d74af41` are on that branch too, but it forked *before* the heater merge and carries
@@ -93,10 +80,39 @@ perlmutter/submit.sh sweep         # six S_phase points, one GPU each
 perlmutter/submit.sh ab            # the wall A/B, two runs per binary
 ```
 
-⚠ **QOS.** `site.conf` defaults to `SWEEP_QOS=shared`, which bills per-GPU and suits
-these single-GPU runs. If `shared` is not available for GPU jobs on your allocation, set
-`SWEEP_QOS=regular` — that takes whole 4-GPU nodes per task and wastes three of them, so
-prefer `shared` if it works. Confirm with `sacctmgr show assoc user=$USER format=qos%40`.
+**QOS — verified on Perlmutter 2026-08-11** with `sbatch --test-only` (validates and
+estimates, submits nothing). `shared` works for GPU jobs and is by far the right choice:
+
+| QOS | partition | resources | max wall | max jobs | would start |
+|---|---|---|---|---|---|
+| `shared` | `shared_gpu_ss11` | 1 GPU / 32 cores | 2 d | 5000 | **+11 h** |
+| `debug` | `gpu_ss11` | whole node | **30 min** | **5** | **+5 h** |
+| `regular` | `gpu_ss11` | whole node | 2 d | 5000 | **+6 days** |
+
+`regular` is six days deep and wastes three of four GPUs per task — do not use it for this.
+`--test-only` reports an upper bound, so real starts may be sooner, but the ordering is
+the point.
+
+⚠ **The multi-GPU production decks have no choice but `regular`.** `gpu_shared` is capped
+at `gres/gpu=2` (`sacctmgr show qos`), so anything above two GPUs — e.g.
+`R1_paper_470eV_ppc400` at `max_grid_size = n_cell/4`, four boxes on four GPUs — must go to
+`regular` and be billed a whole node. Weigh that against the six-day queue depth above: for
+a ~30 h run, going 2 → 4 GPUs saves order 13 h of *runtime* and can cost days of *queue*.
+Two GPUs on `shared` (2 boxes, `mgs = n_cell/2`) may well finish sooner in wall-clock terms
+even though it is the slower configuration. Measure the queue with `--test-only` before
+choosing, and note `--test-only`'s estimate moves with load.
+
+**Put the A/B in `debug`.** It is four ~8-minute runs, which is exactly within debug's
+5-job and 30-minute limits, and it starts about 6 h sooner:
+
+```bash
+perlmutter/submit.sh ab --qos debug --time 00:30:00
+```
+
+`submit.sh` refuses `--qos debug` with a walltime over 30 min rather than letting you
+discover it after the wait. The sweep cannot use debug — `ss_dz4_ppc25` (~33 min) and
+`ss_dz4_ppc100` (~1 h 42 m) exceed the cap, and six tasks exceed the job limit — so it
+goes to `shared`.
 
 Each array task is one run, ordered cheapest-first so a mistake surfaces on the 8-minute
 run rather than the 100-minute one.
