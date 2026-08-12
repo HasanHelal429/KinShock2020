@@ -53,7 +53,17 @@ build_one() {
     echo "--- $tag built: $(ls "$bdir"/bin/warpx.1d* 2>/dev/null | head -1)"
     # The check that would have caught the original bug: does the binary actually contain
     # the feature? A silently-missing fork-only input is invisible until a run ignores it.
-    if strings "$bdir"/bin/warpx.1d* 2>/dev/null | grep -q reflect_symmetry_axis; then
+    #
+    # NOT `| grep -q`: this script runs under `set -o pipefail`, and grep -q exits on the
+    # FIRST match, closing the pipe while `strings` is still streaming a 535 MB binary.
+    # strings then dies of SIGPIPE (141), pipefail propagates that, and the `if` takes the
+    # else branch *because the string was found* -- so the check reported "specular wall"
+    # unconditionally, for both binaries (measured 2026-08-11 on Perlmutter). grep -c drains
+    # the stream instead, so there is no SIGPIPE; `|| true` absorbs grep's exit 1 on zero
+    # matches, which would otherwise trip `set -e`.
+    local sym_hits
+    sym_hits="$(strings "$bdir"/bin/warpx.1d* 2>/dev/null | grep -c reflect_symmetry_axis || true)"
+    if [[ "${sym_hits:-0}" -gt 0 ]]; then
         echo "--- $tag DOES implement reflect_symmetry_axis (pi-rotation wall)"
     else
         echo "--- $tag does NOT implement reflect_symmetry_axis (specular wall)"

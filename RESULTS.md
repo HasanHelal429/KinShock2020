@@ -3158,3 +3158,169 @@ The two commits that add it (`d5f2e9917`, `05d74af41`) are self-contained: 7 fil
 is a scientific call, not a cleanup: turning the correct wall on makes new runs
 **non-comparable to every existing result**, including `R1_paper_470eV` — which is the
 reference `ss_dz1_ppc100` exists to reproduce. Deferred to the user.
+
+---
+
+## 2026-08-11 (Perlmutter) — first NERSC execution: the A/B wall test says the wall is invisible
+
+Answers the "Not yet decided" that closes the previous entry. The two cherry-picks were
+pushed, both binaries were built on Perlmutter, and the A/B ran. **Result: at this
+configuration the pi-rotation wall is not distinguishable from specular reflection above
+the GPU noise floor.** Details below, including one ratio that looks like a detection and
+is not.
+
+### Bring-up — everything in `perlmutter/` worked on first submission
+
+`perlmutter/README.md` called the first submission a shakeout. It wasn't: `site.conf` →
+`build_warpx.sh` → `submit.sh` → `job.sbatch` → `run_warpx` ran end-to-end with no edits
+beyond the bug in the next section. Layout is what the README prescribes — both repos on
+`$PSCRATCH`, nothing in `$HOME` but the profile.
+
+**The blocker in `perlmutter/README.md` is gone, and its wording is now wrong.** The
+cherry-picks are no longer chablis-local: `feature/hybrid-laser` fast-forwarded
+`acc2d6621 → fcb48c9fe`, and that tip **is** `WARPX_COMMIT_B` verbatim — the rebuilt
+commit reproduced the chablis SHA exactly, so `site.conf.example` needed no change.
+`d5f2e9917` also exists on `origin/feature/reflect-symmetry-axis`, but **that branch is
+not usable as build B**: it forked before the heater merge and carries zero
+`ParticleHeater`/`TargetInjector` files (15 behind `development`). B has to come from
+`feature/hybrid-laser`.
+
+⚠ Three places still assert the stale "chablis-local" claim and should be corrected:
+`perlmutter/README.md` ("Blocker: the cherry-picks are local-only"), `CLAUDE.md`
+(Perlmutter bullet), and `build_warpx.sh`'s closing `echo`. Not touched in this commit.
+
+**Binaries** (A100, `AMREX_CUDA_ARCH=8.0`, 1D CUDA, double, OPENPMD+EB+QED, 535 MB each):
+
+| tag | commit | `strings … reflect_symmetry_axis` | wall |
+|---|---|---|---|
+| A | `acc2d6621` | 0 hits | specular |
+| B | `fcb48c9fe` | 12 hits (4 in `.rodata`) | pi-rotation |
+
+**Environment.** Deps via upstream `install_gpu_dependencies.sh` →
+`$PSCRATCH/storage/sw/warpx/perlmutter/gpu` (boost 1.82, c-blosc 1.21.1, adios2 2.10.2,
+blaspp/lapackpp 2024.05.31) + venv `venvs/warpx-gpu`, which the profile auto-activates.
+Three machine facts that cost time and will cost it again:
+- The installer hard-codes `$HOME/src/warpx/requirements.txt` and dies there under
+  `set -e`, *after* every expensive C++ build. Fixed with a symlink
+  `$HOME/src/warpx → $PSCRATCH/warpx-cda`.
+- **Perlmutter's default `python3` is 3.6.15** and cannot parse `from __future__ import
+  annotations`. In-job this is fine (the WarpX profile loads `cray-python/3.11.5` before
+  `run_warpx` calls anything), but login-node analysis needs the venv explicitly.
+- The venv ships yt+numpy+matplotlib+PyYAML but not `astropy`/`plasmapy`; both added.
+  Note it carries **astropy 8.0.1**, not chablis `physics`'s 8.0.0 — so a
+  `make_thomson.py` cache moved between the two machines is silently rejected by design
+  (the CODATA-keying note in CLAUDE.md). Unlike chablis, yt and torch coexist here, so
+  the two-env split `make_thomson.py` works around does not apply on Perlmutter.
+
+### `build_warpx.sh`'s feature self-check could never report success (FIXED)
+
+The check that exists precisely to catch a silently-missing fork-only input was inert. It
+reported **"does NOT implement reflect_symmetry_axis"** for *both* binaries, including the
+one that does.
+
+```bash
+set -euo pipefail                                    # top of the script
+if strings "$bdir"/bin/warpx.1d* | grep -q reflect_symmetry_axis; then
+```
+
+`grep -q` exits on the **first** match and closes the pipe while `strings` is still
+streaming a 535 MB binary. `strings` dies of **SIGPIPE (141)**, `pipefail` propagates it,
+and the `if` takes the else branch *because the string was found*. Measured both ways on
+build B: exit 0 without `pipefail`, exit 141 with it. So the failure modes are
+indistinguishable — absent feature → grep reads to EOF, exits 1 → "does NOT" (right answer,
+wrong reason); present feature → SIGPIPE → "does NOT" (wrong).
+
+Fixed by draining the stream instead: `grep -c` into a variable, `|| true` to absorb its
+exit 1 on zero matches. Now correctly prints `hits=0` for A and `hits=12` for B. **The
+binaries were always right; only the report was wrong** — no rebuild was needed.
+
+Worth naming the pattern: this is the second time in two days that a *verification* step,
+not the physics, was the thing that was broken (`--verify` missed the unused key for 27
+runs; this check could not pass). Both failed silently and in the reassuring direction.
+
+### The runs — 4/4 COMPLETED, and the walls genuinely differed
+
+`submit.sh ab`, jobs `56696895` (A, array 0–1) and `56696896` (B, array 2–3), QOS
+`shared` → `gpu_shared`, one A100 each. All four exit `0:0`, elapsed 8:41–8:49 (WarpX
+7:58–8:07), 150 field + 30 particle frames each.
+
+**The asymmetry that makes this a real experiment**, from each `run.log`'s
+"Unused ParmParse Variables":
+
+| binary | `boundary.reflect_symmetry_axis` | wall actually used |
+|---|---|---|
+| A (`ss_dz1_ppc100`) | **listed as unused** | specular |
+| B (`ss_dz1_ppc100_symwall`) | **absent from the list** → consumed | pi-rotation |
+
+Both decks emit the key — the configs are byte-identical apart from `run_id`/`deck`. The
+variable is the *binary*. This is the first time in this project that `symmetry` and
+`reflecting` have been different simulations.
+
+### The measurement (`scripts/ab_wall_test.py`)
+
+`|A−B|` over the same-binary replicate floor `max(|A1−A2|, |B1−B2|)`. Ratio ≲ 1 means the
+wall is buried in GPU non-determinism (ablastr `RandomSeed.H`: fixed seed does not give
+reproducibility on GPU).
+
+| t·ω_ci0 | 0.05 | 0.10 | 0.20 | 0.29 |
+|---|---|---|---|---|
+| piston front z/d_i0 | 0.19 | 0.38 | 0.56 | 0.49 |
+| coherent \|B⊥\|/B0 | 0.50 | 0.08 | 0.30 | 1.99 |
+| rms E_z / v_A B0 | 1.09 | 0.17 | **17.59** | 1.84 |
+
+**The 17.59 is a collapsed denominator, not a detection.** Its numerator, |A−B| = 1.263,
+is unremarkable — it sits inside the range of |A−B| at every other time (0.224 → 2.029).
+What is anomalous is the **floor: 0.0718**, against 0.591 / 1.342 / 1.101 elsewhere. The
+floor swings **19×** across four time points while the signal swings 9×; with n = 1
+replicate pair per binary each floor is a single draw, and at t·ω_ci0 = 0.20 the two A
+replicates happened to land nearly on top of each other. Time-averaged, nothing survives:
+
+| metric | mean \|A−B\| | mean floor | ratio |
+|---|---|---|---|
+| rms E_z | 1.04 | 0.78 | 1.34 |
+| coherent \|B⊥\| | 0.238 | 0.502 | 0.47 |
+| piston front | 0.0140 | 0.0290 | 0.48 |
+
+**Verdict: the wall is invisible at this configuration.** Consequently the **~5 % near-wall
+artifact CLAUDE.md attributes to the specular approximation (RESULTS 2026-07-23) is not
+detectable here** — and this is the first comparison capable of detecting it, every prior
+one having been between two identical decks.
+
+Scope, honestly: one resolution, one-sided, t·ω_ci0 ≤ 0.30 (early formation), and a floor
+built from a single replicate pair. A gyro-phase effect at the foil could still emerge
+later or at finer dz. Four more replicates (~35 GPU-min) would stabilise the denominator
+if this needs to be settled rather than indicated.
+
+### Consequence for `SWEEP_BUILD`
+
+Since the two walls are statistically indistinguishable on this problem, **A is the better
+choice**: it buys the same physics while keeping the sweep directly comparable to all 27
+existing runs and preserving `ss_dz1_ppc100`'s domain control against `R1_paper_470eV`
+(itself specular). `perlmutter/site.conf` is gitignored and currently still says `B` —
+change it before submitting the sweep, or accept that the control needs re-reading.
+
+### Two traps found in the surrounding tooling
+
+- **Labelled replicates collide in `media/`.** `run_warpx` copies the parent `config.yaml`
+  into the labelled work dir unchanged, so `A2`'s config says `run_id: ss_dz1_ppc100` and
+  `P.media_dir()` resolves it to the parent's directory. Rendering movies for `A2` silently
+  **overwrites A1's**. Same class as the shared-`diags/` clobber `launch.sh` exists to
+  prevent, one layer up in the output path. Only the two primary runs were rendered.
+- **NERSC's `/usr/bin/ffmpeg` has no H.264 encoder at all** (SUSE omits the
+  patent-encumbered ones; only libvpx/vp9/theora/gif/webp are present). `plotting.py:encode`
+  hard-requests `-c:v libx264`, so every movie job fails here with a `CalledProcessError`
+  that names no cause. `plotting.py:36` already honours an `FFMPEG` env override, so no
+  code change is needed:
+  `export FFMPEG=$(python -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")`
+  (`imageio-ffmpeg` installed into the venv; ships a static ffmpeg 7.0.2 with x264). The
+  yt pass had already succeeded — only the encode died — so re-encoding the existing frames
+  was enough. Phase-space movies for both A and B are in `media/S_phase/*/shock_phase.mp4`
+  (gitignored, regenerable), annotated with the **config model** v_sh = 0.0140 c since
+  neither run has a `shock_fit.yaml`; re-render if one is ever tuned.
+
+### Next
+
+- Decide `SWEEP_BUILD` (recommend `A`) and submit `submit.sh sweep` — six points, one GPU
+  each, wall-clock ≈ the longest run.
+- Correct the three stale "chablis-local" claims.
+- Optional: 2 more replicates per binary to firm up the noise floor.
