@@ -3603,3 +3603,148 @@ the deck.
 - Revisit anything that leaned on the c/v_ti account.
 - Consider a ppc = 1600 point to find where E_z finally departs from 1/√ppc — that
   departure is the physical floor, and nothing measured so far has located it.
+
+---
+
+## 2026-08-14 — The ambient wedge is set by ELECTRON HEATING, not by resolution
+
+The 470 eV run's "false early shock" is a **broad, multi-valued ambient-ion wedge** where
+R1_paper shows a thin laminar arc. Seven numerical knobs and a five-rung resolution ladder
+were tested; the wedge survives all of them. A hybrid (fluid-electron) run at the same
+parameter point reproduces R1_paper's structure exactly. **The controlling variable is how
+freely the electrons can heat.**
+
+### What the scalars hid, and why the phase space was the right diagnostic
+
+`G` (reflected-ion fraction), rms E_z and foot depth each compress the phase space to a
+number and lose the structure that distinguishes a real foot from a filled wedge. G moved
+*opposite* to visual quality four separate times. The whole investigation only converged
+once it was driven by the phase-space movies rather than by scalars.
+
+### The resolution ladder SATURATES (matched t* = 0.26)
+
+| run | dz/lambda_D,amb | sigma(v_e)/v_te,0 in foot | wedge depth | cost |
+|---|---|---|---|---|
+| dz1 | 6.07 | 19.55 | 3.00 | 1x |
+| dz4 | 1.52 | 15.72 | 2.75 | 16x |
+| dz8 | 0.76 | 10.34 | 2.50 | 64x |
+| **dz8 + shape3 + filter8** | 0.76 | 9.64 | **2.25** | **64x** |
+| dz16 | 0.38 | 8.85 | **2.25** | 256x |
+
+**dz16 bought nothing over dz8+s3f8 at 4x the cost.** Electron heating keeps falling (20%,
+34%, 14% per rung, decelerating) while the wedge flatlines at 2.25.
+
+**dz16 is FINER than R1_paper itself** (0.38 vs 0.60) and still has a 2.25 d_i0 wedge where
+R1_paper has 1.25. At better-than-reference grid quality the structure is still wrong, so
+**it is not a resolution artifact.**
+
+### Everything else tested, all negative
+
+| knob | result |
+|---|---|
+| ppc 100 -> 1600 | rms E_z fell **6x** (1/sqrt(ppc) to 8% over a 16x range) and G did **not move** |
+| collisions removed entirely | E_z -30%, \|B_perp\| x2, structure unchanged |
+| symmetry wall (pi-rotation) | nothing above the GPU noise floor |
+| pec -> Silver-Mueller upstream | E_z **identical** at t* = 0.05; growth only slowed |
+| heater/injector intervals 20 -> 1 | **visually identical**; striations are not an impulse train |
+| shape3 + filter8 at dz1 (h1/h2/h3) | negative -- but see below |
+
+The ppc result is the sharpest: a 6x reduction in upstream noise left the ion response
+untouched. **The 1/sqrt(ppc) law is real and measures something that does not drive the
+ions.** Any future "it's particle noise" argument has to explain that.
+
+### The one real win: aliasing suppression, but only near threshold
+
+`shape3 + filter8` was already tried and failed -- at dz1, where dz/lambda_D = 6.07. At dz4
+(1.52) the same two knobs remove the bright reflected population, the sharp front spike and
+most of the striations. At dz8 they buy a full rung of wedge depth (2.50 -> 2.25) **at zero
+extra grid cost**, matching dz16 for a quarter of it. They only work once the grid is within
+reach of the Debye length.
+
+### The mechanism, measured
+
+Profiling ambient ions and electrons through the front (matched t*):
+
+- **Peak ion velocity spread is the SAME** in both runs (0.355 vs 0.381) -- the wedge is not
+  thicker in velocity, the disturbed layer is **~2x deeper in space**.
+- **Far-upstream electrons are NOT grid-heated** in either run (sigma/v_te,0 = 1.58 vs 1.10),
+  which excludes global grid heating and is consistent with H_phase.
+- **Shocked-layer electrons are ~1.7x hotter** (normalized) in the 470 eV run, and the
+  enhancement switches on exactly where the ion precursor deepens.
+
+Hotter electrons behind the front -> higher electron pressure -> deeper ambipolar precursor
+-> ambient ions disturbed further upstream -> a filled wedge rather than a thin arc.
+
+⚠ The heating is generated where dz/lambda_D is large (upstream, ramp), **not** where it is
+observed: the local dz/lambda_D in the layer measured is 0.02-0.09, resolved by 10x even at
+dz1. That is why local reasoning kept failing and why six historical knobs at dz1 did nothing.
+
+### Why R1_paper looks different: its electrons are RELATIVISTIC
+
+| | shocked sigma(v_e) | gamma | sigma(v_e)/v_sh |
+|---|---|---|---|
+| R1_paper (47 keV) | **0.532 c** | **1.18** | 3.81 |
+| 470 eV | 0.091 c | 1.004 | 6.52 |
+
+R1_paper's shocked electrons sit at **half the speed of light**. Its heating is
+relativistically capped, which is why its precursor is shallow and its arc thin. That is an
+artifact of choosing a 47 keV ambient to hit Table I's dimensionless numbers -- not the
+laboratory plasma either run represents.
+
+**WarpX has no "reduced c" capability and none was used.** Both runs use real c; the two
+differ by TEMPERATURE (47 keV vs 470 eV). `c_sim/c_phys = 0.100` in the configs describes
+PSC's normalization, not a WarpX knob. Corrected here because the loose phrasing was
+actively misleading.
+
+### The hybrid run closes it
+
+`runs/hybrid_phase/H3_470eV_dense` (fluid electrons, polytropic gamma = 5/3, 470 eV):
+
+| t* | 0.13 | 0.26 | 0.39 | 0.50 |
+|---|---|---|---|---|
+| **hybrid (fluid e-)** | 0.60 | **1.25** | 1.80 | 2.25 |
+| **R1_paper (kinetic, capped)** | 0.50 | **1.25** | 1.75 | 2.39 |
+| dz1 kinetic 470 eV | 0.75 | 2.96 | -- | -- |
+| dz8+s3f8 kinetic 470 eV | 1.00 | 2.25 | -- | -- |
+
+**Hybrid and R1_paper agree to ~6% at every time.** Two unrelated brakes on electron heating
+-- relativity and a fluid closure -- give the same precursor; unconstrained kinetic electrons
+give a different one. Figure: `media/comparison/wedge_ladder_hybrid.png`.
+
+It also quantifies "forms too early": dz8+s3f8 reaches wedge 2.25 at t* = 0.26, hybrid at
+t* = 0.50. **The kinetic 470 eV run develops its precursor ~1.9x faster.**
+
+⚠ The hybrid run is **not** a single-variable swap: its piston front moves at 6.7 d_i0 per t*
+against R1_paper's 14.8, on an 80 d_i0 domain at dz = 2.5 d_e, from a different project
+(`H-PICShock`, different config schema -- scales were read from `warpx_used_inputs`, not
+`kinshock.load`). Wedge depth is front-relative so it survives that, but do not present the
+row as "the same run with fluid electrons".
+
+### Recommendation
+
+1. **Adopt `dz8 + shape3 + filter8` as production numerics** -- matches dz16 at 1/4 the cost.
+2. **Stop refining.** The ladder is saturated and dz32 would cost ~1000x for nothing.
+3. **Treat the deeper precursor as the consequence of a genuinely 470 eV plasma with
+   unconstrained kinetic electrons**, not as a defect. If R1_paper-like structure is needed,
+   hybrid or an intermediate temperature is a modelling choice, not a correction.
+4. The temperature trade curve (T_e,ab vs dz/lambda_D vs lnLambda dial) is in this session's
+   analysis: 4.7 keV gives dz/lambda_D = 1.92 for a 10x bill instead of 102x, at the cost of
+   lnLambda becoming a 143x dial.
+
+### Also fixed: `deck.py` emitted the background B through the parser path
+
+`warpx.B_ext_grid_init_style = parse_B_ext_grid_function` put a **uniform** B0
+(divergence-free by construction) on WarpX's general loaded-field path, which enables the
+MLMG projection divergence cleaner, which restricts field BCs to periodic/pec/pmc/neumann.
+Silver-Mueller aborted at init with exactly that message. The cleaner is enabled only when
+`B_ext_grid_type` is neither `default_zero` nor `constant` (`WarpX.cpp:1150`), so emitting
+`constant` + `B_external_grid` leaves it off. `_BC_MAP`'s `absorbing` entry had been dead
+code since it was written; it now works. 15/15 structure tests pass and existing decks
+verify as physically equivalent.
+
+### Next
+
+- Re-render the S_phase figures with the adopted numerics if any are to be published.
+- The `argmin` frame matching in the comparison scripts has **no tolerance guard** and will
+  silently return the same frame for two different requested times (it did, for the sparse
+  hybrid run). Add one before reusing them.

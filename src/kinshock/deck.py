@@ -54,16 +54,27 @@ def _num(x: float) -> str:
 #                symmetry of the two-sided problem. Emits the fork-only input
 #                boundary.reflect_symmetry_axis. Use in place of 'reflecting'.
 #   open       : far boundary with a background field — particles leave (absorbing)
-#                while fields use pec. pec is required (not silver-mueller) because
-#                the projection B-field divergence cleaner, active whenever an
-#                external B is set, only accepts periodic/pec/pmc/neumann; pmc and
-#                neumann would zero the tangential B0, so pec is the one div-safe
-#                choice that preserves B0. Harmless here: the domain is sized so
-#                nothing reaches the far boundary within the run.
-#   absorbing  : true EM outflow (Silver-Mueller + particles leave). NOT compatible
-#                with the B-field div cleaner, so only for field.orientation != a
-#                background field (e.g. the B0=0 negative control). Use 'open' when
-#                a background B is present.
+#                while fields use pec, which REFLECTS them. The name is misleading:
+#                only particles are open.
+#                ⚠ "Harmless here: the domain is sized so nothing reaches the far
+#                boundary within the run" — the old justification — is TRUE OF
+#                PARTICLES AND FALSE OF FIELDS. Light crosses the box at c and
+#                returns immediately: 41.6 round trips per ion gyroperiod in the
+#                truncated S_phase domain, 6.2 in the 9000 d_e production one,
+#                against 0.6 for R1_paper. That 10x IS the c/v_ti factor, i.e. the
+#                reduced-c trick undone (RESULTS 2026-08-13). Prefer 'absorbing'.
+#   absorbing  : true EM outflow (Silver-Mueller + particles leave). This USED to be
+#                unusable with a background B, and the reason was subtler than "the
+#                div cleaner is active whenever an external B is set". The MLMG
+#                projection cleaner only accepts periodic/pec/pmc/neumann, and pmc
+#                and neumann would zero the tangential B0 — but the cleaner is
+#                enabled only when B_ext_grid_type is NEITHER default_zero NOR
+#                constant (WarpX.cpp:1150). A uniform B0 is divergence-free by
+#                construction and has nothing to clean; it was tripping the cleaner
+#                only because this generator declared it through the PARSER path.
+#                Emitting it as `constant` instead (see the background-field block
+#                below) leaves the cleaner off and makes Silver-Mueller legal with a
+#                background B present.
 _BC_MAP = {
     "periodic":   ("periodic", "periodic"),
     "reflecting": ("pec", "reflecting"),
@@ -300,10 +311,19 @@ def render(cfg: dict) -> str:
     # background field ----------------------------------------------------
     a(f"# --- background field ({cfg['field'].get('orientation', 'perpendicular')}: "
       "B0 along x, out of the z propagation axis) ---")
-    a("warpx.B_ext_grid_init_style       = parse_B_ext_grid_function")
-    a(f'warpx.Bx_external_grid_function(x,y,z) = "{bx}"')
-    a('warpx.By_external_grid_function(x,y,z) = "0."')
-    a('warpx.Bz_external_grid_function(x,y,z) = "0."')
+    # `constant`, NOT parse_B_ext_grid_function, and the difference is not cosmetic.
+    # WarpX enables the MLMG projection B-field divergence cleaner whenever
+    # B_ext_grid_type is neither default_zero nor constant (WarpX.cpp:1150) — and that
+    # cleaner restricts the field BCs to periodic/pec/pmc/neumann, none of which is
+    # absorbing, so it silently forces a REFLECTING upstream wall. Declaring the field
+    # through the parser put a uniform B0 (divergence-free by construction, nothing to
+    # clean) on the general loaded-field path and paid that price for nothing: it made
+    # `absorbing` abort at init with "Field boundary conditions have to be either
+    # periodic, PEC, PMC, or neumann..." (measured 2026-08-13). As `constant` the
+    # cleaner never runs and Silver-Mueller is available with a background B present.
+    # B_external_grid is read with getArrWithParser, so my_constants like B0 still work.
+    a("warpx.B_ext_grid_init_style       = constant")
+    a(f"warpx.B_external_grid             = {bx} 0. 0.")
     a("")
 
     # species -------------------------------------------------------------

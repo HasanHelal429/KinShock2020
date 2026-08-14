@@ -1,0 +1,173 @@
+# ss_dz1_ppc1600 -- the ppc scaling test. Does 4x MORE ppc buy the predicted 2x?
+#
+#   dz/lambda_D,amb = 6.07 (production)   ppc = 1600   N_D = 264
+#
+# WHY, 2026-08-13. Four candidate causes for the false early shock have now been tested
+# and none is the answer, but between them they localised it:
+#
+#   dz          4x refinement at fixed ppc            -15%   not the lever
+#   symmetry wall  pi-rotation vs specular            nothing above the GPU noise floor
+#   collisions  operator removed entirely             E_z -30%, |B_perp| x2, still fails
+#   pec -> Silver-Mueller upstream boundary           E_z IDENTICAL at t* = 0.05
+#                                                     (32.2 vs 31.1), growth slowed only
+#
+# The last one is the informative one: a genuinely non-reflecting boundary does not move
+# the EARLY upstream noise at all. There is a FLOOR near 31 (in v_A B0) that nothing but
+# ppc has touched, and ppc obeys 1/sqrt(ppc) to within 8% over a 16x range.
+#
+# THE DOSE WAS WRONG, NOT THE DIAGNOSIS. R1_paper_470eV sits at E_z = 30.2 where R1_paper
+# sits at 2.25 (S_phase/README, t*wci0 = 0.02) -- 13.4x noisier at the SAME ppc, because
+# it is R1_paper with the reduced-c trick undone and E_th/(v_A B0) = beta * c/v_ti rises
+# with c/v_ti. Matching R1_paper therefore needs
+#
+#       ppc = 100 * 13.4^2  ~=  18000
+#
+# and ppc = 400 bought a factor 2.0 of the 13.4 required. "Better but still fails", and
+# "dz4_ppc400 fails later", are what crawling 2x toward a 13.4x target looks like.
+#
+# WHAT THIS RUN IS FOR. 18000 is ~180 cost units and ~323M particles -- affordable once,
+# not speculatively. ppc = 1600 is the cheap interpolation point: it predicts a 4.0x
+# reduction, E_z ~ 7.6, and if the 1/sqrt(ppc) law holds this far it justifies the big run.
+# If E_z instead flattens above 7.6, the law has a floor, ppc is NOT the remaining lever,
+# and the 18000-particle run must not be attempted.
+#
+# NOTE this run's N_D = 264 equals ss_dz4_ppc400's, reached the other way (coarse dz + high
+# ppc vs fine dz + moderate ppc). If E_z tracks N_D the two should agree; if it tracks ppc
+# alone they will not. That is a free second measurement from the same run.
+#
+# WINDOW. max_step 300000 = t*wci0 0.6036, matching ss_dz1_ppc100_nocoll and _sm so all
+# three diagnostics are directly comparable, and containing the baseline's 0.3018 as a
+# subset. Crosses the 0.39 anomaly.
+#
+# COST. 32 cost units, ~1.0-1.5 h on one GPU (28.7M particles -- the same count as
+# ss_dz4_ppc400, which ran 0.0156 s/step, but with 4x fewer cells so less field work).
+#
+# ---- inherited header from ss_dz1_ppc100 ----
+# ss_dz1_ppc100 -- early-shock-formation resolution sweep, point (baseline dz, ppc 100).
+#
+# READ runs/S_phase/README.md FIRST. It carries the design, the (dz/lambda_D, N_D)
+# grid, the domain-truncation control, and how to read the result.
+#
+# THIS POINT
+#   dz/lambda_D,amb = 6.066   (production R1_paper_470eV is 6.066; R1_paper is 0.600)
+#   N_D = ppc*lambda_D/dz = 16.5 particles per Debye length   (production is 16.5)
+#   dz = 0.3 d_e,ab -> 4480 cells over a 12.021 d_i0 one-sided domain
+#   max_step = 150000 = 0.3018/wci0
+#   cost = 1 x the ss_dz1_ppc100 point
+#
+# WHAT THIS RUN IS. R1_paper_470eV's physics EXACTLY -- same piston, heater, injector,
+# collisions, B0, densities, temperatures -- on a domain truncated to 12.0 d_i0 and a
+# window truncated to t*wci0 = 0.30. That window brackets the anomaly: at t*wci0 = 0.39
+# the 470 eV run already has accelerated ambient ions where R1_paper has none
+# (RESULTS 2026-08-05, scripts/compare_phase.py), so whatever starts it starts inside
+# this window. By t*wci0 = 0.30 the piston has travelled 3.12 d_i0 and the model shock
+# 4.19 d_i0, so the domain gives 2.9x head-room ahead of the front.
+#
+# THE ONE THING TO CHECK BEFORE TRUSTING THIS DOMAIN. `field_hi = open` is pec, which
+# REFLECTS fields; only particles are absorbed. Light crosses 12.0 d_i0 in 6000 steps,
+# so the piston turn-on precursor makes ~25 round trips inside this window where in the
+# full 80.5 d_i0 domain it makes ~4. That is a real difference, and it is why the
+# (ss_dz1_ppc100) point is a CONTROL, not just the cheapest sweep point: it must reproduce the
+# full R1_paper_470eV run over t*wci0 <= 0.30 before any other point here means
+# anything. The full run's diag_fields cadence (2500 steps) gives ~60 frames in that
+# window, so the comparison costs no new compute.
+
+meta:
+  run_id: ss_dz1_ppc1600
+  tier: Sweep
+  description: >
+    R1_paper_470eV on a truncated domain and window,
+    dz = 0.3 d_e,ab (dz/lambda_D = 6.066), ppc 100 (N_D = 16.5).
+    Early-formation resolution sweep point; see runs/S_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_ss_dz1_ppc1600
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.19767056e-4   # 470 eV
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 1344.0
+  dz_over_de: 0.3          # [d_e,ab] -> dz/lambda_D,amb = 6.066
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2           # [-] baseline. h2_shape3 showed order 3 moves the
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 300000
+  max_grid_size: 4480      # [cells] = n_cell, i.e. ONE box: correct for a single
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 1600              # [particles/cell] 16x the baseline; see header
+    ambient: 1600             # [particles/cell] the ambient is the one that matters
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 5000     # 30 frames (phase space -- the ion
+                              # acceleration signature)
+  field_intervals: 1000       # 150 field-only frames. THE PRIMARY OUTPUT:
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 500       # 300 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.0103986833     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.

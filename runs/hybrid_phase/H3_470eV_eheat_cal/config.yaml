@@ -1,0 +1,311 @@
+# =====================================================================================
+# H3_470eV_eheat_cal -- ONE CALIBRATION POINT for the electron-fluid heater amplitude.
+#
+#   operators.heater.amplitude.theta_e_equiv  9.19767056e-4 -> 1.993066e-4
+#
+# and NOTHING else moves. Same dz, dt, steps, substeps, ppc, seed, box, injector,
+# target, electron_energy.mode, collisions (off). Parent is runs/H3/H3_470eV_eheat.
+#
+# THE PROBLEM. theta_e_equiv = 9.19767056e-4 is the reference's `theta_e_heat`, which
+# means T_e,ab = 470 eV, and it was CALIBRATED FOR THE ION TARGET. Delivered to the
+# electron fluid at the correctly mass-converted H_e it produces a steady-state slab
+# T_e of ~2945 eV -- 6.3x the 470 eV being modelled (RESULTS.md 2026-08-07). The mass
+# conversion m_i H_ion = m_e H_e is EXACT and is not the problem; the two targets have
+# different LOSS CHANNELS. Heated ions stream out of the slab ballistically, heated
+# fluid leaves only at the bulk velocity u_e, which near the `lo` mirror is small by
+# symmetry. Same deposition rate, longer residence, hotter steady state. The
+# consequence is visible: the piston expands to fill the whole 80 d_i0 domain and never
+# separates from the shocked ambient.
+#
+# WHY THIS CANNOT BE COMPUTED, which is why it is a run and not an edit. The source
+# term in dT_e/dt is m_e H exactly (S = (3/2) n_e m_e H and dT/dt = (2/3)S/n_e, so the
+# density cancels), and H = 8 theta^1.5 c^3/(sqrt(M) width) is EXACTLY theta^1.5
+# (deck.py:704). So T_ss = m_e H tau with tau the residence time, and everything turns
+# on how tau scales:
+#
+#   tau independent of T   ->  T_ss ~ theta^1.5  ->  theta(470 eV) = 2.706e-4
+#   tau ~ 1/sqrt(T)        ->  T_ss ~ theta      ->  theta(470 eV) = 1.468e-4
+#     (outflow at the sound speed the heating itself sets -- the physical case, since
+#      it is the electron pressure that drives the expansion carrying the heat out)
+#
+# a factor 1.84 apart. Both are defensible a priori and the answer is an exponent, not
+# an algebra step.
+#
+# THE CHOICE OF POINT. theta = 1.993066e-4 is the GEOMETRIC MEAN of the two
+# predictions, which is where they disagree most usefully: they predict 297 eV and
+# 638 eV here, a factor 2.1, so one run discriminates cleanly. Combined with the
+# parent's (9.19767056e-4, 2945 eV) it pins T_ss ~ theta^p exactly, and the production
+# run at the fitted theta then TESTS the fit rather than assuming it -- the pattern
+# H2_ionheat_cal2 used, where the refitted law predicted the held-out point to 2.1 %.
+#
+# COLLISIONLESS ON PURPOSE. The parent's 2945 eV point is collisionless, so every point
+# in this fit must be. Whether the calibration transfers to a collisional run is a
+# separate question, and it is answered directly by H3_470eV_eheat_coll vs the parent.
+#
+# WHAT THIS RUN IS NOT. Not a physics run. Its only output is the steady-state slab
+# T_e; a calibrated run cannot be cited for the quantity it was calibrated on
+# (CLAUDE.md). Full duration is kept anyway -- 8960 steps, unchanged -- so it is ONE
+# variable against the parent and the plateau has ~2.3/wci0 of margin past the t* ~ 3.3
+# where the parent settled.
+#
+# WHY THIS IS THE POINT OF PART I. The reference heats ELECTRONS -- a laser on a solid
+# target deposits into the electrons by inverse bremsstrahlung, and the ions are dragged
+# along. Every run in this campaign so far has heated ION MACROPARTICLES instead, not
+# because that is the physics but because the barotropic closure gave the electrons no
+# energy variable to deposit into: T_e was slaved to n_e, and a source term had nothing
+# to act on. H2 measured that the ion surrogate WORKS -- heater + injector closed the
+# amplitude deficit to within 25 %, criterion 6 to 1.2 % -- but a surrogate that works is
+# still a surrogate. This is the first run in the project that drives the shock the way
+# the experiment does.
+#
+# WHY advected AND NOT source_only, which is a physics requirement and not a preference.
+# `source_only` has NO TRANSPORT: a cell inside the fixed heater slab accumulates for the
+# whole run with no way to shed heat. Integrating this amplitude over 8960 steps gives
+# T_e = 16 keV, 34x the 470 eV being modelled. H2's ION heater is heated at the IDENTICAL
+# rate -- m_i H_ion = m_e H_e exactly, by the construction below -- and does not run away
+# only because the particles CARRY THE HEAT OUT of the slab as they expand. Transport is
+# what makes a sustained localized source a heater rather than a runaway, so the electron
+# version is only well posed with the energy equation. The steady-state slab temperature is
+# then set by deposition against residence time, which is the same balance the ion version
+# strikes.
+#
+# IS `advected` TRUSTWORTHY ENOUGH TO CARRY THIS? Measured, not assumed. Its three
+# validation tests pass (uniform state to 3.3e-13 eV, transport speed +0.12 %, adiabatic
+# invariant to 0.012 %), and in smooth adiabatic flow its total internal energy tracks the
+# exact adiabatic value to 2e-4 at 1.96x compression. An earlier reading of
+# H3_470eV_advected called its falling U a 38 % energy leak; that was a WRONG PREMISE --
+# the electron pressure gradient is what drives the expansion, so the fluid does PdV work
+# on the ions through E and falling U is expected. See RESULTS.md 2026-08-07. What remains
+# genuinely open is the energy accounting ACROSS THE SHOCK, which is why this run reports
+# its budget rather than assuming it.
+#
+# THE AMPLITUDE IS NOT THE SAME NUMBER. The heater kernel is a velocity-space diffusion,
+# d<v_i^2>/dt = H, IDENTICAL for any mass, so the energy it delivers per particle is
+# (3/2) m_s H and the amplitude must carry the mass of whatever receives it:
+#     ion macroparticles   H_ion = H_e/(m_i/m_e)     <- what H2 used
+#     the electron fluid   H_e                       <- what this run uses
+# a factor of m_i/m_e = 100. `ion_normalized` is therefore left UNSET here and derived
+# from the target; setting it true with target: electron_fluid is now a hard config error.
+# HYBRID_PLAN.md §6.2 documents the mirror of this mistake (electron amplitude applied to
+# ions -> several MeV); this is the direction that quietly deposits 1/100 of the power and
+# looks like "the heater does nothing".
+#
+# DECLARED BEFORE THE RUN, in runs/H3/H3_470eV_eheat/README.md.
+# =====================================================================================
+
+meta:
+  run_id: H3_470eV_eheat_cal
+  phase: H3
+  description: >
+    ONE calibration point for the electron-fluid heater amplitude, at theta_e_equiv =
+    1.993066e-4 -- the geometric mean of the two competing predictions for the theta that
+    lands the steady-state slab T_e on 470 eV. H3_470eV_eheat's amplitude was calibrated
+    for the ION target and gives 2945 eV on the fluid, 6.3x too hot, because the two
+    targets lose heat by different channels. Everything else is byte-identical to
+    H3_470eV_eheat, which supplies the second point of the fit. Not a physics run: its
+    output is T_ss(theta), and the production run at the fitted theta tests the law.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  kinetic_reference: "../KinShock2020/runs/R1_phase/R1_paper_470eV"
+
+# --- the unit system: AMBIENT ion scales --------------------------------------------
+reference:
+  n_amb: 4.8e24                # = 0.008 * n_e,ab = 0.008 * 6e26. THE AMBIENT, which is the
+                               # unit base here, where the reference's `n0` is its ABLATION
+                               # density. Not a free scale any more: with collisions and a
+                               # physical Coulomb log, the absolute density is pinned.
+  ion_mass_over_me: 100.0      # the reference's, and PHYSICAL there (a light-ion plasma),
+                               # not a numerical economy.
+  charge_state: 1
+
+solver:
+  kind: hybrid
+  elec_temp_theta: 1.95695118e-5   # = T_0 = 10 eV. The reference's `theta_0`, byte-identical.
+  n0_ref_over_n_amb: 1.0       # T_e = T_e0 at the ambient
+  gamma: 1.6666666666666667    # 5/3. NOTE what the closure supplies here: 250^(2/3) = 39.7,
+                               # so T_e,piston = 396.9 eV against the reference's ablation
+                               # 470 eV -- 84%, where for R1_warm the same coincidence was
+                               # 102%. The heater supplies the remaining 16%.
+  resistivity:
+    eta: 3.9938e-11            # Ohm m, SPITZER AT THE AMBIENT (T_0 = 10 eV, lnLambda 12.23).
+                               # This is the hybrid representation of the electron-ion
+                               # collisions the reference runs as a pairwise operator.
+                               # MEASURED CONSEQUENCE: the resistive diffusion time across
+                               # d_i0 is 2.3e5 /wci0 against a 5.6 /wci0 run, so it is
+                               # dynamically negligible -- which is a RESULT about the 470 eV
+                               # state, not a reason to set it to zero. Declaring it is what
+                               # makes gate GH4/GH6 and the comparison honest.
+                               # A density-dependent eta(n) = eta_0*(n0_ref/n) is exact for
+                               # gamma = 5/3 (see the header) and is the next refinement if
+                               # a run is ever resistivity-limited; at 2.3e5 /wci0 it is not.
+    eta_hyper: 0.0
+  n_floor_over_n_amb: 0.01
+  holmstrom_vacuum_region: true
+  substeps: 38               # the whistler requirement is pi^2(d_i/dz)^2(wci dt)/2sqrt2,
+                             # so dz/4 with dt/4 raises it 4x: 0.872 -> 3.49. 38 keeps the
+                             # SAME 11x margin the converged runs had. NOT 40x4 -- halving
+                             # dt halves the requirement back, which H1_noheat_dz05 did not
+                             # account for (it ran 40 where 20 preserved the margin).
+  electron_energy:
+    mode: advected           # the energy equation. REQUIRED here, not preferred: without
+                             # transport the fixed heater slab accumulates to 16 keV (see
+                             # the header). Also switches the EOS to the ideal gas law.
+    electron_temp_init: polytropic
+
+plasma:
+  piston:
+    density_over_n_amb: 250.0  # = the reference's 2.0 n0 / 0.008 n0. The SAME 250 contrast
+                               # as every other run in this campaign -- Table I's ablation/
+                               # ambient ratio is dimensionless and does not move with the
+                               # physical anchoring.
+    halfwidth_di: 2.0          # d_i0. TEN TIMES the reference's 2 d_i,ab = 0.179 d_i0 (its
+                               # d_i,ab = 2.169 um vs d_i0 = 24.26 um), deliberately and for
+                               # the reason H2_slab measured: a wider slab stands in for the
+                               # injector's sustained mass supply. Here the injector IS
+                               # present, so this is the one run where 0.2 would be
+                               # defensible -- H2_470eV_slab would be the control if the
+                               # comparison ever turns on it.
+    center_di: 0.0
+    theta_i: 1.95695118e-7     # ION-normalized = 10 eV/(m_i c^2). The reference's
+                               # `theta_i_init`, byte-identical.
+    ramp_di: 0.0
+  ambient:
+    density_over_n_amb: 1.0
+    theta_i: 1.95695118e-7     # = T_0 = 10 eV, ion-normalized. NOTE this is NOT
+                               # elec_temp_theta/mass_ratio by coincidence -- it is the same
+                               # 10 eV expressed in the two conventions, which is what the
+                               # reference does too (its theta_0 and theta_i_init).
+    fill: outside
+
+field:
+  orientation: perpendicular
+  vA_over_c: 9.99873e-4        # gives B0 = 7.026447 T at this n_amb -- the reference's
+                               # B0_tesla to 7 significant figures. B0 is the reference's
+                               # PRIMARY (it is set by beta_ab = 1150); this project's
+                               # primary is v_A/c, so the value here is the conversion.
+                               # v_A = 299.8 km/s, and 1/w_ci0 = 80.92 ps reproduces the
+                               # reference config's own header number exactly.
+
+geometry:
+  dims: 1
+  normal_axis: z
+  axis:
+    lo_di: 0.0                 # HALF domain, matching the reference's `layout: one_sided`
+    hi_di: 80.0                # = the reference's 9000 d_e,ab = 900 d_i,ab = 80.5 d_i0,
+                               # rounded to 80 so n_cell is a round 800. Table I's own
+                               # domain, and a dimensionless property, so it is unchanged
+                               # by the physical anchoring.
+  dz_over_di: 0.025          # dz/4. 3200 cells; the shock ramp goes from 3 cells to 12
+  boundary:
+    axis: {lo: symmetry, hi: open}
+    transverse: periodic
+
+numerics:
+  const_dt_over_wci_inv: 6.25e-4  # dt/4, FORCED: the particle CFL is v_max*dt/dz, so dt
+                                  # must follow dz or 0.26 becomes 1.04, past GH1's 0.5.
+                                  # was 2.5e-3 # the same DIMENSIONLESS timestep as H1/H2: the particle
+                                  # CFL is 0.26 here too, because the piston speed in units
+                                  # of v_A is unchanged (both are M_A ~ 14 problems). In
+                                  # SECONDS it is 2.02e-13 s against the reference's
+                                  # 1.628e-16 s -- 1243x larger, and that ratio is the
+                                  # headline cost result.
+  max_step: 8960                  # 4x, FORCED by dt/4: the run must cover the same 5.6/wci0.
+                                  # was 2240 # 5.6/wci0 = the reference's TRUNCATED end (190 t_ab),
+                                  # chosen there so the shock does not reach the far wall.
+                                  # Same physical time, 1243x fewer steps.
+  particle_shape: 1
+  grid_type: collocated
+  ppc:
+    piston: 3200               # 4x. The seed floor at 800/400 was 0.7-11.3 % on peak
+    ambient: 1600              # B_perp -- the worst of the three amplitudes and the one
+                               # nearest its GH7 budget. 4x should halve it if 1/sqrt(N)
+                               # holds; H1_noheat_seed2 showed it does for density and NOT
+                               # for B_perp, so this also re-tests that.
+  random_seed: 1
+
+diagnostics:
+  # FULL-PARTICLE dumps placed exactly on Fig. 7's column times (1600 steps per 1/wci0):
+  #   t*wci0 = 0.15 0.49 0.73 0.98 1.25  ->  steps 240 784 1168 1568 2000
+  # plus t = 0 and t_end. These carry EVERY particle, so Fig. 7 can draw its columns with
+  # no subsampling at all -- ~315 MB each, 7 dumps. A bare integer would be a PERIOD, hence
+  # the "N:N" form for a single step.
+  plotfile_intervals: "0:0,240:240,784:784,1168:1168,1568:1568,2000:2000,8960:8960"
+  _plotfile_intervals_was: 896     # ALL x4 with max_step, so the frames land at the SAME
+  reduced_intervals: 40           # PHYSICAL TIMES as H2_470eV's and the two are directly
+  field_intervals: 88             # comparable frame by frame.
+                                  # matched to phase_intervals: the seven criteria need
+  phase_intervals: 88             # n_e, |B| and the ambient-ion phase space at ONE step
+  phase_random_fraction: 0.2      # 20x the 0.01 first used here, and the reason is a
+                                  # measurement: at 0.01 a Fig. 7 panel drew 1.6k-8.4k
+                                  # ambient ions, because a WINDOW holds a few per cent of
+                                  # the box. The explicit reference histograms ALL of its
+                                  # particles -- ~300k in a comparable window -- so the
+                                  # hybrid panels looked 36x sparser for a diagnostic
+                                  # reason and not a physical one. 0.2 gives ~168k per
+                                  # panel. G(t) never needed it (a fraction wants an
+                                  # unbiased sample, not a large one); Fig. 7 does.
+
+# --- collisions: ION-ION only, because there are no electrons to collide -------------
+collisions:
+  coulomb_log: 12.23            # THE REFERENCE'S PHYSICAL VALUE, which is the whole point
+                                # of the 470 eV anchoring: at T_e,ab = 470 eV the target
+                                # lambda_ab = 20 d_e,ab resolves to 12.23 on its own, where
+                                # at 47 keV the identical target needed 1.22e5 as a dial.
+                                # Used HERE only to evaluate criterion 2 and the resistivity
+                                # -- see the README on what is and is not modelled.
+
+gates:
+  dt_wci_max: 0.01
+  particle_cfl_max: 0.5
+  dz_over_di_max: 0.2
+
+acceptance:
+  reference_run: "../../../../KinShock2020/runs/R1_phase/R1_paper_470eV"
+  t_star_tol: 0.20
+  compression_tol: 0.25
+
+controls:
+  no_drive: ../H1/H1_noheat      # the same closure with no operators (different anchor)
+  substep_ladder: ../H1/H1_noheat_sub20
+  dz_ladder: ../H1/H1_noheat_dz05
+  seed_twin: ../H1/H1_noheat_seed2
+  slab_control: H2_slab
+
+targets:
+  vp_over_c: 0.0103986833       # the reference's, converted to real c
+  M_A: 14
+  M_ms: 13
+  beta_0: 0.2
+
+operators:
+  heater:
+    target: electron_fluid   # THE CHANGE. The source is S = (3/2) n_e m_e H [W/m^3].
+    species: [piston_ions]   # still names a species: the heater's PROFILE is evaluated on
+                             # the same slab geometry, it is the destination that moves.
+    profile: parser
+    intervals: 5
+    amplitude:
+      theta_e_equiv: 1.993066e-4     # THE ONE CHANGE. NOT a temperature any more: on the
+                                     # ION target this parameter meant "heat to T_e,ab",
+                                     # and the whole point of this run is that the same
+                                     # number does NOT mean that on the fluid. It is now a
+                                     # bare amplitude being fitted, and 1.993066e-4 is the
+                                     # geometric mean of the theta^1.5 and theta^1 laws'
+                                     # predictions for 470 eV (2.706e-4 and 1.468e-4).
+                                     # The parent's 9.19767056e-4 -- the reference's
+                                     # `theta_e_heat` byte-identical -- stays the OTHER
+                                     # point of the fit, not a value to return to.
+      # ion_normalized is deliberately UNSET: it follows from the target. With
+      # electron_fluid the amplitude is H_e itself, m_i/m_e = 100x the value H2 used,
+      # because the fluid receives (3/2) n m_e H rather than the ions (3/2) m_i H.
+      # Setting it true here is a hard config error.
+  injector:
+    species: piston_ions
+    neutralizing_species: null
+    tau_over_wci_inv: 0.04           # = the reference's tau = 400/wpe. Its wpe (at n0 =
+                                     # 6e26) is 1.382e15 rad/s, so tau = 2.894e-13 s =
+                                     # 3.576e-3/wci0... see the README: the reference
+                                     # rescaled 40 -> 400 to keep tau = 0.1213 t_ab, and
+                                     # THAT is the invariant to transcribe, not the raw
+                                     # number. 0.1213 t_ab = 0.04/wci0 here.
+    intervals: 5
+    ppc_reference: 800
