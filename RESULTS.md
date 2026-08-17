@@ -3861,3 +3861,40 @@ Read the wedge from the **visual structure of the ambient-ion phase space** at m
 
 15/15 structure tests pass; `make_inputs.py` verified all four decks resolve back to their
 config primaries.
+
+### 2026-08-17 (same day) — three E_phase rungs died on `blocking_factor`; grid snapped, guard added
+
+Array `57175431` launched and 3 of 4 tasks aborted ~45 s in:
+
+    amrex::Error::0::domain size not divisible by blocking_factor !!!
+
+**Cause, and it was mine.** The generator sized each rung by `n_cell = round(L/dz)`, which
+produces an arbitrary integer; AMReX's default `amr.blocking_factor` is 8.
+
+| rung | n_cell as generated | /8 | |
+|---|---|---|---|
+| `es_1p5keV` | 40312 | 5039.000 | ran fine — divisible by luck |
+| `es_4p7keV` | 22667 | 2833.375 | ABORT |
+| `es_15keV` | 12748 | 1593.500 | ABORT |
+| `es_47keV` | 7167 | 895.875 | ABORT |
+
+Every pre-existing run in the repo is divisible by 8, which is why this had never surfaced.
+
+**Fix.** `n_cell` snapped to a multiple of 8 (22664 / 12744 / 7168) and `dz`, `max_step`
+and the diagnostic intervals re-derived from it. `dz/lambda_D,0` moves by **<0.03%**
+(0.3791 -> 0.3792), so the held invariant is untouched; re-verified that `M_A`, `M_ms`,
+`beta_ab`, `beta_0`, `rho_i0/d_i0`, `L/d_i0`, `t*wci0` and `N_D` are still identical at
+every rung.
+
+**Guard.** `deck._n_cell` now RAISES on a non-multiple, naming the two nearest legal cell
+counts and the `dz_over_de` that lands on one. The failure mode this replaces is the
+expensive kind — the config generator was perfectly happy, `make_inputs.py --verify`
+passed, and the error only appeared after the job had queued, launched and initialised,
+with a backtrace naming neither the config nor the offending number.
+
+`perlmutter/submit.sh` now accepts run dirs positionally (`submit.sh eps <dir> ...`) so a
+partial re-run is a subset of the same target rather than a hand-rolled sbatch line. Refused
+for `ab`, where the array index selects the binary and a subset would silently remap it.
+
+Resubmitted the three as array `57183562`. `es_1p5keV` (task 3 of the original array) was
+never affected and ran through — ~1.5 h against the 1.31 h estimate.

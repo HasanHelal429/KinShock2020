@@ -18,12 +18,19 @@ source "$KINSHOCK_PM/_common.sh"
 
 WHAT="${1:-}"; shift || true
 DRY=0; QOS_OVERRIDE=""; TIME_OVERRIDE=""
+# Run dirs given positionally REPLACE the target's default list, keeping its binary, QOS,
+# WORKROOT and job name. This exists so a partial re-run is a subset of the same target
+# rather than a hand-rolled sbatch line -- the three E_phase rungs that died on
+# blocking_factor (2026-08-17) had to go back WITHOUT the one still running, and
+# duplicating the launch invariants to do that is exactly how they drift.
+SUBSET=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry)  DRY=1; shift ;;
         --qos)  QOS_OVERRIDE="$2"; shift 2 ;;
         --time) TIME_OVERRIDE="$2"; shift 2 ;;
-        *) echo "unknown option '$1'" >&2; exit 2 ;;
+        -*)     echo "unknown option '$1'" >&2; exit 2 ;;
+        *)      SUBSET+=("$1"); shift ;;
     esac
 done
 
@@ -75,8 +82,25 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|ab} [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
+
+if [[ ${#SUBSET[@]} -gt 0 ]]; then
+    # `ab` splits its array across two binaries by index, so a subset would silently
+    # remap which binary each task gets. Refuse rather than mis-tag the runs.
+    if [[ "$WHAT" == "ab" ]]; then
+        echo "submit: run-dir subsets are not supported for 'ab' (the array index selects the binary)" >&2
+        exit 2
+    fi
+    for r in "${SUBSET[@]}"; do
+        [[ -f "$KINSHOCK_ROOT/${r%%:*}/config.yaml" ]] || {
+            echo "submit: no config.yaml under '$r' -- refusing to submit a path that does not exist" >&2
+            exit 2; }
+    done
+    RUNS=("${SUBSET[@]}")
+    ARRAY="0-$(( ${#RUNS[@]} - 1 ))"
+    echo "submit: run-dir subset given -- ${#RUNS[@]} of the '$WHAT' target"
+fi
 
 # The run list goes to a FILE, not into --export. sbatch's --export is a comma-separated
 # list, so a value containing spaces (or commas) is silently mangled -- passing

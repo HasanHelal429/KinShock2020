@@ -33,11 +33,11 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | layout | one_sided | `geometry.layout` |
 | slab halfwidth [d_i] | 2 | `geometry.slab_halfwidth_di` |
 | domain halfwidth [d_e] | 1344 | `geometry.domain_halfwidth_de` |
-| dz [d_e] | 0.0592932 | `geometry.dz_over_de` |
+| dz [d_e] | 0.0593011 | `geometry.dz_over_de` |
 | boundary lo / hi | lo symmetry, hi open | `geometry.boundary` |
 | CFL | 0.75 | `numerics.cfl` |
 | particle shape | 2 | `numerics.particle_shape` |
-| max_step | 239998 | `numerics.max_step` |
+| max_step | 239966 | `numerics.max_step` |
 | ppc | piston 100, ambient 100 | `numerics.ppc` |
 | heater intervals | 20 | `operators.heater.intervals` |
 | injector intervals | 20 | `operators.injector.intervals` |
@@ -66,17 +66,17 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | M_ms | 12.7595 | v_sh/sqrt(v_A^2+C_s0^2) |
 | beta_ab | 1150 | mu0*n0*T_e,ab/B0^2 |
 | beta_0 | 0.195745 | mu0*n_amb*T_0/B0^2 |
-| dz [m] | 1.28635e-08 | dz_over_de * d_e |
-| dt [s] | 3.2181e-17 | CFL-limited |
-| dt*omega_pe | 0.0444699 | dt * omega_pe |
-| n_cell | 22667 | domain / dz (halved when one_sided) |
-| steps per 1/omega_ci0 | 795140 | 1/(omega_ci0*dt) |
+| dz [m] | 1.28652e-08 | dz_over_de * d_e |
+| dt [s] | 3.21852e-17 | CFL-limited |
+| dt*omega_pe | 0.0444758 | dt * omega_pe |
+| n_cell | 22664 | domain / dz (halved when one_sided) |
+| steps per 1/omega_ci0 | 795035 | 1/(omega_ci0*dt) |
 | run length [1/omega_ci0] | 0.301831 | max_step * dt * omega_ci0 |
 | T_e,ab [eV] | 4700 | theta_e,ab * m_e c^2 |
 | lnLambda (used) | 1222.87 | units.coulomb_log_for(collisions.target) |
 | lnLambda (physical) | 8.53359 | NRL at (n0, T_e,ab) |
 | nu_ei,ab [1/s] | 6.62638e+12 | NRL electron-ion |
-| nu_ei*dt | 0.000213243 | must be << 1 |
+| nu_ei*dt | 0.000213272 | must be << 1 |
 | mfp_ei,ab / d_e | 20 | v_te/nu_ei / d_e |
 | lambda_ab | 20 | omega_ce,ab/nu_ei,ab = mfp/d_e,ab |
 | mfp_ii,amb / d_i0 | 0.0143214 | upstream ion-ion — what criterion 2 tests |

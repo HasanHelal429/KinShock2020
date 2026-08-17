@@ -33,11 +33,11 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | layout | one_sided | `geometry.layout` |
 | slab halfwidth [d_i] | 2 | `geometry.slab_halfwidth_di` |
 | domain halfwidth [d_e] | 1344 | `geometry.domain_halfwidth_de` |
-| dz [d_e] | 0.187526 | `geometry.dz_over_de` |
+| dz [d_e] | 0.1875 | `geometry.dz_over_de` |
 | boundary lo / hi | lo symmetry, hi open | `geometry.boundary` |
 | CFL | 0.75 | `numerics.cfl` |
 | particle shape | 2 | `numerics.particle_shape` |
-| max_step | 23994 | `numerics.max_step` |
+| max_step | 23997 | `numerics.max_step` |
 | ppc | piston 100, ambient 100 | `numerics.ppc` |
 | heater intervals | 20 | `operators.heater.intervals` |
 | injector intervals | 20 | `operators.injector.intervals` |
@@ -66,17 +66,17 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | M_ms | 12.7595 | v_sh/sqrt(v_A^2+C_s0^2) |
 | beta_ab | 1150 | mu0*n0*T_e,ab/B0^2 |
 | beta_0 | 0.195745 | mu0*n_amb*T_0/B0^2 |
-| dz [m] | 4.06832e-08 | dz_over_de * d_e |
-| dt [s] | 1.01778e-16 | CFL-limited |
-| dt*omega_pe | 0.140645 | dt * omega_pe |
-| n_cell | 7167 | domain / dz (halved when one_sided) |
-| steps per 1/omega_ci0 | 79493.5 | 1/(omega_ci0*dt) |
-| run length [1/omega_ci0] | 0.301836 | max_step * dt * omega_ci0 |
+| dz [m] | 4.06776e-08 | dz_over_de * d_e |
+| dt [s] | 1.01764e-16 | CFL-limited |
+| dt*omega_pe | 0.140625 | dt * omega_pe |
+| n_cell | 7168 | domain / dz (halved when one_sided) |
+| steps per 1/omega_ci0 | 79504.6 | 1/(omega_ci0*dt) |
+| run length [1/omega_ci0] | 0.301832 | max_step * dt * omega_ci0 |
 | T_e,ab [eV] | 47012 | theta_e,ab * m_e c^2 |
 | lnLambda (used) | 122349 | units.coulomb_log_for(collisions.target) |
 | lnLambda (physical) | 10.8364 | NRL at (n0, T_e,ab) |
 | nu_ei,ab [1/s] | 2.09571e+13 | NRL electron-ion |
-| nu_ei*dt | 0.00213298 | must be << 1 |
+| nu_ei*dt | 0.00213269 | must be << 1 |
 | mfp_ei,ab / d_e | 20 | v_te/nu_ei / d_e |
 | lambda_ab | 20 | omega_ce,ab/nu_ei,ab = mfp/d_e,ab |
 | mfp_ii,amb / d_i0 | 0.0143214 | upstream ion-ion — what criterion 2 tests |

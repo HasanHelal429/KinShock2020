@@ -45,7 +45,7 @@
 # A flat-then-drop curve says (a); a straight decade says (b); no trend at all says the
 # wedge is not an eps effect and the difference is elsewhere.
 #
-# COST 0.04 h on one GPU, 12748 cells x 75909 steps at ppc 100. The ladder is
+# COST see README; 12744 cells x 75885 steps at ppc 100. The ladder is
 # cheap because cost ~ eps^-3 at fixed dz/lambda_D (cells ~ 1/eps, steps ~ 1/eps^2), so
 # every rung above 470 eV is cheaper than the anchor -- all four together are ~1.6 GPU-h
 # against the anchor's 7.35.
@@ -57,6 +57,14 @@
 # deleting collisions entirely does not touch the wedge. nu_ei/w_ce = 1.696 is preserved
 # at every rung; nu_ei/w_pe rides ~eps.
 #
+
+# GRID SNAPPED TO amr.blocking_factor 2026-08-17. The first submission (array
+# 57175431) died ~45 s in with `amrex::Error: domain size not divisible by
+# blocking_factor` -- the generator's L/dz arithmetic produced an arbitrary integer
+# cell count and AMReX's default blocking_factor is 8. n_cell is now snapped to a
+# multiple of 8 and dz/max_step re-derived from it; dz/lambda_D,0 moves by <0.03%,
+# so the held invariant is unaffected. deck._n_cell now REFUSES a non-multiple at
+# generation time rather than at job time.
 # ---- inherited header from ss_dz16_ppc100 ----
 # ss_dz16_ppc100 -- the resolution ladder taken one step past resolved. dz ALONE.
 #
@@ -193,7 +201,7 @@ geometry:
   normal_axis: z
   slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
   domain_halfwidth_de: 1344.0
-  dz_over_de: 0.105428302   # [d_e,ab] -> dz/lambda_D,amb = 0.379, HELD
+  dz_over_de: 0.105461394   # [d_e,ab] -> dz/lambda_D,amb = 0.379, HELD
   layout: one_sided
   boundary:
     lo: symmetry
@@ -204,8 +212,8 @@ numerics:
   particle_shape: 2           # [-] baseline. h2_shape3 showed order 3 moves the
                               # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
                               # so shape is NOT the lever this sweep is testing.
-  max_step: 75909
-  max_grid_size: 12748      # [cells] = n_cell, i.e. ONE box: correct for a single
+  max_step: 75885
+  max_grid_size: 12744      # [cells] = n_cell, i.e. ONE box: correct for a single
                               # GPU. launch.sh refuses GPU mode without this key.
   ppc:
     piston: 100
@@ -244,11 +252,11 @@ targets:
   beta_0: 0.2
 
 diagnostics:
-  plotfile_intervals: 2530     # 30 frames (phase space -- the ion
+  plotfile_intervals: 2529     # 30 frames (phase space -- the ion
                               # acceleration signature)
-  field_intervals: 506       # 150 field-only frames. THE PRIMARY OUTPUT:
+  field_intervals: 505       # 150 field-only frames. THE PRIMARY OUTPUT:
                               # E_z and B_perp from the first frames onward.
-  reduced_intervals: 253       # 300 rows
+  reduced_intervals: 252       # 300 rows
 
 model:
   vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh

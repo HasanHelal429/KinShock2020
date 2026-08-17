@@ -110,11 +110,36 @@ def _boundaries(geo: dict, field_axis: str = "x"):
     return (flo, fhi), (plo, phi), sym_axis
 
 
+# AMReX's default amr.blocking_factor. A domain whose cell count is not a multiple of it
+# aborts with "domain size not divisible by blocking_factor" -- but only AFTER the job has
+# queued, launched and initialised, which is a very expensive place to learn it. Three
+# E_phase rungs died that way on 2026-08-17 (array 57175431); the deck generator had been
+# perfectly happy to write 7167 cells. Checked here instead, before anything is submitted.
+BLOCKING_FACTOR = 8
+
+
 def _n_cell(geo: dict) -> int:
     """Number of cells: a one-sided domain [0, half] has half the cells of the
-    symmetric domain [-half, +half] at the same dz."""
+    symmetric domain [-half, +half] at the same dz.
+
+    Refuses a cell count AMReX will reject. `dz_over_de` is a config primary chosen by a
+    human (or, worse, by a generator doing L/dz arithmetic), so nothing upstream guarantees
+    the quotient is a whole number of blocks -- and the failure surfaces ~45 s into a
+    scheduled job with a backtrace that names neither the config nor the offending number.
+    """
     span = 1.0 if geo.get("layout", "symmetric") == "one_sided" else 2.0
-    return int(round(span * float(geo["domain_halfwidth_de"]) / float(geo["dz_over_de"])))
+    n = int(round(span * float(geo["domain_halfwidth_de"]) / float(geo["dz_over_de"])))
+    if n % BLOCKING_FACTOR:
+        lo = n - n % BLOCKING_FACTOR
+        hi = lo + BLOCKING_FACTOR
+        raise ValueError(
+            f"geometry gives n_cell = {n}, which is not a multiple of AMReX's "
+            f"blocking_factor ({BLOCKING_FACTOR}) -- WarpX would abort at init with "
+            f"'domain size not divisible by blocking_factor'. Adjust "
+            f"geometry.dz_over_de so n_cell lands on {lo} or {hi}: "
+            f"dz_over_de = {span * float(geo['domain_halfwidth_de']) / hi:.9f} "
+            f"gives {hi}.")
+    return n
 
 
 def _init_theta(role: str, kind: str) -> str:
