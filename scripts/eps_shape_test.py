@@ -94,10 +94,18 @@ for label, d, eps, wpwc, gam_th in ROWS:
     ue = np.sqrt(p2) / (ME * ge)
     Te_norm = float(np.var(ue) / sc.Cs_ab ** 2) if ms.sum() > 100 else np.nan
     gam_sh = float(np.mean(ge)) if ms.sum() > 100 else np.nan
-    # far-upstream control: must stay cold at every rung or the comparison is invalid
-    mu_ = ze > (zp + 4.0)
-    ue_up = np.sqrt(pex[mu_] ** 2 + pey[mu_] ** 2 + pez[mu_] ** 2) / ME
-    Te_up = float(np.var(ue_up) / sc.Cs_ab ** 2) if mu_.sum() > 100 else np.nan
+    # Far-upstream control: must stay cold at every rung or the comparison is invalid.
+    # The window is ABSOLUTE, not piston-relative. `ze > zp + 4` lands in very different
+    # places in a 12.02 d_i0 box than in R1_paper's 80.5 d_i0 one -- the outer half next to
+    # the open boundary vs genuinely far material -- and that alone made es_47keV and
+    # R1_paper disagree 1.7x at the SAME eps (2026-08-17). On 5-11 d_i0 they agree to 0.5%.
+    # gamma-corrected to match the shocked-layer definition above; that correction is only
+    # <=4.5% here, so it was NOT the cause of the disagreement, but the two must still use
+    # one definition. See scripts/eps_upstream_control.py.
+    mu_ = (ze > 5.0) & (ze < 11.0)
+    p2u = pex[mu_] ** 2 + pey[mu_] ** 2 + pez[mu_] ** 2
+    gu = np.sqrt(1.0 + p2u / (ME * C) ** 2)
+    Te_up = float(np.var(np.sqrt(p2u) / (ME * gu)) / sc.Cs_ab ** 2) if mu_.sum() > 100 else np.nan
 
     out.append((label, eps, wpwc, gam_th, depth, Te_norm, gam_sh, Te_up))
     print(f"  {label:16} depth={depth:.3f}  Te_sh={Te_norm:.3g}  gam_sh={gam_sh:.4f}",

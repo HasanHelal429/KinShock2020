@@ -3970,13 +3970,43 @@ and hence how ECDI-like versus Buneman-like the ramp's electron heating is. This
 argument from lever arm, not a direct measurement of the instability, and should be labelled
 as such.
 
-### Caveat on the absolute temperatures
+### Caveat on the absolute temperatures — DIAGNOSED 2026-08-17, it was the sampling window
 
-The far-upstream control is NOT flat across the ladder: `T_e,upstream` runs 1.15, 1.28, 1.48,
-1.77, 2.03 (normalized to each run's `C_s,ab^2`) while `R1_paper` gives 1.22 — i.e. at the
-SAME `eps`, `es_47keV` (2.03) and `R1_paper` (1.22) disagree, so the upstream number tracks
-domain/duration rather than `eps`. Absolute normalized temperatures across rungs therefore
-need care. The shocked-layer conclusion survives it: `T_e,shock` falls 4.57x while
+The far-upstream control was NOT flat across the ladder: `T_e,upstream` ran 1.15, 1.28,
+1.48, 1.77, 2.03 (normalized to each run's `C_s,ab^2`) while `R1_paper` gave 1.22 — i.e. at
+the SAME `eps`, `es_47keV` (2.03) and `R1_paper` (1.22) disagreed by 1.7x. **That
+disagreement was an artifact of the window, not a property of the runs.** The control used
+`z > z_piston + 4 d_i0`, which is PISTON-RELATIVE: in a 12.02 d_i0 box it samples the outer
+half of a truncated domain right next to the open boundary, while in `R1_paper`'s 80.5 d_i0
+box it samples genuinely far material. Re-measured on a MATCHED ABSOLUTE window
+(5–11 d_i0, `scripts/eps_upstream_control.py`), normalized to each deck's own `theta_0`:
+
+| run | eps | piston-relative | matched 5–11 d_i0 |
+|---|---|---|---|
+| 470 eV anchor | 0.0303 | 0.540 | 0.730 |
+| 1.5 keV | 0.0539 | 0.603 | 0.741 |
+| 4.7 keV | 0.0959 | 0.695 | 0.733 |
+| 15 keV | 0.1705 | 0.823 | 0.838 |
+| **47 keV** | 0.3033 | **0.912** | **0.955** |
+| **R1_paper** | 0.3033 | **0.545** | **0.960** |
+
+The same-`eps` pair goes from **1.7x apart to 0.5% apart**. The ladder drift shrinks from
+1.76x to 1.32x and is **flat across the three lowest rungs** (0.730, 0.741, 0.733), rising
+~30% only at the top two. So the control is usable after all, on an absolute window.
+
+**And the residual drift moves OPPOSITE to the wedge** — upstream heating rises with `eps`
+(1.61 -> 2.11 once the Maxwellian factor below is divided out) while the wedge THINS
+(2.25 -> 1.25). An artificially cold upstream at low `eps` cannot manufacture a thicker
+wedge there, so this strengthens the `eps` conclusion rather than qualifying it.
+
+Two metric notes, neither of which was the cause:
+- `eps_shape_test.py` computed the shocked layer gamma-corrected (`p/(m gamma)`) but the
+  upstream control not (`p/m`). Real, but worth only <=4.5% at the top rung. Fixed anyway —
+  the two must share one definition.
+- `var(|v|)` is not a temperature: for an isotropic Maxwellian it is `(3 - 8/pi) sigma^2 =
+  0.4535 sigma^2`, which is why every ratio above sits near 0.45–0.96 rather than 1. It is a
+  constant factor so cross-rung comparison is unaffected, but these are NOT temperatures and
+  must not be quoted as such. The shocked-layer conclusion survives it: `T_e,shock` falls 4.57x while
 `T_e,upstream` *rises* 1.8x, opposite directions, so the shocked/upstream contrast falls
 harder still (86 -> 10.6). But that contrast is not the controlling variable either —
 `R1_paper` sits at 20.4 while matching `es_47keV`'s wedge to 4%.
