@@ -9,7 +9,7 @@ physics?**
 
 ## The audit: exactly one parameter differs
 
-Computed from the config primaries only (`$CLAUDE_JOB_DIR/tmp/dimensionless.py`, folded
+Computed from the config primaries only (`scripts/dimensionless_audit.py`, folded
 into RESULTS 2026-08-17). Preserved to <1%:
 
 | group | value |
@@ -60,10 +60,10 @@ held fixed. Rung 1 is the existing `S_phase/ss_dz16_ppc100`; rungs 2–5 are new
 | run | T_e,ab | eps | B0 [T] | `w_pe0/w_ce` | `gamma(T_e,ab)` | cells | steps | wall (1 GPU) |
 |---|---|---|---|---|---|---|---|---|
 | `S_phase/ss_dz16_ppc100` | 470 eV | 0.0303 | 7.026 | 100.0 | 1.0014 | 71680 | 2400000 | 7.35 h (**done**) |
-| `es_1p5keV` | 1486 eV | 0.0539 | 12.494 | 56.2 | 1.0044 | 40312 | 759079 | 1.31 h |
-| `es_4p7keV` | 4700 eV | 0.0959 | 22.220 | 31.6 | 1.0138 | 22667 | 239998 | 0.23 h |
-| `es_15keV` | 14860 eV | 0.1705 | 39.509 | 17.8 | 1.0436 | 12748 | 75909 | 0.04 h |
-| `es_47keV` | 47012 eV | 0.3033 | 70.273 | 10.0 | 1.1380 | 7167 | 23994 | 0.01 h |
+| `es_1p5keV` | 1486 eV | 0.0539 | 12.494 | 56.2 | 1.0044 | 40312 | 759079 | 1.31 h pred / **1 h 30 m** |
+| `es_4p7keV` | 4700 eV | 0.0959 | 22.220 | 31.6 | 1.0138 | 22664 | 239966 | 0.23 h pred / **20 m** |
+| `es_15keV` | 14860 eV | 0.1705 | 39.509 | 17.8 | 1.0436 | 12744 | 75885 | 0.04 h pred / **5 m** |
+| `es_47keV` | 47012 eV | 0.3033 | 70.273 | 10.0 | 1.1380 | 7168 | 23997 | 0.01 h pred / **1 m** |
 
 Held identical at every rung, verified numerically:
 `M_A = 13.952`, `M_ms = 12.759`, `beta_ab = 1150`, `beta_0 = 0.1957`, `rho_i0/d_i0 = 10.40`,
@@ -89,33 +89,48 @@ above 470 eV is *cheaper* than the anchor. All four together are **~1.6 GPU-h**.
 The estimate is anchored on `ss_dz16_ppc100`'s measured 7.35 h scaled by `cells x steps`;
 the two top rungs are small enough that GPU occupancy will be poor and their true cost is
 likely a few times the number quoted — irrelevant at ~1 minute each.
+**Measured:** 1 m / 5 m / 20 m / 1 h 30 m, i.e. 1.4–2.0x the prediction, exactly the
+small-point under-occupancy penalty and in the safe direction. Cell counts were also
+snapped to multiples of AMReX's `blocking_factor = 8` after three rungs aborted at init
+(`62e7658`, which added the generation-time guard in `deck.py`); `dz/lambda_D` moves by
+<0.03% as a result and `es_1p5keV`, which had already run, was not touched.
 
-## What the shape of the answer means
+## RESULT (2026-08-17): the wedge IS a function of eps — see RESULTS.md
 
-The two candidate mechanisms predict **different shapes**, which is why the ladder needs
-interior points and not just the two endpoints already in hand:
+| run | eps | `w_pe/w_ce` | `gamma_sh` (measured) | wedge [d_i0] | `T_e,shock` |
+|---|---|---|---|---|---|
+| 470 eV anchor | 0.0303 | 100.0 | 1.0012 | **2.062** | 98.7 |
+| `es_1p5keV` | 0.0539 | 56.2 | 1.0033 | **2.064** | 81.3 |
+| `es_4p7keV` | 0.0959 | 31.6 | 1.0089 | **1.808** | 61.6 |
+| `es_15keV` | 0.1705 | 17.8 | 1.0237 | **1.293** | 38.0 |
+| `es_47keV` | 0.3033 | 10.0 | 1.0586 | **1.164** | 21.6 |
+| `R1_paper` | 0.3033 | 10.0 | 1.0715 | **1.119** | 24.9 |
 
-- **(a) Relativistic capping of electron heating** (`~eps^2`). `gamma(T_e,ab)` runs
-  1.0014, 1.0044, 1.0138, 1.0436, 1.1380 — flat until the top rung. R1_paper's *shocked*
-  electrons were measured at 0.532 c, `gamma = 1.18`. Predicts a wedge that stays ~2.25
-  d_i0 for the lower three rungs and collapses only at 47 keV.
-- **(b) Electron-scale wave regime** (`~eps^-1`). `rho_e/lambda_D = w_pe/w_ce` runs
-  100, 56, 32, 18, 10 — a smooth decade, and it sets how many Bernstein resonances sit
-  below `w_pe`, i.e. how ECDI-like versus Buneman-like the ramp's electron heating is.
-  Predicts a wedge that thins monotonically and roughly log-linearly at every rung.
-- **(c) No trend** — the wedge is not an `eps` effect and the difference is elsewhere.
+`es_47keV` reproduces `R1_paper` to **4.0%** at the same eps on a different domain,
+`dz/d_e`, `dz/lambda_D` and `N_D`. The wedge is set by eps, not by resolution.
 
-The hybrid run constrains this already: `H3_470eV_dense` carries the **470 eV** value of
-`v_A/c` (9.999e-4) and still reproduces R1_paper's thin structure. So no group built purely
-from `v_A/c` can be the cause — whatever is responsible must live in the kinetic-electron
-sector, which is what the hybrid's fluid closure removes and what both (a) and (b) are.
+**RETRACTED — the shape does NOT discriminate the mechanism.** This README previously
+claimed that a flat-then-drop curve would mean relativistic capping and a straight decade
+would mean the electron-scale wave regime. That was wrong: eps is ONE parameter, so both
+candidates are monotone functions of it and both are evenly spaced in `log eps`
+(`gamma-1 ~ eps^2`, `w_pe/w_ce ~ eps^-1`). Fitted, they are comparable (rms 0.141 vs 0.163).
+
+What does argue against relativistic capping is the **lever arm**: the *measured*
+`gamma_shocked` only runs 1.0012 -> 1.0586, a 5.7% change in electron inertia, against a
+43.6% change in wedge depth. That leaves the electron-scale wave regime
+(`rho_e/lambda_D = w_pe/w_ce`, 100 -> 10) as the surviving explanation — an argument from
+lever arm, not a direct measurement of the instability.
 
 ## Reading the result
 
 Measure the wedge the same way it was measured for the S_phase ladder and the hybrid
 comparison — from the **visual structure of the ambient-ion phase space**, at matched
-`t*wci0`, not from a scalar diagnostic. Every rung has 30 plotfiles over the same
+`t*wci0`, not from a scalar diagnostic. Every rung has 32 plotfiles over the same
 `0.302/w_ci0`, so frames match by index and no `argmin` tolerance question arises.
+
+```bash
+python scripts/plot_eps_ladder.py     # media/E_phase/wedge_vs_eps.png + the wedge table
+```
 
 ## Run it
 

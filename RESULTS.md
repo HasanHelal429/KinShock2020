@@ -3898,3 +3898,96 @@ for `ab`, where the array index selects the binary and a subset would silently r
 
 Resubmitted the three as array `57183562`. `es_1p5keV` (task 3 of the original array) was
 never affected and ran through — ~1.5 h against the 1.31 h estimate.
+
+---
+
+## 2026-08-17 (later) — The eps ladder ran: the wedge IS a function of `eps`, and `es_47keV` reproduces `R1_paper`
+
+All five rungs complete. Array `57175431` lost three of four tasks to
+`domain size not divisible by blocking_factor` (cell counts not multiples of 8 — my
+generator did `round(L/dz)` and never snapped); fixed and resubmitted as `57183562`
+(see `62e7658`, which also added the generation-time guard in `deck.py`). `es_1p5keV`'s
+config was untouched by that fix, so the rung that had already run stays in the family.
+
+Measured wall: 1 min / 5 min / 20 min / 1 h 30 m against predictions of 0.6/2.4/14/79 min —
+**1.4-2.0x optimistic**, the documented small-point GPU under-occupancy penalty, in the safe
+direction.
+
+### The result
+
+Continuous wedge depth (0.02 d_i0 scan, interpolated crossing — the first pass used 0.25
+d_i0 bins, which was too coarse to read a shape), ambient-ion phase space at `t*wci0` = 0.26:
+
+| run | eps | `w_pe/w_ce` | `gamma_sh` (measured) | wedge [d_i0] | `T_e,shock` [`C_s,ab^2`] |
+|---|---|---|---|---|---|
+| 470 eV anchor | 0.0303 | 100.0 | 1.0012 | **2.062** | 98.7 |
+| `es_1p5keV` | 0.0539 | 56.2 | 1.0033 | **2.064** | 81.3 |
+| `es_4p7keV` | 0.0959 | 31.6 | 1.0089 | **1.808** | 61.6 |
+| `es_15keV` | 0.1705 | 17.8 | 1.0237 | **1.293** | 38.0 |
+| `es_47keV` | 0.3033 | 10.0 | 1.0586 | **1.164** | 21.6 |
+| `R1_paper` | 0.3033 | 10.0 | 1.0715 | **1.119** | 24.9 |
+
+**THE HEADLINE: `es_47keV` reproduces `R1_paper` to 4.0%** (1.164 vs 1.119 d_i0) at the same
+`eps` but a different domain (12.0 vs 80.5 d_i0), different `dz/d_e` (0.188 vs 0.300),
+different `dz/lambda_D` (0.379 vs 0.600) and different `N_D` (264 vs 167). Two independent
+runs agreeing across that much numerics, while the 470 eV rung sits 77% higher at identical
+numerics, settles it: **the wedge is set by `eps`, not by resolution.** The 470 eV run's
+thicker wedge is the correct answer for a genuinely 470 eV plasma; `R1_paper`'s thin wedge
+belongs to the reduced-`c` normalization it inherited from PSC.
+
+The mediator is confirmed: shocked-layer electron temperature falls **4.57x** across the
+ladder (98.7 -> 21.6) and the wedge tracks it monotonically. This is the same conclusion as
+2026-08-14, now with a controlled one-parameter family behind it instead of two endpoints.
+
+### RETRACTION: the shape does NOT discriminate the mechanism
+
+`runs/E_phase/README.md` and the `es_*` config headers claimed the *shape* of `wedge(eps)`
+would separate relativistic capping (flat-then-drop) from the electron-scale wave regime
+(straight decade). **That was wrong and I am withdrawing it.** `eps` is one parameter, so
+BOTH candidates are monotone functions of it, and both are evenly spaced in `log eps`
+(`gamma-1 ~ eps^2`, `w_pe/w_ce ~ eps^-1`) — the ladder cannot tell them apart by spacing.
+Fitted over the five rungs:
+
+    (b) power law    wedge = 0.621 * (w_pe/w_ce)^+0.280      rms = 0.1408
+    (a) rel. capping wedge = -15.230 + 17.225/gamma_shocked  rms = 0.1625
+
+Comparable. The fits do not decide it.
+
+### What DOES argue against relativistic capping: the lever arm
+
+`gamma_shocked` is a *measured* quantity here, not the `1 + 1.5 theta` estimate the ladder
+was designed around, and it only runs **1.0012 -> 1.0586** — a **5.7%** change in electron
+inertia across a decade in `eps`. The wedge changes **43.6%** over the same span. For (a) to
+work, a 5.7% inertia change has to drive a 43.6% structural change, which is why the fit
+needs a coefficient of 17.2 sitting on a 5.4% variation in `1/gamma` — an ill-conditioned
+fit, not a mechanism. (Note the earlier "0.532 c, gamma = 1.18" for `R1_paper`'s shocked
+electrons was a high-percentile value; the *mean* `gamma`, which is what sets bulk inertia,
+is 1.0715.)
+
+So the surviving explanation is **(b) the electron-scale wave regime** — `rho_e/lambda_D =
+w_pe/w_ce` moving 100 -> 10, which changes how many Bernstein resonances sit below `w_pe`
+and hence how ECDI-like versus Buneman-like the ramp's electron heating is. This is an
+argument from lever arm, not a direct measurement of the instability, and should be labelled
+as such.
+
+### Caveat on the absolute temperatures
+
+The far-upstream control is NOT flat across the ladder: `T_e,upstream` runs 1.15, 1.28, 1.48,
+1.77, 2.03 (normalized to each run's `C_s,ab^2`) while `R1_paper` gives 1.22 — i.e. at the
+SAME `eps`, `es_47keV` (2.03) and `R1_paper` (1.22) disagree, so the upstream number tracks
+domain/duration rather than `eps`. Absolute normalized temperatures across rungs therefore
+need care. The shocked-layer conclusion survives it: `T_e,shock` falls 4.57x while
+`T_e,upstream` *rises* 1.8x, opposite directions, so the shocked/upstream contrast falls
+harder still (86 -> 10.6). But that contrast is not the controlling variable either —
+`R1_paper` sits at 20.4 while matching `es_47keV`'s wedge to 4%.
+
+### Separating (a) from (b) would need a new lever
+
+`w_pe/w_ce` and `v_te/c` are locked by `beta_ab` (`w_pe/w_ce = sqrt(beta_ab/2)/(v_te/c)`),
+and `beta_ab = 1150` is a Table I input. Breaking the degeneracy means moving `beta_ab`,
+which moves `M_A` and leaves the regime — so it is a different experiment, not another rung.
+Not proposed here.
+
+Figures: `media/E_phase/wedge_vs_eps.png` (6x2 phase-space panels),
+`media/E_phase/wedge_trend.png` (the two fits + the mediator).
+Analysis: `scripts/plot_eps_ladder.py`, `scripts/eps_shape_test.py`.
