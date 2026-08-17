@@ -3748,3 +3748,116 @@ verify as physically equivalent.
 - The `argmin` frame matching in the comparison scripts has **no tolerance guard** and will
   silently return the same frame for two different requested times (it did, for the sparse
   hybrid run). Add one before reusing them.
+
+---
+
+## 2026-08-17 — The two runs differ in EXACTLY ONE physics parameter: `eps = v_te,ab/c`
+
+After the numerical branch closed (2026-08-14: the ambient wedge saturates at 2.25 d_i0 and
+survives every knob), the remaining question was whether `R1_paper` (47 keV) and
+`R1_paper_470eV` are the same *physics*. They were built to be the same dimensionless
+problem, so the audit is a check on that construction rather than a guess.
+
+`scripts/dimensionless_audit.py` computes ~50 groups from the config primaries alone.
+
+### Preserved to <1%
+
+`m_i/m_e = 100`; `n_e0/n_e,ab = 0.008`; `n_t/n_e,ab = 2`; `beta_ab = 1150`;
+`M_A = 13.952`; `M_ms = 12.74/12.76`; `v_sh/C_s,ab = 4.6`; `v_p/C_s,ab = 3.4288`;
+`v_p/v_A = 10.4`; `d_i,ab/d_e,ab = 10`; `d_i0/d_i,ab = 11.18`; `d_i0/d_e0 = 10`;
+`rho_i0/d_i0 = 10.40`; `rho_sh/d_i0 = 13.95`; `L/d_i0 = 80.50`; `L_target/d_i0 = 0.1789`;
+`(1/w_ci0)/t_ab = sqrt(beta_ab) = 33.912`; `lambda_ab = 20`; **`nu_ei,ab/w_ce = 1.6956`**;
+**`rho_e,ab/d_e,ab = 33.912`**.
+
+`beta_0` and `T_0/T_e,ab` differ by 2.1% — Table I's rounding of `T_0` (10 vs 10.217 eV),
+already documented in the config header, not a new finding.
+
+### Everything else is an integer power of one number
+
+    eps == v_te,ab/c = sqrt(theta_e,ab)      0.3033 (47 keV)  ->  0.03033 (470 eV)
+
+| group | power | 47 keV | 470 eV |
+|---|---|---|---|
+| `v_A/c`, `v_sh/c`, `v_p/c`, `C_s,ab/c` | `+1` | 0.0100, 0.1395, 0.1040, 0.0303 | 0.0010, 0.0140, 0.0104, 0.0030 |
+| `lambda_D/d_e`, `lambda_D,0/d_i0` | `+1` | 0.3033, 4.47e-3 | 0.0303, 4.42e-4 |
+| `nu_ei,ab/w_pe` | `+1` | 0.01517 | 0.001516 |
+| `w_pe/w_ce`, `w_pi0/w_ci`, `rho_e/lambda_D` | `-1` | 10.0 upstream, 100 | 100.0, 1000 |
+| `theta_e,ab`, `sigma_i`, `sigma_e` | `+2` | 0.092, 1e-4, 1e-2 | 9.2e-4, 1e-6, 1e-4 |
+| `lnLambda` (at fixed `lambda_ab = 20`) | `-4` | 1.22e5 | 12.23 |
+
+Every exponent came out to ±0.005 of an integer, which is itself the check that no
+independent second parameter is hiding in the set.
+
+**The difference is one-dimensional.** The user's framing was right in substance: both runs
+use the real `c`, but `R1_paper`'s temperatures *are* PSC's reduced-`c` values used at real
+`c`, so it behaves in every respect like a 10x reduced speed of light — and yes, the
+magnetizations differ, `sigma_e = 1e-2` against `1e-4`, `sigma_i = 1e-4` against `1e-6`.
+
+### The two groups that actually matter, and the two that don't
+
+Not on the differing list, and worth stating because it kills two candidates outright:
+`rho_e,ab/d_e,ab = 33.9` and `nu_ei/w_ce = 1.696` are **preserved**. Electron magnetization
+relative to the *inertial* scales, and collisionality relative to the *field*, are identical.
+What differs is electron magnetization relative to the *Debye* scale —
+`rho_e/lambda_D = w_pe/w_ce`, 10 in the paper run against 100 at 470 eV.
+
+`v_A/c` is also excluded, and by measurement rather than argument: `H3_470eV_dense` carries
+the **470 eV** value (9.999e-4) and still reproduces R1_paper's thin structure. Whatever is
+responsible lives in the kinetic-electron sector — which is what the hybrid's fluid closure
+removes, and what both surviving candidates are:
+
+- **(a) relativistic capping of electron heating**, `~eps^2`. `gamma(T_e,ab)` = 1.0014,
+  1.0044, 1.0138, 1.0436, 1.1380 across a decade in `eps` — flat until the top. R1_paper's
+  *shocked* electrons were measured at 0.532 c, `gamma = 1.18`.
+- **(b) electron-scale wave regime**, `~eps^-1`. `rho_e/lambda_D = w_pe/w_ce` = 100, 56, 32,
+  18, 10 — a smooth decade, and it sets how many Bernstein resonances sit below `w_pe`, i.e.
+  how ECDI-like versus Buneman-like the ramp's electron heating is.
+
+Both predict *more* electron heating at 470 eV, which is what was measured (shocked-layer
+electrons ~1.7x hotter in normalized units, 2026-08-14). They differ in the **shape** of
+`wedge(eps)`: (a) is flat-then-drop, (b) is a straight decade. That is what the ladder reads.
+
+### `runs/E_phase/` — the ladder, staged 2026-08-17, NOT submitted
+
+Five rungs; rung 1 is the existing `S_phase/ss_dz16_ppc100`, rungs 2-5 are new.
+
+| run | T_e,ab | eps | B0 [T] | `w_pe0/w_ce` | `gamma` | cells | steps | wall (1 GPU) |
+|---|---|---|---|---|---|---|---|---|
+| `ss_dz16_ppc100` | 470 eV | 0.0303 | 7.026 | 100.0 | 1.0014 | 71680 | 2400000 | 7.35 h (done) |
+| `es_1p5keV` | 1486 eV | 0.0539 | 12.494 | 56.2 | 1.0044 | 40312 | 759079 | 1.31 h |
+| `es_4p7keV` | 4700 eV | 0.0959 | 22.220 | 31.6 | 1.0138 | 22667 | 239998 | 0.23 h |
+| `es_15keV` | 14860 eV | 0.1705 | 39.509 | 17.8 | 1.0436 | 12748 | 75909 | 0.04 h |
+| `es_47keV` | 47012 eV | 0.3033 | 70.273 | 10.0 | 1.1380 | 7167 | 23994 | 0.01 h |
+
+Verified identical at every rung: `M_A = 13.952`, `M_ms = 12.759`, `beta_ab = 1150`,
+`beta_0 = 0.1957`, `rho_i0/d_i0 = 10.40`, `L = 12.02 d_i0`, run `= 0.302/w_ci0`,
+**`dz/lambda_D,0 = 0.379`**, `ppc = 100`, **`N_D,PIC = 264`**. The top rung reproduces
+R1_paper's `eps`, `gamma` and `w_pe/w_ce` exactly — at better Debye resolution (0.379 vs
+0.60) and higher `N_D` (264 vs 167) than R1_paper itself.
+
+**Why `dz/lambda_D` is held and not `dz/d_e`.** `lambda_D ~ eps` while `d_e`, `d_i0` and the
+domain are `eps`-INDEPENDENT (they depend on `n` and the real `c` only). A ladder at the
+paper's fixed `dz/d_e = 0.3` would drag `dz/lambda_D` along by the same factor of 10 —
+reinstating the exact confound the resolution ladder spent a week excluding. Fixing
+`dz/lambda_D` and `ppc` pins the finite-grid margin *and* the discreteness noise, and lets
+`dz/d_e` float 0.019 -> 0.188 (still >=5 cells per `d_e,ab` at the coarsest rung).
+
+**Cost `~eps^-3`** at fixed `dz/lambda_D` (cells `~1/eps`, steps `~1/eps^2`), so every rung
+above 470 eV is *cheaper* than the anchor: **~1.6 GPU-h for all four**. The two top rungs are
+small enough that GPU occupancy will be poor and their real cost is likely several times the
+scaled estimate — irrelevant at ~1 minute each, and the mistake to avoid is the reverse one
+(extrapolating a small point up).
+
+**One honest caveat: `lnLambda`.** Holding `lambda_ab = 20` with `nu_ei ~ n lnL T^-3/2` forces
+`lnLambda ~ T^2`, so it rides 12.2 -> 1.22e5 across the ladder — the same unphysical dial
+R1_paper always carried. Kept rather than removed, because the collisional state is what both
+baselines have and because `ss_dz1_ppc100_nocoll` already showed that deleting collisions
+entirely does not touch the wedge. `nu_ei/w_ce = 1.696` is preserved at every rung.
+
+Submit with `perlmutter/submit.sh eps` (4-task array, cheapest-first, `shared` QOS).
+Read the wedge from the **visual structure of the ambient-ion phase space** at matched
+`t*wci0`, as agreed 2026-08-13 — not from a scalar. All rungs have 30 frames over the same
+`0.302/w_ci0`, so frames match by index and the `argmin` tolerance problem does not arise.
+
+15/15 structure tests pass; `make_inputs.py` verified all four decks resolve back to their
+config primaries.

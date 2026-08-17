@@ -2,6 +2,7 @@
 # Submit a KinShock2020 job array on Perlmutter.
 #
 #   perlmutter/submit.sh sweep          # the six S_phase points, one GPU each
+#   perlmutter/submit.sh eps            # the four E_phase eps-ladder rungs, one GPU each
 #   perlmutter/submit.sh ab             # the wall A/B: 2 runs per binary
 #   perlmutter/submit.sh sweep --dry    # print the sbatch command, submit nothing
 #
@@ -41,6 +42,20 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="ksweep"
     ;;
+  eps)
+    # The eps = v_te,ab/c ladder (runs/E_phase). Four rungs between the 470 eV and 47 keV
+    # endpoints, every Table I group AND every numerics group held fixed -- see
+    # runs/E_phase/README.md. Ordered cheapest-first, as the sweep is: es_47keV is ~1 min
+    # and es_1p5keV ~1.3 h, so a config mistake surfaces immediately.
+    RUNS=(runs/E_phase/es_47keV
+          runs/E_phase/es_15keV
+          runs/E_phase/es_4p7keV
+          runs/E_phase/es_1p5keV)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-3"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="keps"
+    ;;
   ab)
     # The wall A/B. Two runs per binary because WarpX on GPU is NOT reproducible --
     # ablastr's RandomSeed.H says so outright ("one should not expect to obtain the same
@@ -60,7 +75,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|ab} [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|ab} [--dry]" >&2; exit 2 ;;
 esac
 
 # The run list goes to a FILE, not into --export. sbatch's --export is a comma-separated
