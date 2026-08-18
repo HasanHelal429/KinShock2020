@@ -4021,3 +4021,69 @@ Not proposed here.
 Figures: `media/E_phase/wedge_vs_eps.png` (6x2 phase-space panels),
 `media/E_phase/wedge_trend.png` (the two fits + the mediator).
 Analysis: `scripts/plot_eps_ladder.py`, `scripts/eps_shape_test.py`.
+
+### 2026-08-17 (same day) — is the eps ladder a PLOTTING / SAMPLING artifact? No, on three tests
+
+Hypothesis raised: the visual difference across the ladder could be a rendering effect of
+unequal particle counts on a per-panel log colour scale — more macroparticles filling more
+of the plot — rather than a difference in the plasma.
+
+**The premise is real and large.** `ppc = 100` at every rung but `dz` spans 16x, so:
+
+| run | dz [m] | w_macro | macroparticles / 0.25 d_i0 |
+|---|---|---|---|
+| 470 eV anchor | 4.07e-09 | 1.95e+14 | 146032 |
+| 1.5 keV | 7.23e-09 | 3.47e+14 | 82117 |
+| 4.7 keV | 1.29e-08 | 6.18e+14 | 46156 |
+| 15 keV | 2.29e-08 | 1.10e+15 | 25952 |
+| 47 keV | 4.07e-08 | 1.95e+15 | 14595 |
+| `R1_paper` | 6.51e-08 | 3.12e+15 | 9288 |
+
+**But it acts on the FLOOR, not the bulk.** The histograms are weight-weighted, so they are
+physical phase-space densities: `w_macro ~ n dz/ppc` while macroparticle count per unit
+length scales inversely, and the sum of weights is the same physical number either way.
+What is not invariant is the faintest thing a panel can show — one macroparticle — which
+spans 16x. So the artifact would live in dynamic range at the bottom of the colour scale.
+
+**Test 1, matched noise floor** (`scripts/plot_eps_ladder_norm.py`). Shared LogNorm with
+`vmin` pinned to the COARSEST run's `w_macro` (3.12e15), so no panel may render structure
+`R1_paper` could not have resolved. The rows do NOT merge: at `t*wci0 = 0.26` the 470 eV row
+is a broad filled cloud spanning ~0.8–4.6 d_i0 while 47 keV and `R1_paper` are thin coherent
+arcs with visible striations.
+
+**Test 2, shared linear scale.** Discards faint tails entirely and shows only the bulk. The
+difference is if anything starker — real bulk density fills `v_z/v_sh > 0.5` over a wide z
+span at 470 eV, against a narrow arc at 15/47 keV and `R1_paper`, with the intermediate
+rungs interpolating smoothly.
+
+**Test 3, and the one that mattered — subsampling the METRIC**
+(`scripts/eps_wedge_subsample.py`). The wedge is `np.std(v_z)` per 0.25 d_i0 window, and
+`std` is TAIL-sensitive: with 15.7x more samples a run resolves rarer fast ions, its spread
+reads higher, the 0.06 threshold is crossed further out, and the wedge measures deeper with
+no change in the distribution. Sampling density falls monotonically along the ladder, so
+this would mimic the trend exactly. Thinned every rung to `R1_paper`'s density (keep
+fractions 0.064 to 1.0, i.e. discarding 94% of the anchor's particles), 5 seeds:
+
+| run | eps | keep | wedge, full | wedge, subsampled |
+|---|---|---|---|---|
+| 470 eV anchor | 0.0303 | 0.064 | 2.062 | 2.055 +/- 0.031 |
+| 1.5 keV | 0.0539 | 0.113 | 2.064 | 2.040 +/- 0.025 |
+| 4.7 keV | 0.0959 | 0.201 | 1.808 | 1.820 +/- 0.012 |
+| 15 keV | 0.1705 | 0.358 | 1.293 | 1.299 +/- 0.029 |
+| 47 keV | 0.3033 | 0.636 | 1.164 | 1.177 +/- 0.014 |
+| `R1_paper` | 0.3033 | 1.000 | 1.119 | 1.119 |
+
+Ladder span **1.77x -> 1.75x**. Every shift is within the seed scatter. The seed spread is
+also the error bar the original single-shot numbers never carried: **+/-0.01 to 0.03 d_i0**,
+far below the 0.9 d_i0 effect.
+
+**A fourth control failed to be informative, and is recorded as such.** Replacing `std` with
+a tail-insensitive `1.4826*MAD` returns nan for the top three rungs: `sigma_MAD` measures
+the COLD CORE, which is already below the 0.06 threshold at zero offset, so the scan finds
+no crossing. MAD ignores the tail and the wedge IS a tail feature — a minority of
+accelerated ions on a cold core — so that estimator cannot see the quantity in question.
+The script now says so instead of printing a meaningless span.
+
+**Conclusion: the eps trend is in the distribution, not in the sampling or the rendering.**
+Worth keeping the premise in mind for future figures though — a 16x floor imbalance across
+panels of one figure is real, and `plot_eps_ladder_norm.py` is the way to render it fairly.
