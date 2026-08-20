@@ -1,0 +1,316 @@
+# ek_47keV_t2 -- the 47 keV counterpart of the production run, built to MEASURE the
+# mechanism rather than argue it. Precursor run: cheapest of the three counterparts.
+#
+# WHY. The eps dependence of the ambient wedge is established (RESULTS 2026-08-17), but the
+# MECHANISM is not. The lever-arm argument (measured gamma_shocked moves 5.7% against a
+# 43.6% wedge change) points away from relativistic capping and toward the electron-scale
+# wave regime, rho_e/lambda_D = w_pe/w_ce. Three attempts to measure that failed
+# (RESULTS 2026-08-19), the last of them structurally: NO EXISTING RUN CAN SUPPORT IT.
+#   * E_phase stops at t* = 0.302 and the shock forms at t* ~ 1.4 -- no ramp exists in it,
+#     and it lasts only 4.80 electron gyroperiods (best dw/w_ce = 0.208).
+#   * R1_470eV_s3f8_t2 forms a shock at t* ~ 1.4 but its precursor fills the box at
+#     t* = 1.36. The two conditions miss each other by 0.04.
+# This run is sized so both hold at once.
+#
+# WHAT IS DIFFERENT FROM R1_470eV_s3f8_t2, AND WHY EACH:
+#
+#   T_e,ab   470 eV -> 47012 eV      the ladder parameter. eps 0.0303 -> 0.3033, so
+#                                    w_pe0/w_ce 100 -> 10, the rung where ECDI is most
+#                                    plausible. Everything else dimensionless is held:
+#                                    M_A 13.95, M_ms 12.76, beta_ab 1150, beta_0 0.1957,
+#                                    rho_i0/d_i0 10.40, R_m 2.000/3.192, lambda_ab 20.
+#
+#   domain   34.21 -> 55.00 d_i0     NOT copied from the production run. The precursor
+#                                    front was MEASURED at 24.73 d_i0 per unit t* (1.77
+#                                    v_sh, RESULTS 2026-08-19), so it reaches the wall at
+#                                    t* = 2.22 here against 1.38 in the production box.
+#                                    The run ends at t* = 2.00, so upstream stays clean for
+#                                    every frame -- which the production run does not.
+#
+#   field_intervals 26504 -> 40      w_ce*dt_field = 0.1006, so w_Nyquist/w_ce = 31.2.
+#                                    That puts w_pe/w_ce = 10 INSIDE Nyquist: the Buneman
+#                                    line is observable, not aliased. The production run
+#                                    sits at Nyquist 4.7 against w_pe/w_ce = 100 and its
+#                                    (k,omega) spectrum is aliased by construction.
+#                                    1987 field frames; dw/w_ce = 0.244 over 256 of them,
+#                                    enough to separate cyclotron harmonics.
+#
+# NUMERICS OTHERWISE IDENTICAL to the production run: dz/lambda_D = 0.758, particle_shape 3,
+# filter_npass 8, ppc 100, cfl 0.75. n_cell = 16400 is a multiple of 16 so that any future
+# 2-box split stays a multiple of AMReX's blocking_factor 8 (deck._n_cell enforces it).
+#
+# COST ~2.6 min on one GPU (cost ~ eps^-3, so 1/620 of the production run's 27.17 h). Treat
+# that as a LOWER bound: small problems under-occupy an A100, and every estimate in this
+# project has come in optimistic on small points.
+#
+# READ IT WITH: python scripts/ramp_komega.py runs/E_phase/ek_47keV_t2 --t0 1.5 --nframes 256
+# The ramp locator there is a KINEMATIC PRIOR (argmax|Bx| within model_front +/- 4 d_i0);
+# a global argmax finds a 13x B0 spike at the FOIL WALL and never moves, which is what made
+# the first (k,omega) attempt come out white.
+#
+# ---- inherited header from R1_470eV_s3f8_t2 ----
+# R1_470eV_s3f8_t2 -- the PRODUCTION 470 eV run at the adopted numerics, long enough to watch the
+# shock actually form.
+#
+# WHY THIS RUN EXISTS. Everything before it was diagnostic. S_phase established that
+# `dz8 + shape3 + filter8` is the cheapest numerics that removes the striations and the
+# filled wedge (it matches dz16 at a quarter the cost, RESULTS 2026-08-14). E_phase then
+# established that the residual difference from R1_paper is NOT numerical at all: the two
+# runs differ in exactly one physics parameter, eps = v_te,ab/c, and the wedge is a
+# function of it (RESULTS 2026-08-17). Three further controls ruled out the possibility
+# that the ladder was a plotting or particle-sampling artifact -- matched noise floor,
+# shared linear scale, and thinning every rung to the coarsest sampling density (the
+# wedge moved by less than the seed scatter). So the 470 eV run's structure is the
+# correct answer for a genuinely 470 eV plasma, and it is worth running properly.
+#
+# WHAT IS NEW vs ss_dz8_ppc100_s3f8. The numerics are IDENTICAL -- dz/lambda_D = 0.758,
+# particle_shape 3, filter_npass 8, ppc 100. Only the box and the clock grow:
+#
+#     domain   12.02 -> 34.21 d_i0      (101984 cells, was 35840)
+#     duration  0.302 -> 2.000 /w_ci0    (7951471 steps, was 1200000)
+#
+# WHY THIS DOMAIN AND NOT LESS. The front advances M_A = 13.95 d_i0 per unit t*, so at
+# t* = 2.0 it sits at 27.90 d_i0. The precursor runs ~2.3 d_i0 ahead of it. Sizing at
+# 34.21 d_i0 leaves 4.0 d_i0 of genuinely undisturbed upstream at the final frame and
+# puts the front's arrival at the far wall at t* = 2.45 -- so EVERY frame in this run is
+# pre-arrival. `field_hi = pec` REFLECTS fields (only particles are absorbed), which is
+# what makes post-arrival frames worthless; there are none here.
+#
+# AND WHY A 4 d_i0 UPSTREAM MARGIN SPECIFICALLY. The far-upstream electron control has to
+# be read on an ABSOLUTE window, not a piston-relative one: a piston-relative window in a
+# short box lands next to the open boundary and reads hot, which is what made es_47keV and
+# R1_paper disagree 1.7x at identical eps until it was diagnosed (RESULTS 2026-08-17).
+# 4 d_i0 is enough to place such a window with clearance.
+#
+# READ THE t* = 2.0 TARGET CORRECTLY. Shock FORMATION is at t*_1 ~ 1.35-1.41 (RESULTS
+# 2026-07-31), so this run covers formation plus ~0.6 gyroperiods of developed shock --
+# not 2 gyroperiods of developed shock. Reaching the latter means t* ~ 3.4, a 48 d_i0
+# domain and ~52 h on two GPUs, which lands the walltime ask above the backfill cliff
+# described below and turns a 3.5 h queue into a nine-day one. Deliberately not done.
+#
+# COST AND THE RESOURCE SHAPE, MEASURED NOT ASSUMED. Scaling the baseline's measured
+# 2 h 19 m by cells x steps gives 18.9x -> 43.7 h on one GPU, ~24.7 h on two (the 1.77x /
+# 91%-efficiency two-GPU speedup measured 2026-08-04). That scaling should be conservative
+# here: this problem is ~3x LARGER than the baseline, so A100 occupancy improves, and the
+# documented 1.4-2.0x optimism in past estimates came from SMALL under-occupied points.
+#
+# `sbatch --test-only`, measured 2026-08-17T22:12 -- and it REVERSES the 2026-08-12 result,
+# which is exactly why perlmutter/README.md says to re-measure rather than trust the table:
+#
+#     2 GPU shared,  ask <= 30 h    starts 2026-08-18T01:43    ~3.5 h
+#     2 GPU shared,  ask    36 h    starts 2026-08-26          ~9 days
+#     4 GPU regular, ask 6-20 h     starts 2026-08-23          ~6 days
+#
+# There is a hard backfill cliff between a 30 h and a 36 h ask on `shared`. `regular` is
+# flat at ~6 days regardless of ask, so the extra two GPUs buy nothing. Submit as
+#     2 GPUs, shared, -t 30:00:00
+# which is 24.7 h predicted against a 30 h cap: a 21% margin, and there is NO CHECKPOINT
+# support in the deck generator. A timeout is not total loss -- plotfiles land throughout,
+# so a stop at 90% still yields ~45 frames to t* ~ 1.8 -- but do not shorten the ask.
+#
+# max_grid_size = n_cell/2 = 50992: TWO boxes, one per GPU. Boxes must be >= ranks or a
+# rank idles. n_cell is a multiple of 16 so that n_cell/2 is still a multiple of AMReX's
+# blocking_factor 8 -- three E_phase rungs aborted at init on exactly that arithmetic
+# (RESULTS 2026-08-17); deck._n_cell now refuses it at generation time.
+#
+# ---- inherited header from ss_dz8_ppc100_s3f8 ----
+# ss_dz8_ppc100_s3f8 -- resolved grid AND aliasing suppression, together.
+#
+#   dz/lambda_D,amb = 0.76   particle_shape 3   filter_npass 8
+#
+# WHY, 2026-08-13. Two knobs have now each moved the phase-space structure, and both only
+# after dz came within reach of lambda_D:
+#   ss_dz4_ppc100_s3f8   shape3+filter8 at dz/lD 1.52 -> the bright reflected population
+#                        and the sharp front spike vanish, striations largely suppressed.
+#                        (The SAME knobs at dz/lD 6.07 -- h1/h2/h3 -- did nothing at all.)
+#   ss_dz8_ppc100        dz/lD 0.76 alone -> striations gone, the diffuse cloud above v_sh
+#                        becomes a coherent arc, a clean V bifurcation appears.
+# Neither alone recovers R1_paper's thin laminar arc: each leaves a filled wedge behind the
+# front. This run is the first configuration to have BOTH the resolved grid and the
+# short-wavelength suppression, and it is the natural conjunction of the two partial fixes.
+#
+# COST 64 cost units. ss_dz8_ppc100 measured 0.0064 s/step(warpx) -> ~2.2 h; shape 3 and 8
+# filter passes add overhead on top.
+#
+# READ IT AS: if the wedge finally collapses to a thin single-valued arc, the defect was
+# finite-grid heating from an under-resolved electron Debye length, and the fix is
+# dz <~ lambda_D plus aliasing control -- not any of the six knobs tried at dz1.
+#
+# ---- inherited header from ss_dz8_ppc100 ----
+# ss_dz8_ppc100 -- THE FIRST RUN IN THIS PROJECT WITH dz/lambda_D < 1.
+#
+#   dz = 0.0375 d_e   ->  dz/lambda_D,amb = 0.76   (35840 cells, 1.2M steps)
+#
+# WHY, 2026-08-13. A HYBRID run at these same parameters reproduces the correct shock
+# structure. Hybrid PIC carries no kinetic electrons, so it has no Debye length to resolve
+# and no finite-grid instability available to it. That is the one structural difference
+# between the code that gets this right and the code that does not.
+#
+# Every SCHEME knob has already been tried and every one failed -- but all of them at
+# dz_over_de = 0.3, i.e. dz/lambda_D,amb = 6.07:
+#     h1_filter8            filter_npass 8              negative
+#     h2_shape3             particle_shape 3            negative
+#     h3_filter8_shape3     both                        negative
+#     h4_ppc400             ppc 400                     negative
+#     i0_implicit_cfl075    theta_implicit_em           negative
+#     i1_explicit_villasenor current_deposition         negative
+# and in this session: dz 4x, ppc 16x, collisions off, symmetry wall, Silver-Mueller
+# boundary, operator cadence 20->1. All negative, and the phase-space structure (broad
+# multi-valued wedge + striations instead of a thin laminar arc) was invariant to all of
+# them. That invariance is the tell: a knob that mattered would have moved something.
+#
+# NO RUN HAS EVER CROSSED dz = lambda_D. The finest ever was dz4 at dz/lambda_D = 1.52 --
+# still under-resolved, and "fails later but still fails" is exactly what a finite-grid
+# instability does as you approach but do not cross its threshold. The ladder:
+#     dz1  0.3000 d_e  ->  6.07      dz4  0.0750 d_e  ->  1.52   (finest so far)
+#     dz2  0.1500 d_e  ->  3.04      dz8  0.0375 d_e  ->  0.76   <- THIS RUN
+#
+# It also explains the c/v_ti dependence exactly: lambda_D/d_e = v_te/c, so undoing the
+# reduced-c trick makes dz/lambda_D 10x worse at fixed dz/d_e. R1_paper sits at 0.60 --
+# resolved, and it produces the thin laminar arc. This point sits at 6.07 -- not.
+#
+# WINDOW kept at the standard t*wci0 = 0.3018 (1.2M steps): the broad wedge and the
+# striations are already unmistakable by t* = 0.20, so extending to 0.60 would double a
+# 3.2 h run to buy nothing for THIS question.
+#
+# COST 64 cost units, ~3.2 h on one GPU, 14.3M particles. max_grid_size = n_cell = one box.
+#
+# READ IT AS: if the wedge collapses to a thin laminar arc and the striations vanish, the
+# defect is finite-grid heating from an under-resolved electron Debye length, and the true
+# cost of this parameter point in explicit PIC is 64x the baseline. If the structure
+# survives at dz/lambda_D = 0.76, electron-scale resolution is exonerated too.
+#
+# ---- inherited header from ss_dz4_ppc100 ----
+# ss_dz4_ppc100 -- early-shock-formation resolution sweep, point (dz/4, ppc 100).
+#
+# READ runs/S_phase/README.md FIRST. It carries the design, the (dz/lambda_D, N_D)
+# grid, the domain-truncation control, and how to read the result.
+#
+# THIS POINT
+#   dz/lambda_D,amb = 1.516   (production R1_paper_470eV is 6.066; R1_paper is 0.600)
+#   N_D = ppc*lambda_D/dz = 65.9 particles per Debye length   (production is 16.5)
+#   dz = 0.075 d_e,ab -> 17920 cells over a 12.021 d_i0 one-sided domain
+#   max_step = 600000 = 0.3018/wci0
+#   cost = 16 x the ss_dz1_ppc100 point
+#
+# WHAT THIS RUN IS. R1_paper_470eV's physics EXACTLY -- same piston, heater, injector,
+# collisions, B0, densities, temperatures -- on a domain truncated to 12.0 d_i0 and a
+# window truncated to t*wci0 = 0.30. That window brackets the anomaly: at t*wci0 = 0.39
+# the 470 eV run already has accelerated ambient ions where R1_paper has none
+# (RESULTS 2026-08-05, scripts/compare_phase.py), so whatever starts it starts inside
+# this window. By t*wci0 = 0.30 the piston has travelled 3.12 d_i0 and the model shock
+# 4.19 d_i0, so the domain gives 2.9x head-room ahead of the front.
+#
+# THE ONE THING TO CHECK BEFORE TRUSTING THIS DOMAIN. `field_hi = open` is pec, which
+# REFLECTS fields; only particles are absorbed. Light crosses 12.0 d_i0 in 6000 steps,
+# so the piston turn-on precursor makes ~25 round trips inside this window where in the
+# full 80.5 d_i0 domain it makes ~4. That is a real difference, and it is why the
+# (ss_dz1_ppc100) point is a CONTROL, not just the cheapest sweep point: it must reproduce the
+# full R1_paper_470eV run over t*wci0 <= 0.30 before any other point here means
+# anything. The full run's diag_fields cadence (2500 steps) gives ~60 frames in that
+# window, so the comparison costs no new compute.
+
+meta:
+  run_id: ek_47keV_t2
+  tier: Sweep
+  description: >
+    PRODUCTION 470 eV run at the adopted numerics (dz/lambda_D = 0.758, shape 3,
+    filter 8, ppc 100), on a 34.2 d_i0 domain to t* = 2.0 so shock formation
+    (t*_1 ~ 1.35-1.41) and ~0.6 gyroperiods beyond it are all pre-arrival. Grown from
+    ss_dz8_ppc100_s3f8, whose numerics it carries unchanged; only the domain
+    (12.02 -> 34.21 d_i0) and the clock (0.302 -> 2.000 /w_ci0) differ.
+    See runs/S_phase/README.md for the numerics choice and RESULTS 2026-08-17
+    for why the remaining difference from R1_paper is physics, not resolution.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_ek_47keV_t2
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.200018904e-02   # 470 eV
+    theta_e_init: 1.957450828e-03   # 10 eV
+    theta_i_init: 1.957450828e-05   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.957450828e-03    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 70.273437465    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 6149.2   # [d_e,ab] = 34.21 d_i0; front arrives t*=2.45
+  dz_over_de: 0.374950423        # [d_e,ab] -> dz/lambda_D,amb = 0.758  (RESOLVED)
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8             # [passes] UNDER TEST with dz8
+  cfl: 0.75
+  particle_shape: 3           # [-] UNDER TEST with dz8 (was 2)
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 79515          # = 2.000/w_ci0
+  max_grid_size: 16400      # [cells] = n_cell/2, i.e. TWO boxes -- ONE PER GPU. (was
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 1590    # 50 frames (phase space -- the ion
+                              # acceleration signature)
+  field_intervals: 40      # 300 field-only frames. THE PRIMARY OUTPUT:
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 132      # 600 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.104000107     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.
