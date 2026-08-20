@@ -24,6 +24,36 @@ pm_profile() {
     [[ -n "${MY_PROFILE:-}" ]] && return 0
     # shellcheck disable=SC1090
     source "$HOME/perlmutter_gpu_warpx.profile"
+    pm_cuda12_shim
+}
+
+# NERSC bumped the DEFAULT cudatoolkit to 13.2 between 2026-08-19 (when
+# R1_470eV_s3f8_t2 ran fine) and 2026-08-20, and the profile does a bare
+# `module load cudatoolkit` -- so it silently started loading a different CUDA.
+# The binaries then die at startup with exit 127:
+#
+#   warpx.1d: error while loading shared libraries: libnvJitLink.so.12
+#
+# The binary itself needs libcudart.so.13 (CUDA 13), but something in its
+# dependency chain -- the deps were installed 2026-08-11 under CUDA 12 -- still
+# wants libnvJitLink.so.12, which CUDA 13 does not ship (it has .so.13). So
+# neither toolkit alone satisfies it: loading cudatoolkit/12.x instead just
+# swaps which library is missing. Both must be visible.
+#
+# APPENDED, not prepended, so CUDA 13 keeps priority and this only supplies what
+# is otherwise unresolved. Verified 2026-08-20: with this, `ldd` reports no
+# missing libraries and the binary initialises AMReX.
+#
+# This is a SHIM. The clean fix is to rebuild WarpX and its dependencies against
+# one toolkit; until then this keeps existing binaries (and their SHA
+# provenance) usable. Re-check it after any NERSC module change.
+pm_cuda12_shim() {
+    local d=/opt/nvidia/hpc_sdk/Linux_x86_64/25.5/cuda/12.9/lib64
+    [[ -e "$d/libnvJitLink.so.12" ]] || return 0
+    case ":${LD_LIBRARY_PATH:-}:" in
+        *":$d:"*) ;;
+        *) export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:$d" ;;
+    esac
 }
 
 # Resolve the binary for a build tag (A or B).
