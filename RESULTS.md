@@ -4087,3 +4087,107 @@ The script now says so instead of printing a meaningless span.
 **Conclusion: the eps trend is in the distribution, not in the sampling or the rendering.**
 Worth keeping the premise in mind for future figures though — a 16x floor imbalance across
 panels of one figure is real, and `plot_eps_ladder_norm.py` is the way to render it fairly.
+
+---
+
+## 2026-08-19 — Magnetization, Mach, beta and R_m per rung; and three failed attempts to measure the mechanism
+
+### The exact numbers (`scripts/eps_ladder_numbers.py`)
+
+**MAGNETIZATION — the only block that varies, and it is three different quantities:**
+
+| | 470 eV | 1.5 keV | 4.7 keV | 15 keV | 47 keV | R1_paper |
+|---|---|---|---|---|---|---|
+| `sigma_i = B^2/(mu0 n_i m_i c^2)` | 1.00e-6 | 3.16e-6 | 1.00e-5 | 3.16e-5 | 1.00e-4 | 1.00e-4 |
+| `sigma_e = B^2/(mu0 n_e m_e c^2)` | 1.00e-4 | 3.16e-4 | 1.00e-3 | 3.16e-3 | 1.00e-2 | 1.00e-2 |
+| `w_ce/w_pe0` | 0.0100 | 0.0178 | 0.0316 | 0.0562 | 0.100 | 0.100 |
+| `w_pe0/w_ce = rho_e/lambda_D` | 100 | 56.3 | 31.6 | 17.8 | 10.0 | 10.0 |
+
+`sigma` is <= 1e-4 EVERYWHERE — four orders below where relativistic magnetization does
+dynamical work — so it cannot be the agent. `rho_e,ab/d_e,ab = 33.91` is PRESERVED, so
+electrons are equally magnetized relative to the ramp's INERTIAL scale at every rung. Only
+`rho_e/lambda_D` moves: the MICROSCALE magnetization.
+
+**MACH — held exactly.** `M_A = 13.95`, `M_ms = 12.76`, `M_s = 31.54`, `M_A,piston = 10.40`
+at all five rungs (R1_paper 13.95 / 12.74 / 31.20 / 10.40).
+
+**UPSTREAM BETA — held exactly** (`beta = mu0 n kT/B^2`, no factor 2, per the 2026-08-03 pin):
+`beta_0,e = beta_0,i = 0.1957`, `beta_0,total = 0.3915` at every rung. R1_paper 0.2 / 0.4,
+the known 2.1% from Table I rounding T_0 to 10 eV.
+
+**MAGNETIC REYNOLDS — held exactly, and the identity is exact.** Spitzer
+`eta = m_e nu_ei/(n e^2)` gives `eta_m = eta/mu0 = nu_ei d_e^2` EXACTLY, because
+`d_e^2 = m_e/(mu0 n e^2)`. Hence
+
+    R_m,ab = C_s,ab d_e,ab/eta_m = lambda_ab/sqrt(mu) = 20/10 = 2.000
+
+verified numerically at every rung. **Table I's `lambda_ab = 20` at mu = 100 IS a magnetic
+Reynolds number of 2** — the precise sense of Sec. II's claim that the lambda_ab scaling
+"ensures that dimensionless quantities such as the magnetic Reynolds number are correct".
+`R_m,shock = v_sh d_i0/eta_m,0 = 3.192` at every rung (R1_paper 3.297): `nu_ei,0` runs
+5.4e12 -> 5.4e13 (10x) and `v_sh ~ eps` grows 10x with it, so the ratio cancels. `R_m,domain`
+is 38.4 vs R1_paper's 265.4 — that is the BOX (12.02 vs 80.5 d_i0), not plasma.
+
+Caveat worth stating: `R_m,shock ~ 3` is LOW. Resistive diffusion is not negligible at the
+ion-inertial scale in this setup. It is inherited from the paper's `lambda_ab = 20` and is
+identical in R1_paper, so it affects no comparison here, but this is not a high-R_m shock.
+
+### The WarpX collision cross-section cap does NOT matter here
+
+`ElasticCollisionPerez.H:87-94`, `UpdateMomentumPerezElastic.H:203`:
+`rmin = (4pi/3 n)^(-1/3)`, `sigma_max = 1/(n rmin)`, `sigma_eff = min(pi b0^2 lnLambda, sigma_max)`.
+Our decks set `CoulombLog` explicitly, so the `L > 0` branch runs and the quantum `bmin` and
+the `lnLambda >= 2` floor never execute; `sigma_max` is the only clamp in play.
+
+**It is common-mode by construction.** `b0 ~ 1/T` and `lnLambda ~ T^2` (forced by holding
+`lambda_ab = 20`), so `sigma_coul = pi b0^2 lnLambda` is **1.471e-21 at EVERY rung to seven
+figures**, against `sigma_max = 2.266e-18` — a ratio of 0.001, i.e. 1000x from binding, with
+only the slowest 0.11% of pairs clipped. Same for R1_paper vs the 470 eV runs. In the ambient
+it is 18x away (2.8% vs 2.9% of pairs, matched). It DOES bind in the cold-dense initial
+piston slab (ratio 2.28 at 470 eV, 2.18 for R1_paper) — again matched, and pre-heater.
+NB the `R1_paper_470eV` header's claim that the clamp is "nowhere near engaging" is true at
+ablation conditions and FALSE in the initial piston slab; corrected there.
+
+Stronger still: `ss_dz1_ppc100_nocoll` deleted collisions entirely with no change to the
+wedge, which is a strict superset of any subtlety in how they are computed.
+
+### THREE FAILED ATTEMPTS to measure the mechanism — recorded so they are not repeated
+
+The lever-arm argument (measured `gamma_shocked` moves 5.7% against a 43.6% wedge change)
+points away from relativistic capping and toward the electron-scale wave regime. Attempts to
+MEASURE that failed three ways, each of which produced a plausible-looking wrong answer:
+
+1. **`|E_z(k)|^2` vs `k* = k v_d/w_ce`, looking for an ECDI comb at integers.** The axis
+   cannot discriminate: `k*_Nyquist/(w_pe/w_ce) = 26.1` IDENTICALLY at every rung, because
+   both scale the same way with eps. A numerical cutoff at a fixed fraction of Nyquist and a
+   physical one at `w_pe/w_ce` are the same feature on that axis.
+2. **The summary metrics were artifacts.** The "power in the comb band vs the Buneman band"
+   ratio fell 15.4 -> 1.59 down the ladder, which looked like the predicted trend; the hi
+   band's WIDTH scaled with `w_pe/w_ce` while the lo band was fixed, and per k-sample the
+   ratio is **1.00 +- 0.05 at every rung**. The reported spectral peaks were `argmax` on a
+   flat noisy plateau (hence the erratic 143, 104, 2.63, 25, 15.5).
+3. **The ramp locator found the WALL.** `argmax|Bx|` over the domain returns z ~ 0.1 d_i0
+   every frame — a 13x B0 spike at the foil wall — so the window sat still (median jump
+   7 cells/frame against an expected 277 for a shock at `v_sh`) and the spectrum came out
+   white. BOTH spectrum scripts used it. `outermost |Bx| > 1.5 B0` fails too: past
+   t* ~ 1.36 the precursor has filled the box and it returns the far boundary. What works is
+   a KINEMATIC PRIOR — argmax restricted to `model_front +/- 4 d_i0` — which tracks at
+   250-270 cells/frame with `|Bx|/B0 ~ 7-8`. Now in `scripts/ramp_komega.py`.
+
+**And a fourth, structural: no existing run can support the measurement.**
+E_phase stops at `t* = 0.302` and the shock does not form until `t* ~ 1.4`, so those runs
+have no ramp at all (only 4.80 electron gyroperiods, best `dw/w_ce = 0.208`). The 470 eV
+production run forms a shock at `t* ~ 1.4` but the precursor fills the box at `t* = 1.36` —
+the two conditions miss each other by 0.04.
+
+`scripts/ramp_komega.py` is built and correct: the omega axis is immune to failure (1),
+since a grid cutoff acts in k and cannot manufacture peaks at `omega = n w_ce`. It reports
+`omega_Nyquist/w_ce` and refuses to let an aliased detection pass silently. It needs data
+with a formed shock AND clean upstream, which means a domain of ~55 d_i0 (the precursor runs
+at 24.73 d_i0 per unit t*, i.e. 1.77 v_sh), not the production run's 34.21.
+
+**Status: the eps dependence is established; the MECHANISM is unresolved.** Both candidates
+remain, and note the ladder never actually enters the magnetized regime — `gamma_B/w_ce` runs
+14.8, 8.3, 4.7, 2.6, 1.5, all > 1, so a clean ECDI comb was arguably never to be expected
+within it. What survives is at most a continuous reduction in `gamma/w_ce`, not a branch
+change.
