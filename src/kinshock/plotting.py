@@ -97,8 +97,18 @@ def _asinh_norm(H, softclip=0.03):
     return np.arcsinh(H / a) / np.arcsinh(hmax / a)
 
 
+def _asinh_norm_to(H, hmax, softclip=0.03):
+    """_asinh_norm against a FIXED peak rather than this array's own, so a sequence of
+    frames shares one scale."""
+    if hmax <= 0:
+        return H
+    a = softclip * hmax
+    return np.arcsinh(H / a) / np.arcsinh(hmax / a)
+
+
 def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
-                       colors=None, bg=PHASE_BG, legend=False):
+                       colors=None, bg=PHASE_BG, legend=False,
+                       norm="asinh", peaks=None):
     """Draw a 2D phase-space *distribution* f(z, v) as an additive two-colour image.
 
     ``species_data`` maps a role key ('piston' / 'ambient') -> (z, v, weight) arrays
@@ -109,6 +119,17 @@ def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
 
     Replaces the old per-particle scatter: identical axes, but the local macro-
     particle density is now legible instead of a saturated dot cloud.
+
+    ``norm`` selects the stretch: "asinh" (default, unchanged) or "linear". Linear shows
+    where the bulk of the distribution actually is and refuses to flatter faint tails, at
+    the cost of hiding them entirely.
+
+    ``peaks`` maps a role key -> the value to normalise that species by. Default (None) is
+    each species' OWN peak IN THIS FRAME, which is right for a single figure and wrong for
+    a movie: it rescales every frame independently, so brightness carries no information
+    across time. Pass a fixed per-species peak (e.g. the max over all frames) to make
+    frames comparable. Per-species normalisation is kept either way -- the ambient is
+    ~250x rarer than the piston, so a single shared scale would erase it.
     """
     colors = colors or PHASE_COLORS
     nz, nv = len(z_edges) - 1, len(v_edges) - 1
@@ -118,7 +139,13 @@ def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
         if len(z) == 0:
             continue
         H, _, _ = np.histogram2d(z, v, bins=[z_edges, v_edges], weights=w)
-        inten = _asinh_norm(H).T                      # (nv, nz)
+        pk = (peaks or {}).get(key)
+        if norm == "linear":
+            pk = pk if pk else (float(H.max()) if H.size else 0.0)
+            inten = (np.clip(H / pk, 0.0, 1.0) if pk > 0 else H).T
+        else:
+            inten = (_asinh_norm(H) if pk is None else
+                     _asinh_norm_to(H, pk)).T          # (nv, nz)
         rgb += inten[..., None] * np.asarray(colors.get(key, (1, 1, 1)))
         present.append(key)
     rgb = np.clip(rgb, 0.0, 1.0)
