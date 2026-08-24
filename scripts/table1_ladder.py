@@ -225,6 +225,8 @@ def main(argv=None):
     ap.add_argument("--all", action="store_true",
                     help="also the 470 eV anchor (S_phase/ss_dz16_ppc100) and ek_47keV_t2")
     ap.add_argument("--markdown", action="store_true", help="emit a GitHub table")
+    ap.add_argument("--json", action="store_true",
+                    help="emit the same table as JSON, for a renderer downstream")
     ap.add_argument("--only-differing", action="store_true",
                     help="drop the rows the runs hold fixed")
     args = ap.parse_args(argv)
@@ -260,7 +262,9 @@ def main(argv=None):
         i += 1
     body = pruned
 
-    if args.markdown:
+    if args.json:
+        emit_json(hdr, body, data)
+    elif args.markdown:
         emit_markdown(hdr, body, data)
     else:
         emit_text(hdr, body, data)
@@ -367,6 +371,23 @@ Reading the paper columns
     lambda_ab = 20 at that rung's T_e,ab, and nu_ei ~ T^-3/2 makes it climb as eps^-4.
     The NRL physical lnLambda at the same (n, T) is the row below it.
 """
+
+
+def emit_json(hdr, body, data):
+    import json
+    out = dict(
+        runs=[dict(name=n, eps=d["eps"], Te_ab_eV=d["Te_ab_eV"], B0=d["B0"],
+                   wpe0_over_wce=d["wpe0_over_wce"], n_cell=int(d["n_cell"]),
+                   max_step=int(d["max_step"]), dz_over_lD_0=d["dz_over_lD_0"])
+              for n, d in data],
+        header=hdr,
+        rows=[dict(kind=k, section=r) if k == "SECTION" else
+              dict(kind=k, label=r[0], unit=r[1], psc=r[2], phys=r[3],
+                   values=r[4:-2], tag=r[-2], ratio=r[-1])
+              for k, r in body],
+        notes=NOTES.strip(),
+    )
+    print(json.dumps(out, indent=1))
 
 
 def emit_markdown(hdr, body, data):
