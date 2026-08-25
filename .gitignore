@@ -50,3 +50,4 @@ perlmutter/.runlists/
 # Regenerable, one pair per array task; same category as the run logs above.
 slurm-*.out
 slurm-*.err
+schaeffer2020.txt

@@ -57,11 +57,27 @@ EXTRAS = ["runs/S_phase/ss_dz16_ppc100", "runs/E_phase/ek_47keV_t2"]
 def mfp_directed(v, n, mi, lnL, Z=1.0):
     """Rutherford momentum-transfer mfp [m] of an ion of speed ``v`` in density ``n``.
 
-    lambda = 4 pi eps0^2 mi^2 v^4/(n Z^4 e^4 lnLambda).  This -- NOT the thermal
-    ion-ion mfp -- is the quantity Table I's lambda_mfp/d_i0 = 350 row reports: it is
-    the piston/shocked ions streaming into the ambient, and the v^4 makes it ~10^5
-    longer than the thermal number at the same (n, lnLambda).  Comparing the thermal
-    mfp against 350 is a category error (CLAUDE.md, RESULTS 2026-08-03).
+    lambda = 4 pi eps0^2 mi^2 v^4/(n Z^4 e^4 lnLambda), the test-particle
+    momentum-transfer form (sigma = 4 pi b_90^2 lnLambda, infinite-mass scatterers).
+
+    THE PAPER DEFINES ITS ROW, Sec. III E, verbatim: the streaming ion populations
+    "remain strongly collisionless due to the high flow speeds (lambda_mfp/d_i0 >> 1,
+    where lambda_mfp is the mean free path of ions moving at v_sh)".  So Table I's
+    lambda_mfp/d_i0 = 350 is DIRECTED and evaluated AT v_sh -- not the thermal
+    ion-ion mfp, and not a bracket between v_p and v_sh.
+
+    And it states its own mass-ratio correction, same section: "we overestimate
+    lambda_mfp/d_i0 by a factor of ~4 due to the reduced mass ratio",
+    sqrt(mu_physical/mu_sim) = sqrt(1836/100) = 4.285.  So **350 is the SIMULATION
+    value at mu = 100** -- it belongs beside our mu = 100 runs, not beside a physical
+    hydrogen plasma -- and the physical H value is 350/4.285 = 82.
+
+    CAVEAT, unresolved: the paper gives no formula, and the prefactor convention is
+    worth a factor of 4.  At Table I's conditions with lnLambda = 10 this expression
+    gives 3260 against the quoted 350 (9.3x); the self-collision reduced-mass form
+    (m -> m/2) gives 815 (2.3x).  The inputs are not in doubt -- at mu = 1836 this
+    same code reproduces Table I's printed v_sh (976 vs 980 km/s) and d_i0 (103.9 vs
+    104 um) -- so the residual is the cross-section convention alone.
     """
     return (4.0 * math.pi * U.EPS0 ** 2 * mi ** 2 * v ** 4
             / (n * Z ** 4 * U.QE ** 4 * lnL))
@@ -117,6 +133,10 @@ def scales(run_dir: Path):
         tau_ei_over_tab=(1.0 / sc.nu_ei_ab / sc.t_ab) if sc.nu_ei_ab else float("nan"),
         mfp_ii_over_di0=sc.mfp_ii_amb / sc.di0,
         mfp_dir_vp_over_di0=mfp_dir_vp, mfp_dir_vsh_over_di0=mfp_dir_vsh,
+        # The paper's own correction: at fixed T_e,ab, n and lnLambda,
+        # mfp(v_sh)/d_i0 ~ mu^-1/2 (v_sh ~ mu^-1/2, d_i0 ~ mu^+1/2, mi^2 on top),
+        # so a physical hydrogen plasma sits a factor sqrt(1836/mu) below the run.
+        mfp_dir_vsh_muphys=mfp_dir_vsh / math.sqrt(1836.15 / mu),
         dz_over_de=sc.dz / sc.de, dz_over_lD_ab=sc.dz / lD_ab, dz_over_lD_0=sc.dz / lD_0,
         ppc=ppc, N_D_pic=ppc * lD_0 / sc.dz, N_D_phys=sc.namb * lD_0 ** 3,
         max_step=steps, t_run_wci0=sc.dt * steps * sc.wci0,
@@ -192,7 +212,8 @@ ROWS = [
     ("tau_ei,ab",        "t_ab",      "tau_ei_over_tab", "0.009",     "0.43 ps"),
     ("mfp_ii,amb/d_i0 (THERMAL)", "",   "mfp_ii_over_di0", "",          ""),
     ("mfp_dir(v_p)/d_i0",  "",         "mfp_dir_vp_over_di0", "",       ""),
-    ("mfp_dir(v_sh)/d_i0 <- Table I's 350", "", "mfp_dir_vsh_over_di0", "350", "3.6 cm"),
+    ("mfp_dir(v_sh)/d_i0 <- Table I's 350", "", "mfp_dir_vsh_over_di0", "350", ""),
+    ("  ...same at mu_phys (/4.285)", "",  "mfp_dir_vsh_muphys", "82",     ""),
 
     ("NUMERICS -- not physics; listed to separate the confound", None, None, None, None, None),
     ("dz/d_e,ab",        "",          "dz_over_de",    "0.3",         ""),
@@ -395,14 +416,23 @@ Reading the paper columns
   * `n_cell`, `domain`, `max_step`, `t_run`.  The ladder is the S_phase EARLY-FORMATION
     box -- 12.02 d_i0 to t*w_ci0 = 0.302 -- not the paper's 900 d_i,ab to 220 t_ab.  That
     is a deliberate truncation shared by all four rungs, so it cannot confound them.
-  * The ION mean free path is TWO different rows and Table I means the second one.
-    `mfp_ii,amb/d_i0` is the THERMAL upstream ion-ion mfp at T_0 -- 0.0143 d_i0, i.e.
-    the ambient's own ions are collisional.  Table I's lambda_mfp/d_i0 = 350 is the
-    DIRECTED mfp of piston/shocked ions streaming into that ambient (Rutherford, ~v^4),
-    which is 823 d_i0 at v_p and 2666 at v_sh -- five orders up, and neither row is the
-    other's error.  All three are eps-invariant: mfp ~ T^2/(n lnLambda) with T_0 ~ eps^2
-    and the forced lnLambda ~ eps^4, so eps cancels exactly and ion collisionality
-    relative to global ion scales is another group the ladder holds fixed.
+  * The ION mean free path.  Sec. III E defines Table I's row outright: lambda_mfp is
+    "the mean free path of ions moving at v_sh" -- DIRECTED, at v_sh, not thermal and
+    not a bracket between v_p and v_sh.  The same section states the correction that
+    tells you which column 350 belongs to: "we overestimate lambda_mfp/d_i0 by a factor
+    of ~4 due to the reduced mass ratio", i.e. sqrt(1836/100) = 4.285, so **350 is the
+    SIMULATION value at mu = 100** and 82 is the physical hydrogen one.  Compare 350
+    against the mu = 100 row, never against a proton-mass calculation.
+    The thermal row is a different quantity entirely -- 0.0143 d_i0, the ambient's own
+    ions are collisional -- and comparing IT to 350 is the category error CLAUDE.md
+    flags.  All three are eps-invariant: mfp ~ T^2/(n lnLambda) with T_0 ~ eps^2 and the
+    forced lnLambda ~ eps^4, so eps cancels and ion collisionality relative to global
+    ion scales is another group the ladder holds fixed.
+    UNRESOLVED: the paper gives no formula and the prefactor convention is worth ~4x.
+    Test-particle Rutherford gives 3260 at Table I's conditions against the quoted 350;
+    the self-collision reduced-mass form gives 815.  The inputs check out (at mu = 1836
+    this code reproduces Table I's printed v_sh and d_i0 to <0.5%), so the gap is the
+    cross-section convention, and it cannot be closed from the paper's text.
   * `ln Lambda (used in deck)`.  A knob, not a physical value: it is whatever reproduces
     lambda_ab = 20 at that rung's T_e,ab, and nu_ei ~ T^-3/2 makes it climb as eps^-4.
     The NRL physical lnLambda at the same (n, T) is the row below it.
