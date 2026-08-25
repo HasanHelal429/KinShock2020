@@ -1,0 +1,154 @@
+# mb_r32 -- the B0 SCAN at FIXED eps, rung 3/5.  w_pe0/w_ce = 31.6227.
+#
+# WHY THIS PHASE EXISTS.  E_phase established that the ambient wedge is a function of
+# eps = v_te,ab/c alone (2.06 d_i0 at eps = 0.0303 -> 1.16 at 0.3033) and that the
+# difference between its rungs is exactly one-dimensional.  It could not say WHICH
+# consequence of eps does the work, and it never can, because two exact identities
+# collapse the candidates into a single number:
+#
+#     w_pe0/w_ce = 1/(sqrt(mu) * v_A/c)        lambda_D,0/d_i0 = sqrt(beta_0) * v_A/c
+#
+# so on that ladder v_A/c, w_pe0/w_ce, lambda_D,0/d_i0, sigma_i and v_sh/c are all the
+# same parameter renamed.  Three mechanism tests and the (k,omega) measurement failed to
+# attribute because there was nothing to attribute BETWEEN (RESULTS 2026-08-19, 08-23).
+#
+# THE CUT THIS PHASE MAKES.  beta_0 is held fixed in E_phase, which is what locks
+# lambda_D,0/d_i0 to v_A/c.  Let beta_0 GO and the two separate.  Scanning B0 alone, at
+# fixed eps, moves the magnetization family and freezes everything else:
+#
+#   MOVES:  w_pe0/w_ce  v_A/c  M_A  beta_0  beta_ab  sigma_i  rho_e0/d_i0  rho_i0/d_i0
+#   FROZEN: eps  gamma  T_e,ab  T_0  n_0  d_e0  d_i0  lambda_D,0  lambda_D,0/d_i0
+#           v_sh/c  v_p/c  C_s,ab/c  v_sh/C_s,ab  dz  dt  n_cell  ppc  N_D,PIC  lambda_ab
+#
+# Read it as a two-way test.  If the wedge climbs back toward 2.06 as w_pe0/w_ce -> 100,
+# the agent is in the magnetization family and gamma / lambda_D,0/d_i0 are exonerated.
+# If it stays near es_47keV's 1.164, the magnetization family is out and the agent is on
+# the eps side -- gamma, lambda_D,0/d_i0, or the shocked-electron heating channel.
+#
+# WHAT THIS RUNG SETS:
+#     B0            22.222412 T      (anchor 70.273437465, i.e. /3.1623)
+#     w_pe0/w_ce        31.62       (anchor 10.00, the 470 eV end of E_phase is 100)
+#     v_A/c           0.00316       (anchor 0.01000)
+#     M_A                44.1       (anchor 13.95)   M_ms 25.7  (anchor 12.76)
+#     beta_0           1.9574       (anchor 0.1957)  beta_ab 1.15e+04  (anchor 1150)
+#     rho_i0/d_i0       32.89       (anchor 10.40)
+#     max_step          75885       t*w_ci0 = 0.3018, IDENTICAL to the anchor
+#
+# THE CONFOUND, STATED UP FRONT.  At fixed eps, v_sh/c is fixed, so
+# M_A = sqrt(mu)*(v_sh/c)*(w_pe0/w_ce) EXACTLY -- M_A and w_pe0/w_ce are proportional and
+# this scan cannot separate them.  It separates the magnetization FAMILY from the eps
+# family, not its members.  beta_0 also swings 0.196 -> 19.6 across the phase, so by
+# rung 5 the upstream is thermal-pressure dominated (M_ms saturates at ~31 because C_s0
+# overtakes v_A) and may not support a perpendicular shock at all.  READ RUNGS 2-3 FIRST:
+# they reach w_pe0/w_ce = 31.6 at beta_0 <= 2 and M_A <= 44, and cost 5 minutes together.
+#
+# EVERYTHING BELOW IS es_47keV's config VERBATIM except field.B0_tesla, numerics.max_step,
+# the diagnostics cadence (held at 30/150/300 frames) and targets (which are per-rung
+# check values, not knobs).  es_47keV IS rung 1 -- it is not duplicated here, because a
+# second config.yaml for an identical configuration is exactly what CLAUDE.md's A/B note
+# forbids.  Frame counts match it by index, so the wedge is read the same way at t*w_ci0
+# = 0.26 with no argmin tolerance question.
+#
+# See runs/M_phase/README.md for the design and RESULTS 2026-08-24 for the identities.
+
+meta:
+  run_id: mb_r32
+  tier: Sweep
+  description: >
+    B0 scan at fixed eps = 0.3033, rung 3/5: B0 = 22.2224 T, w_pe0/w_ce = 31.62
+    (anchor es_47keV is 10.0). Separates the magnetization family -- v_A/c,
+    w_pe0/w_ce, M_A, beta_0 -- from the eps family (gamma, lambda_D,0/d_i0), which
+    E_phase holds locked together. M_A = 44.1 and beta_0 = 1.96 are deliberate
+    departures from Table I. See runs/M_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_mb_r32
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.200018904e-02   # 47012 eV -- THE LADDER PARAMETER
+    theta_e_init: 1.957450828e-03   # 1000.3 eV, T_0/T_e,ab held
+    theta_i_init: 1.957450828e-05   # ion-normalized, T_0/T_e,ab held
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.957450828e-03    # = 1000.3 eV -> lambda_D,amb = 1.0731e-07 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 22.222412140    # [T] THE SCAN PARAMETER: anchor 70.273437465 / 3.1623
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 1344.0
+  dz_over_de: 0.187500000   # [d_e,ab] -> dz/lambda_D,amb = 0.379, HELD
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2           # [-] baseline. h2_shape3 showed order 3 moves the
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 75885
+  max_grid_size: 7168      # [cells] = n_cell, i.e. ONE box: correct for a single
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 44.1          # per-rung CHECK values, not Table I targets:
+  M_ms: 25.7        # this phase deliberately leaves Table I's
+  beta_ab: 11500     # M_A = 14 / beta_0 = 0.2 behind.
+  beta_0: 1.9574
+
+diagnostics:
+  plotfile_intervals: 2530     # 30 frames (phase space -- the ion
+                              # acceleration signature)
+  field_intervals: 506       # 150 field-only frames. THE PRIMARY OUTPUT:
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 253       # 300 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.104000107     # [c] ~ eps; v_p/C_s,ab = 3.4288 is what is held
+                              #          R1_paper_470eV.

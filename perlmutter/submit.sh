@@ -3,6 +3,7 @@
 #
 #   perlmutter/submit.sh sweep          # the six S_phase points, one GPU each
 #   perlmutter/submit.sh eps            # the four E_phase eps-ladder rungs, one GPU each
+#   perlmutter/submit.sh mag            # the four M_phase B0-scan rungs, one GPU each
 #   perlmutter/submit.sh ab             # the wall A/B: 2 runs per binary
 #   perlmutter/submit.sh sweep --dry    # print the sbatch command, submit nothing
 #
@@ -63,6 +64,27 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="keps"
     ;;
+  mag)
+    # The B0 scan at fixed eps (runs/M_phase). Four rungs above the anchor, which IS
+    # runs/E_phase/es_47keV and is already run -- it is deliberately NOT in this list and
+    # NOT duplicated as a config, per CLAUDE.md's A/B note. Every Table I group that E_phase
+    # holds fixed is still fixed here EXCEPT the magnetization family; in particular
+    # lambda_D,0/d_i0 and gamma are frozen while w_pe0/w_ce moves a decade, which is the
+    # separation E_phase structurally cannot make. See runs/M_phase/README.md.
+    #
+    # Cheapest-first, as the others are: mb_r20 is ~2 min and mb_r100 ~10 min. Rungs 2-3
+    # (mb_r20, mb_r32) are the ones to READ FIRST -- they reach w_pe0/w_ce = 31.6 while
+    # beta_0 is still <= 2, where mb_r56/mb_r100 have a thermal-pressure-dominated upstream
+    # that may not support a perpendicular shock at all.
+    RUNS=(runs/M_phase/mb_r20
+          runs/M_phase/mb_r32
+          runs/M_phase/mb_r56
+          runs/M_phase/mb_r100)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-3"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kmag"
+    ;;
   ab)
     # The wall A/B. Two runs per binary because WarpX on GPU is NOT reproducible --
     # ablastr's RandomSeed.H says so outright ("one should not expect to obtain the same
@@ -82,7 +104,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|mag|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
 
 if [[ ${#SUBSET[@]} -gt 0 ]]; then
