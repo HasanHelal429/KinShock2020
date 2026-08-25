@@ -138,7 +138,7 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   the progress logger is **on by default** (`--no-logger` to suppress; every run must leave a
   `progress.log`), `-n` dry-runs, and anything after `--` is passed to WarpX
   as ParmParse overrides (smoke tests only — they will trip `make_inputs.py --verify`).
-- **Collisions (`collisions:` block, `runs/R1_phase/R1_coll`).** Three traps. (1) **lnΛ is a knob, not a
+- **Collisions (`collisions:` block, `runs/R1_phase/R1_coll`).** Five traps. (1) **lnΛ is a knob, not a
   physical value**: at real c, θ_e = 0.078 ⇒ T_e,ab = 39.9 keV, so ν_ei ∝ n T^(−3/2) keeps the
   plasma collisionless (physical lnΛ → mfp ≈ 4×10⁵ d_e,ab) at *any* attainable density. Set
   `collisions.target` to the physics you want and let `units.coulomb_log_for` invert it.
@@ -149,32 +149,61 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   So **Table I's λ_ab = 20 means mfp = 20 d_e,ab.** The old note here evaluated ρ_e at **B₀**
   instead, giving ρ_e,ab ≈ 28 d_e (that 28 is √(β_ab/2) = 24, not a physical scale) and hence a
   target of 559 d_e — **28× too long, i.e. R1_coll is 28× less collisional than the paper.**
-  Correcting it needs lnΛ ≈ 2×10⁵ rather than 7713, which makes trap (3) worse, not better.
+  Correcting it needs lnΛ ≈ 2×10⁵ rather than 7713, which makes trap (5) worse, not better.
   Pick `quantity: lambda_ab` vs `mfp_over_de` deliberately. Since n0 is a pure scale factor, a
   collisional run is the only reason to pin an absolute density.
-  (3) **λ_ab and the upstream λ_ii/d_i0 cannot both match the paper — and the paper says so.**
-  ⚠ REVISED 2026-08-03 (`scripts/table1.py`): the two were never the same quantity, so the
-  "one lnΛ can only hit one" framing below overstates the conflict. Table I's λ_mfp/d_i0 = 350
-  is the **directed**-ion mfp (Rutherford momentum transfer, ∝v⁴) of piston/shocked ions
-  streaming into the ambient — 4πε₀²m_i²v⁴/(nZ⁴e⁴lnΛ) gives 261 d_i0 at v_p and 845 d_i0 at
-  v_sh, bracketing 350, i.e. ≈3.6 cm. The **thermal** upstream ion-ion mfp at T_0 = 10 eV is
-  8.9×10⁻⁴ d_i0 — six orders down, and no lnΛ bridges that. So the 350 row is the statement
-  "the experiment is globally collisionless", and comparing it to `Scales.mfp_ii_amb` (thermal
-  NRL ion-ion) is a category error. **Criterion 2 still uses that thermal comparison against a
-  350 threshold; it is therefore measuring the wrong quantity and its verdicts should not be
-  trusted until reworked** — see RESULTS 2026-08-03. Table I quotes λ_ab = 20 *and*
-  λ_mfp/d_i0 = 350; the λ_ab side of the story below still holds. §II states the
-  reason outright: the λ_ab scaling "ensures that dimensionless quantities such as the magnetic
-  Reynolds number are correct, but electron collisionality relative to global scales (e.g.
-  ν_ei,ab t_ab) is only quantitatively matched **at physical mass ratios**." So the knob that
-  buys both is µ_p = 1836, **not** a reduced c. R1_coll targets λ_ab = 20 (as mis-defined above)
-  ⇒ lnΛ = 7713 = 667× physical ⇒ **upstream λ_ii/d_i0 = 0.52, so criterion 2 ("collisionless")
-  FAILS in all 51 frames** (RESULTS 2026-07-29). Criterion 2 reads `Scales.mfp_ii_amb`
-  (`units.nu_ii`, NRL ion-ion, μ from the real ion mass) — it used to be a hard-coded 350.0,
-  which happens to equal the physical-lnΛ answer, so it silently masked this. For a run that is
-  collisional *and* still a collisionless shock, target the upstream number: λ_ii/d_i0 ≈
-  347×(11.567/lnΛ), so lnΛ ≈ 400 ⇒ λ_ii/d_i0 ≈ 10. R1_coll still reproduces R1_warm's shock on
-  all six other criteria (peak B⊥ 12% lower) — the paper's Fig. 13 claim, tested harder.
+  (3) **Table I's λ_mfp/d_i0 = 350 is the DIRECTED mfp at v_sh, of the SIMULATION's µ = 100
+  ions.** ⚠ REWRITTEN 2026-08-24 against the paper itself (`schaeffer2020.pdf`, now in the repo
+  root, gitignored; OSTI 1643946). §III E defines the row outright: the streaming ion populations
+  "remain strongly collisionless due to the high flow speeds (λ_mfp/d_i0 ≫ 1, where λ_mfp is
+  **the mean free path of ions moving at v_sh**)". So it is directed (Rutherford momentum
+  transfer, ∝v⁴), at v_sh, and at *one* speed — **not** a bracket between v_p and v_sh, which is
+  how the 2026-08-03 note framed it. The same section fixes which plasma 350 describes: "we
+  overestimate λ_mfp/d_i0 by a factor of ≈4 due to the reduced mass ratio", i.e.
+  √(µ_phys/µ_sim) = √(1836/100) = 4.285. **350 is therefore the simulation value at µ = 100**
+  (it sits in Table I's Dimensionless block beside mass ratio 100 and λ_ab 20, all sim values);
+  the physical hydrogen value is 350/4.285 ≈ **82**. Compare 350 against a µ = 100 calculation,
+  **never** a proton-mass one — the old numbers here (261 d_i0 at v_p, 845 at v_sh, "≈3.6 cm")
+  were m_i = m_p at lnΛ ≈ 9.1, i.e. on the far side of the paper's own correction from the
+  number they were compared against, and the 3.6 cm was never in Table I at all (its
+  Dimensionless block prints no SI column). That mass choice, plus lnΛ 9.1 vs NRL's 12.23, is
+  the whole of the 3.15× gap against `scripts/table1.py`; neither figure was stale, they are
+  different plasmas.
+  **Still open — the prefactor.** The paper gives no formula and the cross-section convention is
+  worth ≈4×: at Table I's conditions with lnΛ = 10, test-particle Rutherford
+  4πε₀²m_i²v⁴/(nZ⁴e⁴lnΛ) gives **3260** against the quoted 350 (9.3×), and the self-collision
+  reduced-mass form (m→m/2) gives **815** (2.3×). The inputs are not in doubt: run at µ = 1836
+  the same code reproduces Table I's printed v_sh (976 vs 980 km/s) and d_i0 (103.9 vs 104 µm).
+  Ref. 31 (Fox et al.) is cited for the collisionality scaling and may carry the formula.
+  (4) **The thermal ion-ion mfp is a different quantity — and the 347 that once seemed to
+  confirm the 350 threshold was a coincidence.** At the paper's T_0 = 10 eV, µ = 100 and NRL
+  lnΛ = 4.8 the thermal upstream λ_ii/d_i0 is **0.037** (`ss_dz16_ppc100`), against 6.8×10³ for
+  the directed number at the same lnΛ — **five orders apart, and the ratio is lnΛ-independent**,
+  so no lnΛ bridges it. Comparing `Scales.mfp_ii_amb` (thermal NRL ion-ion) to 350 is a category
+  error. ⚠ **Criterion 2 still makes exactly that comparison and its verdicts should not be
+  trusted until reworked.** RESULTS 2026-07-29 recorded thermal λ_ii/d_i0 = 347 "vs the paper's
+  quoted 350 — the old hard-coded 350.0 was exactly the physical-lnΛ value": **that agreement
+  was an accident of a 100× temperature error.** It was computed on R1_coll, whose ambient is
+  θ_0 = 0.002 read at real c = **1022 eV**, not the paper's 10 eV; thermal mfp ∝ T², so the 102×
+  temperature supplies ≈10⁴ and lands near 350 by chance. The hard-coded threshold was blessed
+  by a coincidence between a category error and a temperature error.
+  (5) **λ_ab = 20 and λ_mfp/d_i0 CAN both be hit with one lnΛ — at the paper's temperature.**
+  ⚠ This retires the "one lnΛ knob can only hit one" framing (RESULTS 2026-07-29). Table I's
+  τ_ei,ab = 0.43 ps inverts to lnΛ = **10.00** with the paper's ν_ei coefficient 3.95e-6 (13.57
+  with NRL's 2.91e-6), and λ_ab = 20 independently gives 9.0 at that same coefficient — an 11%
+  spread that is just Table I's rounding. A direct b_max/b_min for counterstreaming protons at
+  v_sh gives 10.5. **One lnΛ ≈ 10 serves both rows.** The conflict was never the paper's; it was
+  ours, from running at θ_e = 0.078 (≈40 keV) instead of 470 eV, where hitting λ_ab = 20 needs
+  lnΛ = 7713 = 667× physical. That same 667× multiplies the upstream rate, giving R1_coll
+  **λ_ii/d_i0 = 0.52, so criterion 2 FAILS in all 51 frames**. What the mass ratio *does* cost is
+  a separate row: §II says the λ_ab scaling "ensures that dimensionless quantities such as the
+  magnetic Reynolds number are correct, but electron collisionality relative to global scales
+  (e.g. ν_ei,ab t_ab) is only quantitatively matched **at physical mass ratios**" — and indeed
+  ν_ei,ab t_ab = µ/λ_ab = 5 here against 91.8 at µ_p = 1836. For a run that is collisional *and*
+  still a collisionless shock, target the upstream number: λ_ii/d_i0 = 0.52×(7713/lnΛ) =
+  4008/lnΛ, so **lnΛ ≈ 400 ⇒ λ_ii/d_i0 ≈ 10** (λ_ab would then be 385, not 20). R1_coll still
+  reproduces R1_warm's shock on all six other criteria (peak B⊥ 12% lower) — the paper's Fig. 13
+  claim, tested harder.
 - **The ambient density is 0.008 n_e,ab, not 0.01 — and it sets the clock** (found 2026-07-31,
   NOT yet fixed in any config). Table I's code density unit is *not* n_e,ab: it lists
   n_e,ab = 1.25 and n_e0 = 0.01 in code units, so the real ratio is **n_e0/n_e,ab = 0.008**.
