@@ -54,6 +54,19 @@ LADDER = ["runs/E_phase/es_1p5keV", "runs/E_phase/es_4p7keV",
 EXTRAS = ["runs/S_phase/ss_dz16_ppc100", "runs/E_phase/ek_47keV_t2"]
 
 
+def mfp_directed(v, n, mi, lnL, Z=1.0):
+    """Rutherford momentum-transfer mfp [m] of an ion of speed ``v`` in density ``n``.
+
+    lambda = 4 pi eps0^2 mi^2 v^4/(n Z^4 e^4 lnLambda).  This -- NOT the thermal
+    ion-ion mfp -- is the quantity Table I's lambda_mfp/d_i0 = 350 row reports: it is
+    the piston/shocked ions streaming into the ambient, and the v^4 makes it ~10^5
+    longer than the thermal number at the same (n, lnLambda).  Comparing the thermal
+    mfp against 350 is a category error (CLAUDE.md, RESULTS 2026-08-03).
+    """
+    return (4.0 * math.pi * U.EPS0 ** 2 * mi ** 2 * v ** 4
+            / (n * Z ** 4 * U.QE ** 4 * lnL))
+
+
 def scales(run_dir: Path):
     """Every number this table needs, from the config primaries only."""
     cfg = yaml.safe_load((run_dir / "config.yaml").read_text())
@@ -71,6 +84,16 @@ def scales(run_dir: Path):
     wce, wci = qe * sc.B0 / U.ME, qe * sc.B0 / mi
     ppc = float(cfg["numerics"]["ppc"]["ambient"])
     steps = float(cfg["numerics"]["max_step"])
+
+    # Ion mfp in upstream ion inertial lengths, both senses of "ion mfp".  Both are
+    # eps-INVARIANT and that is not a coincidence: mfp ~ T^2/(n lnLambda) with
+    # T_0 ~ eps^2 and the forced lnLambda ~ eps^4, so the eps cancels exactly.
+    Z = float(cfg["reference"].get("charge_state", 1))
+    if sc.coulomb_log:
+        _md = lambda v: mfp_directed(v, sc.namb, mi, sc.coulomb_log, Z) / sc.di0
+        mfp_dir_vp, mfp_dir_vsh = _md(sc.vp_model), _md(sc.vsh_model)
+    else:
+        mfp_dir_vp = mfp_dir_vsh = float("inf")
 
     d = dict(sc.__dict__)
     d.update(
@@ -92,6 +115,8 @@ def scales(run_dir: Path):
         gamma_te=1.0 + 1.5 * th_ab,
         nu_ei_over_wce=(sc.nu_ei_ab / wce) if sc.nu_ei_ab else float("nan"),
         tau_ei_over_tab=(1.0 / sc.nu_ei_ab / sc.t_ab) if sc.nu_ei_ab else float("nan"),
+        mfp_ii_over_di0=sc.mfp_ii_amb / sc.di0,
+        mfp_dir_vp_over_di0=mfp_dir_vp, mfp_dir_vsh_over_di0=mfp_dir_vsh,
         dz_over_de=sc.dz / sc.de, dz_over_lD_ab=sc.dz / lD_ab, dz_over_lD_0=sc.dz / lD_0,
         ppc=ppc, N_D_pic=ppc * lD_0 / sc.dz, N_D_phys=sc.namb * lD_0 ** 3,
         max_step=steps, t_run_wci0=sc.dt * steps * sc.wci0,
@@ -165,6 +190,9 @@ ROWS = [
     ("ln Lambda (NRL physical)", "",  "coulomb_log_nrl", "",          ""),
     ("nu_ei,ab/w_ce",    "",          "nu_ei_over_wce", "",           ""),
     ("tau_ei,ab",        "t_ab",      "tau_ei_over_tab", "0.009",     "0.43 ps"),
+    ("mfp_ii,amb/d_i0 (THERMAL)", "",   "mfp_ii_over_di0", "",          ""),
+    ("mfp_dir(v_p)/d_i0",  "",         "mfp_dir_vp_over_di0", "",       ""),
+    ("mfp_dir(v_sh)/d_i0 <- Table I's 350", "", "mfp_dir_vsh_over_di0", "350", "3.6 cm"),
 
     ("NUMERICS -- not physics; listed to separate the confound", None, None, None, None, None),
     ("dz/d_e,ab",        "",          "dz_over_de",    "0.3",         ""),
@@ -367,6 +395,14 @@ Reading the paper columns
   * `n_cell`, `domain`, `max_step`, `t_run`.  The ladder is the S_phase EARLY-FORMATION
     box -- 12.02 d_i0 to t*w_ci0 = 0.302 -- not the paper's 900 d_i,ab to 220 t_ab.  That
     is a deliberate truncation shared by all four rungs, so it cannot confound them.
+  * The ION mean free path is TWO different rows and Table I means the second one.
+    `mfp_ii,amb/d_i0` is the THERMAL upstream ion-ion mfp at T_0 -- 0.0143 d_i0, i.e.
+    the ambient's own ions are collisional.  Table I's lambda_mfp/d_i0 = 350 is the
+    DIRECTED mfp of piston/shocked ions streaming into that ambient (Rutherford, ~v^4),
+    which is 823 d_i0 at v_p and 2666 at v_sh -- five orders up, and neither row is the
+    other's error.  All three are eps-invariant: mfp ~ T^2/(n lnLambda) with T_0 ~ eps^2
+    and the forced lnLambda ~ eps^4, so eps cancels exactly and ion collisionality
+    relative to global ion scales is another group the ladder holds fixed.
   * `ln Lambda (used in deck)`.  A knob, not a physical value: it is whatever reproduces
     lambda_ab = 20 at that rung's T_e,ab, and nu_ei ~ T^-3/2 makes it climb as eps^-4.
     The NRL physical lnLambda at the same (n, T) is the row below it.
