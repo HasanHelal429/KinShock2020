@@ -86,6 +86,54 @@ python scripts/plot_eps_ladder.py     # adapt: the x axis here is w_pe0/w_ce, no
 deliberately leaves `M_A` = 14 and `beta_0` = 0.2 behind, and `run_checks.py` should be read
 with that in mind.
 
+## RESULT (2026-08-24): rungs 2–3 ran clean and the measurement is INVALID — the box
+
+`57563903_0/_1`, both COMPLETED, exit 0, full step counts, no NaN or abort, and the
+measurement method reproduces `es_47keV`'s recorded wedge of 1.164 d_i0 exactly. The runs
+are fine. **The phase design was wrong.**
+
+| run | `w_pe0/w_ce` | z_piston [d_i0] | wedge [d_i0] | `T_e,upstream` | verdict |
+|---|---|---|---|---|---|
+| `es_47keV` | 10.0 | 3.358 | 1.164 | **2.03** | valid |
+| `mb_r20` | 20.0 | 7.301 | 3.122 | **38.76** | INVALID |
+| `mb_r32` | 31.6 | 10.547 | `nan` | **33.59** | INVALID |
+
+Two hard failures. The far-upstream control — which RESULTS 2026-08-17 requires to stay
+cold or the comparison is void — is 19× hot. And the piston front reaches 7.30 and 10.55
+d_i0 inside a 12.02 d_i0 box, so at `mb_r32` no undisturbed ambient layer remains and the
+wedge scan finds no crossing at all. **Do not quote 3.122**: with a contaminated upstream
+the `SPREAD` threshold is crossed far downstream of the real wedge tip, so it is an
+artifact, not an upper bound and not a signal.
+
+**Cause, and it is a design error in this phase, not in the runs.** `w_ci0 ~ B0`, so holding
+`t*w_ci0` fixed stretches ABSOLUTE time as `1/B0`, while `v_p` and `d_i0` are frozen. The
+piston therefore sweeps `1/B0` further through a box left at a fixed 12.02 d_i0. Predicted
+piston positions 6.72 and 10.62 against measured 7.30 and 10.55. The table above lists
+`rho_i0/d_i0` as *moving* — the consequence that the DOMAIN must move with it was missed.
+`mb_r56` and `mb_r100` would put the piston at 18.9 and 33.6 d_i0 in the same 12.02 box;
+they were not submitted, and must not be until the box is fixed.
+
+**The fix.** Hold the box at rung 1's `1.156 rho_i0` rather than a fixed 12.02 d_i0, i.e.
+`domain_halfwidth_de ~ 1/B0`, and scale the analysis windows with it. Cells then go as
+`1/B0` on top of steps, so cost goes as `1/B0^2`:
+
+| run | `domain_halfwidth_de` | cells | steps | cost | wall |
+|---|---|---|---|---|---|
+| `mb_r20` | 2688 | 14336 | 47 994 | 4× | ~6 m |
+| `mb_r32` | 4250 | 22664 | 75 885 | 10× | ~15 m |
+| `mb_r56` | 7558 | 40312 | 134 945 | 32× | ~47 m |
+| `mb_r100` | 13440 | 71680 | 239 970 | 100× | ~2.5 h |
+
+Phase total ~3.5 GPU-h, against the 35 min originally quoted.
+
+**And the failure exposes a normalization question that has to be settled first.** At fixed
+`eps` you cannot match the gyro clock and the piston geometry at once, because
+`rho_i0/d_i0 = v_p/v_A` moves. In E_phase the two were interchangeable — `rho_i0/d_i0` was
+pinned at 10.40, so d_i0 and `rho_i0` differed by a constant — and here they decouple by a
+decade. The piston's own sweep scale is `rho_i0`, which argues for measuring the wedge in
+`rho_i0`: rung 1's 1.164 d_i0 is **0.1119 rho_i0**. That choice changes what the phase
+measures and should be made before the reruns, not after.
+
 ## Run it
 
 ```bash
