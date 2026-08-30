@@ -206,17 +206,52 @@ competing family is excluded by the phase that holds it fixed. Note this is also
 the reduced-c scheme distorts by a decade (RESULTS 2026-08-24): the real experiment sits at
 `w_pe0/w_ce` = 100 and PSC's Table I run at 10.
 
+### The full decade (2026-08-24, `57728771`)
+
+Rungs 4-5 completed (15:53 and 43:00 of WarpX, both well under prediction) with full step
+counts, no NaN, and **all ten panels VALID** -- `T_e,upstream` 1.2-3.9 against the 5.0
+gate, piston 0.323-0.360 rho_i0 against the predicted 0.3229.
+
+| `w_pe0/w_ce` | `M_A` | `beta_0` | E_phase [rho_i0] | **M_phase [rho_i0]** | M/E |
+|---|---|---|---|---|---|
+| 10.0 | 14 | 0.20 | 0.1119 | **0.1123** | 1.003 |
+| 20.0 | 28 | 0.78 | 0.1344 (interp) | **0.1465** | 1.090 |
+| 31.6 | 44 | 1.96 | 0.1738 | **0.1544** | 0.888 |
+| 56.2 | 78 | 6.19 | 0.1985 | **0.2037** | 1.026 |
+| 100.0 | 140 | 19.57 | 0.1983 | **0.2125** | 1.072 |
+
+**The two phases agree across a full decade to a mean of 1.016**, and the 11% shortfall at
+31.6 does not grow: the deviations run +0.4%, +9%, −11%, +3%, +7%, i.e. scatter about
+agreement rather than a systematic second dependence. **Both saturate above
+`w_pe0/w_ce` ~ 56** (E_phase −0.1%, M_phase +4.3% from 56.2 to 100), so the curve has the
+same shape as well as the same values.
+
+That is the result: a scan that moves `B0` with `eps`, `gamma` and `lambda_D,0/d_i0` frozen
+reproduces, over a decade, a scan that moved `eps` with `M_A` and `beta_0` frozen. The only
+dimensionless group both scans move is `v_A/c`.
+
+Worth stating plainly because it is surprising: `mb_r100` runs at `beta_0` = 19.6 and
+`M_A` = 140 -- a thermal-pressure-dominated upstream, `M_ms` saturated at 30.8 -- and still
+lands within 7% of E_phase's magnetically-dominated (`beta_0` = 0.196) value at the same
+`w_pe0/w_ce`. Two orders of magnitude in `beta_0` and an order in `M_A` leave the wedge
+essentially unmoved once `v_A/c` is matched.
+
 ### What is not settled
 
-* **Rungs 4–5 are unrun.** `mb_r56` and `mb_r100` reach `beta_0` = 6.2 and 19.6, where the
-  upstream is thermal-pressure dominated and may not support a perpendicular shock at all.
-  The trend above spans only 10 → 31.6 of the intended 10 → 100.
-* **The 11% shortfall at `w_pe0/w_ce` = 31.6** (0.1544 against E_phase's 0.1738) is larger
-  than the 0.3% agreement at the anchor. It could be scatter, or a residual second
-  dependence the two phases do not share. Three points cannot tell.
+* **Whether the high-`beta_0` rungs are still the same object.** A magnetic ramp is present
+  at every rung, but this is NOT cleanly verified: peak `|Bx|/B0` near the piston rises
+  6.6 -> 53 across the ladder, and most of that is the `B0` denominator shrinking 10x, so
+  in absolute terms the pileup is roughly flat or weaker. The locator also wanders behind
+  the piston at rungs 3-4, which is exactly the treacherous diagnostic RESULTS 2026-08-19
+  documents (`argmax|Bx|` finds the foil wall; the wall spike here runs 7.5 -> 91 in `B0`
+  units). The wedge measurement passes its own validity gates regardless, but "is this
+  still a perpendicular magnetized shock at `beta_0` = 19.6" is an open question this check
+  does not answer.
+* **The 11% scatter** between phases at `w_pe0/w_ce` = 31.6 is unexplained. Five points
+  cannot separate scatter from structure.
 * **Within the magnetization family nothing is separated.** `v_A/c`, `w_pe0/w_ce`,
-  `sigma_i` are the same number; this phase cannot say which *name* is the mechanism, only
-  that the group is the agent.
+  `sigma_i` are the same number; this phase identifies the group, not which name is the
+  mechanism.
 
 ## Run it
 
