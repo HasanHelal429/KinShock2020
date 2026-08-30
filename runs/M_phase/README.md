@@ -153,6 +153,71 @@ The superseded small-box output is preserved as `diags_smallbox/` in `mb_r20` an
 with their logs as `*.smallbox`, so the invalid measurement and the valid `t*` = 0.131
 salvage point both remain inspectable. `diags/` is clear, so `launch.sh` will start.
 
+## RESULT (2026-08-24): the wedge follows the magnetization family — and one group survives both phases
+
+`57724352_0/_1`, both COMPLETED, full step counts, no NaN, 31+151 frames each, and **all
+six panels VALID** — `T_e,upstream` runs 1.2–3.0 against the 5.0 gate, where the small-box
+attempt hit 39. The piston lands at 0.323–0.359 rho_i0, essentially the predicted 0.3229,
+confirming the box scaling.
+
+| run | `w_pe0/w_ce` | `M_A` | `beta_0` | z_piston [rho_i0] | **wedge [rho_i0]** | wedge [d_i0] | `T_e,up` |
+|---|---|---|---|---|---|---|---|
+| `es_47keV` | 10.0 | 14 | 0.20 | 0.3229 | **0.1123** | 1.168 | 2.0 |
+| `mb_r20` | 20.0 | 28 | 0.78 | 0.3473 | **0.1465** | 3.046 | 2.6 |
+| `mb_r32` | 31.6 | 44 | 1.96 | 0.3589 | **0.1544** | 5.077 | 3.0 |
+
+**The wedge grows with `w_pe0/w_ce`: +30% then +37%, at FIXED eps, gamma and
+`lambda_D,0/d_i0`.** The same trend appears at `t*` = 0.131 (0.0509 → 0.0586 → 0.0690,
++36%), so it is not a single-frame artifact. This **overturns the small-box salvage**,
+which reported −38% in rho_i0; that comparison matched piston position at the cost of
+halving the gyroperiods, and the fixed box removes the need for it.
+
+### M_phase reproduces E_phase's curve while moving different things
+
+| `w_pe0/w_ce` | E_phase [rho_i0] | M_phase [rho_i0] | M/E |
+|---|---|---|---|
+| 10.0 | 0.1119 | 0.1123 | 1.003 |
+| 20.0 | 0.1344 (interp) | 0.1465 | 1.090 |
+| 31.6 | 0.1738 | 0.1544 | 0.888 |
+
+E_phase varied `eps` with `M_A` and `beta_0` **pinned**; M_phase varies `B0` with `eps` and
+`gamma` **pinned** and lets `M_A` run 14 → 44. They agree to 2–11%.
+
+### The two-way elimination
+
+Intersecting the groups each phase moves (`scripts/table1_ladder.py --json`, numerics
+excluded) leaves **one dimensionless group**:
+
+| group | E_phase | M_phase | verdict |
+|---|---|---|---|
+| `eps`, `gamma`, `lambda_D,0/d_i0`, `T_e,ab`, `v_p/c`, `C_s,ab/c`, `t_ab` | moves | FIXED | **excluded by M_phase** |
+| `M_A`, `M_ms`, `beta_0`, `beta_ab`, `rho_i0/d_i0`, `rho_e,ab/d_e,ab`, `nu_ei/w_ce` | FIXED | moves | **excluded by E_phase** |
+| **`v_A/c`** | moves | moves | **SURVIVES BOTH** |
+
+The six surviving dimensionless rows — `v_A/c`, `w_pe0/w_ce`, `w_pi0/w_ci`,
+`w_pe,ab/w_ce`, `sigma_i`, `sigma_e` — are **one group under six names**, verified as exact
+powers of `v_A/c` with prefactors constant to 1e-4 in both phases:
+
+    w_pe0/w_ce = 1/(sqrt(mu) v_A/c)    w_pi0/w_ci = 1/(v_A/c)    sigma_i = (v_A/c)^2
+
+**So the wedge is set by `v_A/c`** — equivalently the electron magnetization relative to the
+Debye scale, `rho_e/lambda_D = w_pe0/w_ce`. The B-field hypothesis is confirmed, and each
+competing family is excluded by the phase that holds it fixed. Note this is also the group
+the reduced-c scheme distorts by a decade (RESULTS 2026-08-24): the real experiment sits at
+`w_pe0/w_ce` = 100 and PSC's Table I run at 10.
+
+### What is not settled
+
+* **Rungs 4–5 are unrun.** `mb_r56` and `mb_r100` reach `beta_0` = 6.2 and 19.6, where the
+  upstream is thermal-pressure dominated and may not support a perpendicular shock at all.
+  The trend above spans only 10 → 31.6 of the intended 10 → 100.
+* **The 11% shortfall at `w_pe0/w_ce` = 31.6** (0.1544 against E_phase's 0.1738) is larger
+  than the 0.3% agreement at the anchor. It could be scatter, or a residual second
+  dependence the two phases do not share. Three points cannot tell.
+* **Within the magnetization family nothing is separated.** `v_A/c`, `w_pe0/w_ce`,
+  `sigma_i` are the same number; this phase cannot say which *name* is the mechanism, only
+  that the group is the agent.
+
 ## Run it
 
 ```bash

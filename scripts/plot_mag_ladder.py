@@ -273,9 +273,13 @@ def main():
               f"{t[6]:>9.4f}{t[7]:>14.4f}{t[8]:>12.3f}{t[9]:>9.1f}"
               f"{'yes' if t[10] else 'NO':>7}")
     print("=" * 96)
-    ok = [t for t in table if t[10]]
+    # Compare WITHIN one requested time. Taking ok[0] and ok[-1] spanned different t*
+    # when more than one column was rendered, which silently compared a rung at t* = 0.13
+    # against another at 0.26 and reported the time difference as a B0 effect.
+    ok = [t for t in table if t[10] and t[4] == args.times[-1]]
     if len(ok) >= 2:
         a, b = ok[0], ok[-1]
+        print(f"\n  (comparison at t* = {args.times[-1]:.3f} only)")
         print(f"\n  valid points only, {a[0].strip()} -> {b[0].strip()} "
               f"(w_pe0/w_ce {a[1]:.0f} -> {b[1]:.0f}):")
         print(f"    in rho_i0 (PRIMARY) : {a[7]:.4f} -> {b[7]:.4f}"
