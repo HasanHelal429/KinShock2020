@@ -389,6 +389,70 @@ def test_table1_self_consistent_physical_scales():
     assert wx["dz_over_lamD"] > 5.0, f"WarpX dz/lamD = {wx['dz_over_lamD']}"
 
 
+def test_psc_reduces_the_mass_ratio_from_the_electron_end():
+    """Table I's `c_sim/c_phys = 0.02` is the mass-ratio convention, not rounding.
+
+    PSC and this repo reduce mu = 100 from OPPOSITE ends. Sec. II calls it the "reduced
+    PROTON-to-electron mass ratio" and runs with "reduced ELECTRON parameters ... keeping
+    the ion-scale parameters well-matched": m_e goes up 18.36x, the proton stays real.
+    `units.derive` does `mi = mass_ratio * ME` -- a light ion at a real electron.
+
+    Writing alpha = m_e/m_e0 and gamma = c_sim/c_phys, EVERY Table I quantity depends only
+    on the product alpha*gamma^2. This pins all three claims:
+
+      * alpha*gamma^2 = 0.01 exactly, from theta_e = 0.092 at T_e,ab = 470 eV;
+      * that product ALONE returns Table I's B0 = 7 T, so the two conventions are the same
+        dimensionless simulation and nothing downstream of the replication moves;
+      * the ONE row that separates alpha from gamma is c_sim/c_phys, and Table I's own
+        velocity rows give alpha = 18.3 against mu_phys/mu_sim = 18.36.
+
+    Guards REPLICATION_PLAN Sec. 1 and scripts/table1.py, both of which called the
+    0.02-vs-0.100 gap a rounding artifact until 2026-08-24.
+    """
+    from kinshock.units import C, EPS0, ME, ME_C2_EV, MP, MU0, QE
+
+    mu_sim, theta_e_psc, Te_ab_eV = 100.0, 0.092, 470.0
+    alpha_expected = (MP / ME) / mu_sim                      # 18.36
+
+    # (a) theta_e = kT/(alpha m_e0 gamma^2 c^2) = 0.092 at 470 eV fixes the product
+    ag2 = Te_ab_eV / (theta_e_psc * ME_C2_EV)
+    assert abs(ag2 - 0.01) < 5e-4, f"alpha*gamma^2 = {ag2}"
+
+    # (b) that product alone reproduces Table I's B0 = 7 T, so the conventions are
+    #     indistinguishable in every dimensionless row
+    n_ref = 6.0e26 / 1.25                                    # Table I's code density unit
+    B0 = 0.01 * math.sqrt(ag2) * math.sqrt(MU0 * n_ref * ME * C * C)
+    assert abs(B0 - 7.0) / 7.0 < 0.01, f"B0 from alpha*gamma^2 alone = {B0}"
+
+    # (c) Table I's velocity rows give gamma, hence alpha -- and it is the mass ratio
+    for gamma, src in ((730e3 / (0.104 * C), "v_p"), (210e3 / (0.030 * C), "C_s,ab")):
+        alpha = ag2 / gamma ** 2
+        assert abs(alpha / alpha_expected - 1.0) < 0.02, f"{src}: alpha = {alpha}"
+        assert abs(gamma - 0.0234) < 5e-4, f"{src}: gamma = {gamma}"
+
+    # (d) the light-ion equivalent is sqrt(alpha) larger -- this is the 0.100 the repo
+    #     used to report, and the factor it used to call rounding
+    gamma_lightion = math.sqrt(Te_ab_eV / ME_C2_EV / theta_e_psc)
+    assert abs(gamma_lightion - 0.100) < 1e-3, f"light-ion gamma = {gamma_lightion}"
+    assert abs(gamma_lightion / 0.0234 / math.sqrt(alpha_expected) - 1.0) < 0.01
+
+    # (e) speeds differ by sqrt(alpha); Table I's Phys column is the real-proton one
+    Cs_proton = math.sqrt(Te_ab_eV * QE / MP)
+    Cs_lightion = math.sqrt(Te_ab_eV * QE / (mu_sim * ME))
+    assert abs(Cs_proton / 1e3 - 210.0) / 210.0 < 0.02, f"{Cs_proton/1e3} km/s"
+    assert abs(Cs_lightion / Cs_proton - math.sqrt(alpha_expected)) < 0.01
+
+    # (f) w_pe/w_ce is convention-FREE (no ion mass, no c) -- so the real experiment's
+    #     value is computable from n and B alone, and it is 100, not the code's 10
+    n_e0, B_phys = 4.8e24, 7.0
+    wpe0 = math.sqrt(n_e0 * QE * QE / (EPS0 * ME))
+    ratio_real = wpe0 / (QE * B_phys / ME)
+    assert abs(ratio_real - 100.0) / 100.0 < 0.02, f"real w_pe0/w_ce = {ratio_real}"
+    ratio_code = math.sqrt(0.2 / 0.002)                      # sqrt(beta_0)/eps_0, Table I
+    assert abs(ratio_code - 10.0) < 0.05
+    assert abs(ratio_real / ratio_code - 1.0 / math.sqrt(ag2)) < 0.5
+
+
 if __name__ == "__main__":
     print("KinShock2020 structure tests\n" + "=" * 40)
     sys.exit(0 if _run_all() else 1)

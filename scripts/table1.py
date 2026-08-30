@@ -27,9 +27,30 @@ mu0 n_e0 kT_0/B0^2 = 0.196 here. Table I quotes 0.2, which agrees.
 THE ONE DEGREE OF FREEDOM LEFT: THE SPEED OF LIGHT
 --------------------------------------------------
 Sec. II sets c = sqrt(mu_p/T_e,ab) C_s,ab, so the code's theta_e,ab IS its speed of
-light. PSC picks theta_e,ab = 0.092 (O(0.1), to stay non-relativistic), which for
-T_e,ab = 470 eV means c_sim/c_phys = sqrt(theta_e_phys/0.092) = 0.100. WarpX has no
+light. PSC picks theta_e,ab = 0.092 (O(0.1), to stay non-relativistic). WarpX has no
 reduced-c option, so it must use the *physical* theta_e = T_e,ab/(m_e c^2) = 9.2e-4.
+
+  ** THE MASS-RATIO CONVENTION, and why c_sim/c_phys is 0.02 and not 0.100 **
+  CORRECTED 2026-08-24. The two codes reduce mu = 100 from OPPOSITE ends. Sec. II calls
+  it the "reduced PROTON-to-electron mass ratio" and runs the model with "reduced
+  ELECTRON parameters ... while simultaneously keeping the ion-scale parameters
+  well-matched to experiments": PSC keeps the proton real and raises m_e by 18.36x.
+  units.derive does `mi = mass_ratio * ME` -- a light ion at a real electron.
+
+  Write alpha = m_e/m_e0 and gamma = c_sim/c_phys. EVERY Table I quantity depends only
+  on the product alpha*gamma^2, which theta_e = 0.092 at 470 eV fixes at 0.01000 (that
+  product alone returns B0 = 0.01*sqrt(alpha gamma^2)*7027 T = 7.03 T, Table I's 7 T).
+  The ONE row that separates them is c_sim/c_phys, and Table I's own velocity rows
+  settle it: gamma = 0.02341 from v_p and 0.02335 from C_s,ab give alpha = 18.24 and
+  18.34, against mu_phys/mu_sim = 18.36.
+
+  Because both conventions hit alpha*gamma^2 = 0.01 they are the SAME dimensionless
+  simulation, so every dimensionless row below is unaffected. What differs is the map
+  back: speeds and times by sqrt(mu_phys/mu_sim) = 4.285 -- C_s,ab is 212 km/s with a
+  real proton against 909 km/s with a 100 m_e ion at the same 470 eV, and Table I's
+  Phys column says 210 -- while LENGTHS are unaffected, since d_e ~ gamma*sqrt(alpha)
+  ~ sqrt(alpha gamma^2). That is the real reason the ion rows below do not reproduce
+  Table I's SI column, and it supersedes the "illustration" explanation given above.
 
 Both codes then represent the SAME physical plasma and reproduce every dimensionless
 row -- beta_ab, beta_0, M_A, M_ms, lambda_ab, n and T ratios -- except the one that
@@ -237,6 +258,13 @@ def main(argv=None):
     # the physical theta_e is what WarpX must use; PSC's 0.092 defines its reduced c
     theta_e_phys = args.Te_ab_eV * QE / ME_C2_J
     c_sim = C * math.sqrt(theta_e_phys / args.theta_e_psc)
+    # PSC's ACTUAL reduced c. `c_sim` above is the light-ion equivalent -- the c that
+    # reproduces theta_e = 0.092 at a REAL electron mass, which is the convention this
+    # script and units.derive use. PSC gets the same alpha*gamma^2 with a heavy electron
+    # instead, so its gamma is smaller by sqrt(alpha). Only this ratio distinguishes the
+    # two; every dimensionless row is identical. See the header.
+    alpha = MU_PHYS / args.mu                     # PSC's electron-mass inflation, 18.36
+    gamma_psc = (c_sim / C) / math.sqrt(alpha)    # -> 0.0234, i.e. Table I's 0.02
 
     psc = derive(P, c_sim, geo)
     wx = derive(P, C, geo)
@@ -248,7 +276,8 @@ def main(argv=None):
     print(f"          beta_ab = {args.beta_ab:g}   T_0 = {args.T0_eV:g} eV   "
           f"n_e0 = {args.n0_frac:g} n_e,ab")
     print(f"  DERIVED: B0 = {wx['B0']:.4f} T   beta_0 = {wx['beta_0']:.4f}   "
-          f"c_sim/c_phys = {c_sim / C:.4f}\n")
+          f"c_sim/c_phys = {gamma_psc:.4f} (PSC, heavy electron alpha = {alpha:.2f})"
+          f"  /  {c_sim / C:.4f} (light-ion equivalent)\n")
     if args.beta_0 is not None and abs(args.beta_0 / wx["beta_0"] - 1.0) > 0.05:
         # beta_0 = mu0 n_e0 kT_0/B0^2 with B0 already fixed by beta_ab, so it cannot be
         # chosen independently. Report what the requested value would actually require.
@@ -310,8 +339,12 @@ def main(argv=None):
     row("m_i/m_e", f"{P['mu']:g}", f"{P['mu']:g}", f"{P['mu']:g}", "m_i/m_e", "code")
     row("c/C_s,ab   <- THE reduced c", f"{psc['c_over_Csab']:.4g}",
         f"{psc['c_over_Csab']:.4g}", f"{wx['c_over_Csab']:.4g}", ref="skip")
-    row("c_sim/c_phys", f"{c_sim / C:.4f}", f"{c_sim / C:.4f}", "1 (real c)",
+    row("c_sim/c_phys", f"{gamma_psc:.4f}", f"{gamma_psc:.4f}", "1 (real c)",
         "c_sim/c_phys", "code")
+    row("  alpha = m_e/m_e0 (PSC)", f"{alpha:.2f}", f"{alpha:.2f}", "1 (real m_e)",
+        ref="skip")
+    row("  alpha*gamma^2  <- all Table I", f"{alpha * gamma_psc ** 2:.5f}",
+        f"{alpha * gamma_psc ** 2:.5f}", f"{(c_sim / C) ** 2:.5f} (alpha=1)", ref="skip")
     row("beta_ab = mu0 n T/B^2", f"{psc['beta_ab']:.5g}", f"{wx['beta_ab']:.5g}",
         f"{wx['beta_ab']:.5g}", "beta_ab", "code")
     row("beta_0  (DERIVED)", f"{psc['beta_0']:.4f}", f"{wx['beta_0']:.4f}",
@@ -358,17 +391,26 @@ def main(argv=None):
             f"{wx['theta_e']:.5g}", "sets the code's c"),
            ("c/C_s,ab", f"{psc['c_over_Csab']:.4g}", f"{wx['c_over_Csab']:.4g}",
             "Sec. II's reduced c"),
-           ("d_e,ab [m]", eng(psc["de_ab"], "m"), eng(wx["de_ab"], "m"), "~ c"),
-           ("dz [m]", eng(psc["dz"], "m"), eng(wx["dz"], "m"), "= 0.3 d_e,ab"),
+           ("d_e,ab [m]", eng(psc["de_ab"], "m"), eng(wx["de_ab"], "m"),
+            "~ sqrt(alpha g^2): convention-FREE"),
+           ("dz [m]", eng(psc["dz"], "m"), eng(wx["dz"], "m"), "= 0.3 d_e,ab, ditto"),
            ("dz/lambda_D,ab", f"{psc['dz_over_lamD']:.3g}",
             f"{wx['dz_over_lamD']:.3g}", "<= 1 or it grid-heats"),
-           ("t_ab [s]", eng(psc["t_ab"], "s"), eng(wx["t_ab"], "s"), "~ c"),
-           ("dt [s]", eng(psc["dt"], "s"), eng(wx["dt"], "s"), "CFL: 0.75 dz/c"),
+           ("t_ab [s]", eng(psc["t_ab"], "s"), eng(wx["t_ab"], "s"),
+            f"PSC col is LIGHT-ION: x{math.sqrt(alpha):.3f} for PSC"),
+           ("dt [s]", eng(psc["dt"], "s"), eng(wx["dt"], "s"),
+            f"same, x{math.sqrt(alpha):.3f} -> {eng(psc['dt'] * math.sqrt(alpha), 's')}"),
            ("max_step for 220 t_ab", f"{psc['max_step']:,}", f"{wx['max_step']:,}",
             f"{wx['max_step'] / psc['max_step']:.0f}x more"))
     print(f"  {'':<30}{'PSC':<18}{'WarpX':<18}note")
     for name, a, b, note in led:
         print(f"  {name:<30}{a:<18}{b:<18}{note}")
+    print(f"\n  Two PSC rows above carry THIS script's light-ion convention and are "
+          f"{math.sqrt(alpha):.3f}x off for PSC:")
+    print(f"  t_ab ({eng(psc['t_ab'] * math.sqrt(alpha), 's')} for PSC) and dt "
+          f"({eng(psc['dt'] * math.sqrt(alpha), 's')}). Their RATIO -- max_step -- is "
+          "convention-free,")
+    print("  as are d_e,ab, dz and every dimensionless row. See the header.")
     print(f"\n  PSC resolves lambda_D at 0.3 d_e,ab because its d_e,ab is only "
           f"{psc['de_ab'] / psc['lam_D_ab']:.1f} lambda_D;")
     print(f"  at real c d_e,ab is {wx['de_ab'] / wx['lam_D_ab']:.1f} lambda_D, so the SAME 0.3 d_e,ab "
