@@ -134,6 +134,27 @@ decade. The piston's own sweep scale is `rho_i0`, which argues for measuring the
 `rho_i0`: rung 1's 1.164 d_i0 is **0.1119 rho_i0**. That choice changes what the phase
 measures and should be made before the reruns, not after.
 
+## Figures and movies
+
+```bash
+python scripts/plot_mag_ladder.py                  # matched t*w_ci0 (the designed comparison)
+python scripts/plot_mag_ladder.py --match piston   # matched piston front (the salvage)
+export FFMPEG=$(python -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")
+python scripts/make_phase_movie_norm.py runs/M_phase/mb_r20 --fps 6
+```
+
+`plot_mag_ladder.py` is `plot_eps_ladder.py` with the scan axis swapped, plus the two
+diagnostics this phase needs: every panel draws the **domain edge** and the 5–11 d_i0
+**far-upstream control window**, prints `z_piston` and `T_e,up`, and stamps INVALID with the
+wedge number boxed when the control is hot. It reports the wedge in **both** `d_i0` and
+`rho_i0` and refuses to let their disagreement pass silently.
+
+* `media/M_phase/wedge_vs_B0.png` — matched clock, 3 rows × 2 times. The bottom-right panel
+  is the failure made visible: piston at 10.55 d_i0 with disturbed ambient filling the box.
+* `media/M_phase/wedge_vs_B0_matchpiston.png` — matched piston front, one column.
+* `media/M_phase/mb_r20/shock_phase_linear.mp4`, `.../mb_r32/...` — phase-space movies,
+  linear stretch on a fixed cross-frame scale.
+
 ## Run it
 
 ```bash
