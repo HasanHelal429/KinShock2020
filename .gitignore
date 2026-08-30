@@ -1,5 +1,9 @@
 # --- WarpX simulation output (large, machine-specific, regenerable from the decks) ---
 runs/**/diags/
+# superseded output kept for inspection when a run is re-sized (M_phase's small-box
+# rungs, 2026-08-24). Same category as diags/ -- large, regenerable, findings in RESULTS.
+runs/**/diags_smallbox/
+runs/**/*.smallbox
 runs/**/diags_movies/
 runs/**/diags_movie/
 

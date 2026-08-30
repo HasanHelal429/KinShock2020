@@ -32,6 +32,7 @@
 #     M_A                44.1       (anchor 13.95)   M_ms 25.7  (anchor 12.76)
 #     beta_0           1.9574       (anchor 0.1957)  beta_ab 1.15e+04  (anchor 1150)
 #     rho_i0/d_i0       32.89       (anchor 10.40)
+#     domain         4249.5 d_e,ab   = 22664 cells = 1.156 rho_i0 (anchor 1344.0)
 #     max_step          75885       t*w_ci0 = 0.3018, IDENTICAL to the anchor
 #
 # THE CONFOUND, STATED UP FRONT.  At fixed eps, v_sh/c is fixed, so
@@ -42,12 +43,30 @@
 # overtakes v_A) and may not support a perpendicular shock at all.  READ RUNGS 2-3 FIRST:
 # they reach w_pe0/w_ce = 31.6 at beta_0 <= 2 and M_A <= 44, and cost 5 minutes together.
 #
+# THE BOX SCALES WITH rho_i0, AND THE FIRST ATTEMPT DID NOT (fixed 2026-08-24).  Rungs
+# 2-3 were first run at es_47keV's fixed 12.02 d_i0 box and the measurement came out
+# INVALID: w_ci0 ~ B0, so holding t*w_ci0 stretches ABSOLUTE time as 1/B0 while v_p and
+# d_i0 stay frozen, and the piston swept 1/B0 further through a box that had not moved.
+# It reached 7.30 and 10.55 d_i0 of 12.02, the far-upstream control went 19x hot, and
+# mb_r32's wedge scan found no crossing at all.  The domain is now held at rung 1's
+# 1.156 rho_i0 at every rung, so piston travel, wedge and upstream window all scale
+# together and the box occupancy is identical.  dz is UNCHANGED at 0.1875 d_e,ab, so
+# dz/lambda_D,0 = 0.379 and N_D = 264 still hold; only the cell COUNT grows.  The
+# superseded small-box output is kept as diags_smallbox/.
+#
+# LENGTHS ARE NORMALIZED TO rho_i0 IN THIS PHASE, NOT d_i0.  E_phase pinned
+# rho_i0/d_i0 = 10.40, so the two differed by a constant and the choice did not matter.
+# Here rho_i0/d_i0 = v_p/v_A moves a full decade, and rho_i0 -- the piston's own sweep
+# scale -- is the one that keeps the geometry comparable between rungs.  Rung 1's wedge
+# is 1.164 d_i0 = 0.1119 rho_i0, and that is the number to beat.
+#
 # EVERYTHING BELOW IS es_47keV's config VERBATIM except field.B0_tesla, numerics.max_step,
-# the diagnostics cadence (held at 30/150/300 frames) and targets (which are per-rung
-# check values, not knobs).  es_47keV IS rung 1 -- it is not duplicated here, because a
-# second config.yaml for an identical configuration is exactly what CLAUDE.md's A/B note
-# forbids.  Frame counts match it by index, so the wedge is read the same way at t*w_ci0
-# = 0.26 with no argmin tolerance question.
+# geometry.domain_halfwidth_de and numerics.max_grid_size (the box), the diagnostics
+# cadence (held at 30/150/300 frames) and targets (per-rung check values, not knobs).
+# es_47keV IS rung 1 -- it is not duplicated here, because a second config.yaml for an
+# identical configuration is exactly what CLAUDE.md's A/B note forbids.  Frame counts
+# match it by index, so the wedge is read the same way at t*w_ci0 = 0.26 with no argmin
+# tolerance question.
 #
 # See runs/M_phase/README.md for the design and RESULTS 2026-08-24 for the identities.
 
@@ -90,7 +109,7 @@ geometry:
   dims: 1
   normal_axis: z
   slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
-  domain_halfwidth_de: 1344.0
+  domain_halfwidth_de: 4249.5   # [d_e,ab] = 1.156 rho_i0, HELD -- see below
   dz_over_de: 0.187500000   # [d_e,ab] -> dz/lambda_D,amb = 0.379, HELD
   layout: one_sided
   boundary:
@@ -103,7 +122,7 @@ numerics:
                               # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
                               # so shape is NOT the lever this sweep is testing.
   max_step: 75885
-  max_grid_size: 7168      # [cells] = n_cell, i.e. ONE box: correct for a single
+  max_grid_size: 22664      # [cells] = n_cell, i.e. ONE box: correct for a single
                               # GPU. launch.sh refuses GPU mode without this key.
   ppc:
     piston: 100

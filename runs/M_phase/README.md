@@ -113,47 +113,45 @@ piston positions 6.72 and 10.62 against measured 7.30 and 10.55. The table above
 `mb_r56` and `mb_r100` would put the piston at 18.9 and 33.6 d_i0 in the same 12.02 box;
 they were not submitted, and must not be until the box is fixed.
 
-**The fix.** Hold the box at rung 1's `1.156 rho_i0` rather than a fixed 12.02 d_i0, i.e.
-`domain_halfwidth_de ~ 1/B0`, and scale the analysis windows with it. Cells then go as
-`1/B0` on top of steps, so cost goes as `1/B0^2`:
+**FIX APPLIED 2026-08-24 — boxes scale with rho_i0, and rho_i0 is now the unit.**
 
-| run | `domain_halfwidth_de` | cells | steps | cost | wall |
-|---|---|---|---|---|---|
-| `mb_r20` | 2688 | 14336 | 47 994 | 4× | ~6 m |
-| `mb_r32` | 4250 | 22664 | 75 885 | 10× | ~15 m |
-| `mb_r56` | 7558 | 40312 | 134 945 | 32× | ~47 m |
-| `mb_r100` | 13440 | 71680 | 239 970 | 100× | ~2.5 h |
+The domain is held at rung 1's **1.156 rho_i0** at every rung instead of a fixed 12.02
+d_i0, i.e. `domain_halfwidth_de ~ 1/B0`. `dz` is UNCHANGED at 0.1875 d_e,ab, so
+`dz/lambda_D,0` = 0.3791 and `N_D` = 264 still hold to four figures and only the cell
+COUNT grows. Verified across the five runs:
 
-Phase total ~3.5 GPU-h, against the 35 min originally quoted.
+| run | `domain_halfwidth_de` | cells | box [d_i0] | **box [rho_i0]** | `dz/lambda_D,0` | `N_D` | `t*w_ci0` | steps | cost | wall |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `es_47keV` | 1344.0 | 7 168 | 12.02 | **1.1559** | 0.3791 | 263.8 | 0.3018 | 23 997 | 1× | done |
+| `mb_r20` | 2688.0 | 14 336 | 24.04 | **1.1559** | 0.3791 | 263.8 | 0.3018 | 47 994 | 4× | ~6 m |
+| `mb_r32` | 4249.5 | 22 664 | 38.01 | **1.1557** | 0.3791 | 263.8 | 0.3018 | 75 885 | 10× | ~15 m |
+| `mb_r56` | 7558.5 | 40 312 | 67.61 | **1.1560** | 0.3791 | 263.8 | 0.3018 | 134 945 | 32× | ~47 m |
+| `mb_r100` | 13440.0 | 71 680 | 120.21 | **1.1559** | 0.3791 | 263.8 | 0.3018 | 239 970 | 100× | ~2.5 h |
 
-**And the failure exposes a normalization question that has to be settled first.** At fixed
-`eps` you cannot match the gyro clock and the piston geometry at once, because
-`rho_i0/d_i0 = v_p/v_A` moves. In E_phase the two were interchangeable — `rho_i0/d_i0` was
-pinned at 10.40, so d_i0 and `rho_i0` differed by a constant — and here they decouple by a
-decade. The piston's own sweep scale is `rho_i0`, which argues for measuring the wedge in
-`rho_i0`: rung 1's 1.164 d_i0 is **0.1119 rho_i0**. That choice changes what the phase
-measures and should be made before the reruns, not after.
+Phase total **~3.5 GPU-h**, against the 35 min originally quoted. Cell counts are snapped
+to `blocking_factor` = 8, which moves the box by at most 0.014%.
 
-## Figures and movies
+**The clock/piston dilemma dissolves.** With the box scaling, holding `t*w_ci0` ALSO holds
+the piston at a fixed fraction of it — 0.3229 rho_i0 of 1.156, 28%, the anchor's value at
+every rung. So `--match clock` and `--match piston` now coincide, and the salvage's second
+defect (higher rungs having had proportionally fewer gyroperiods to form a shock) is gone.
+Both matched at once is exactly what the fixed box buys.
 
-```bash
-python scripts/plot_mag_ladder.py                  # matched t*w_ci0 (the designed comparison)
-python scripts/plot_mag_ladder.py --match piston   # matched piston front (the salvage)
-export FFMPEG=$(python -c "import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")
-python scripts/make_phase_movie_norm.py runs/M_phase/mb_r20 --fps 6
-```
+**rho_i0 is the settled normalization.** What does *not* dissolve is the unit choice, since
+`rho_i0/d_i0 = v_p/v_A` still moves a decade — and on the small-box salvage the two
+disagreed **in sign** (+23% in d_i0, −38% in rho_i0). It is settled in favour of `rho_i0`:
+it is the piston's own sweep scale, it keeps the geometry comparable between rungs, and it
+is what the box is now held to. `scripts/plot_mag_ladder.py` reports rho_i0 as the primary
+column and keeps d_i0 as a cross-check, printing the disagreement when it occurs rather
+than letting a reader pick the flattering one.
 
-`plot_mag_ladder.py` is `plot_eps_ladder.py` with the scan axis swapped, plus the two
-diagnostics this phase needs: every panel draws the **domain edge** and the 5–11 d_i0
-**far-upstream control window**, prints `z_piston` and `T_e,up`, and stamps INVALID with the
-wedge number boxed when the control is hot. It reports the wedge in **both** `d_i0` and
-`rho_i0` and refuses to let their disagreement pass silently.
+**The number to beat: rung 1's wedge is 0.1123 rho_i0** (= 1.168 d_i0, reproducing the
+recorded 1.164 to 0.3% on the finer rho_i0 scan step), with the piston at 0.3229 rho_i0 and
+`T_e,upstream` = 2.0.
 
-* `media/M_phase/wedge_vs_B0.png` — matched clock, 3 rows × 2 times. The bottom-right panel
-  is the failure made visible: piston at 10.55 d_i0 with disturbed ambient filling the box.
-* `media/M_phase/wedge_vs_B0_matchpiston.png` — matched piston front, one column.
-* `media/M_phase/mb_r20/shock_phase_linear.mp4`, `.../mb_r32/...` — phase-space movies,
-  linear stretch on a fixed cross-frame scale.
+The superseded small-box output is preserved as `diags_smallbox/` in `mb_r20` and `mb_r32`,
+with their logs as `*.smallbox`, so the invalid measurement and the valid `t*` = 0.131
+salvage point both remain inspectable. `diags/` is clear, so `launch.sh` will start.
 
 ## Run it
 

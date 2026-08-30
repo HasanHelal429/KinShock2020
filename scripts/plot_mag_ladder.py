@@ -29,9 +29,19 @@ whose piston front sits nearest the anchor's -- same geometry, same box occupanc
 upstreams cold -- at the cost of a `t*` that differs by the same `1/B0`, so the higher
 rungs have had proportionally fewer gyroperiods to form a shock.
 
-Neither is clean, and the wedge is reported in BOTH `d_i0` and `rho_i0` because at fixed
-eps they decouple (`rho_i0/d_i0 = v_p/v_A ~ 1/B0`) and **they give opposite answers**.
-E_phase never had to choose: it pinned `rho_i0/d_i0` = 10.40.
+RESOLVED 2026-08-24: rho_i0 IS THE NORMALIZATION, AND THE BOXES NOW SCALE WITH IT.
+The clock/piston dilemma above was an artifact of a box that did not move: with
+`domain_halfwidth_de ~ 1/B0`, holding `t*w_ci0` ALSO holds the piston at a fixed fraction
+of the box (0.323 rho_i0 of 1.156), so `--match clock` and `--match piston` coincide and
+the salvage's second defect -- fewer gyroperiods at the higher rungs -- is gone.
+
+What does NOT dissolve is the unit choice, because `rho_i0/d_i0 = v_p/v_A` still moves a
+decade. It is settled deliberately in favour of **rho_i0**: it is the piston's own sweep
+scale, so the geometry stays comparable between rungs, and it is what the box is now held
+to. Lengths, the axis and the headline number are all rho_i0; d_i0 is kept as a second
+column, because on the small-box salvage the two disagreed IN SIGN (+23% in d_i0, -38% in
+rho_i0 from rung 1 to rung 2) and printing both is what stops a reader picking the
+flattering one. E_phase never had to choose: it pinned `rho_i0/d_i0` = 10.40.
 
     python scripts/plot_mag_ladder.py [--match clock|piston] [--times ...] [--out PATH]
 """
@@ -54,11 +64,14 @@ from kinshock.units import C, ME  # noqa: E402
 
 SURFACE, INK, INK2, MUTED, BASE = "#0d0c10", "#f2f0f6", "#c9c5d4", "#8b8798", "#3a3745"
 GOOD, WARN, ACC = "#5ad2ff", "#ff6b57", "#ffd166"
-ZMAX, VMAX = 13.5, 2.6
+# LENGTHS ARE IN rho_i0 (see the header). Every constant is E_phase's d_i0 value divided
+# by the anchor's rho_i0/d_i0 = 10.40, so the analysis is unchanged where the two agree.
+ZMAX, VMAX = 1.30, 2.6     # box is 1.156 rho_i0 at every rung, by construction
 TOL = 0.030
-UPSTREAM = (5.0, 11.0)     # the absolute control window, as eps_shape_test.py uses
+UPSTREAM = (0.481, 1.058)  # = 5-11 d_i0 at the anchor; now a FIXED fraction of the box
 T_UP_COLD = 5.0            # T_e,upstream above this => the comparison is void
-SPREAD, STEP = 0.06, 0.02
+SPREAD = 0.06              # v_z std / v_sh below which the layer counts as undisturbed
+STEP, WIN, SCAN = 0.002, 0.024, 0.6      # rho_i0: scan step, window width, max offset
 
 # (label, run dir, B0 [T], w_pe0/w_ce, M_A, beta_0, rho_i0/d_i0)
 ROWS = [
@@ -71,12 +84,13 @@ ROWS = [
 
 
 def wedge_depth(z, v, zp):
-    """E_phase's continuous depth: first 0.02 d_i0 offset where the local v_z spread
-    drops below SPREAD, linearly interpolated between bracketing samples."""
-    offs = np.arange(0, 6, STEP)
+    """E_phase's continuous depth, in rho_i0: first STEP offset ahead of the piston where
+    the local v_z spread falls below SPREAD, linearly interpolated between the bracketing
+    samples. STEP/WIN are E_phase's 0.02/0.25 d_i0 over the anchor's rho_i0/d_i0."""
+    offs = np.arange(0, SCAN, STEP)
     sig = np.full(offs.size, np.nan)
     for k, lo in enumerate(offs):
-        m = (z - zp >= lo) & (z - zp < lo + 0.25)
+        m = (z - zp >= lo) & (z - zp < lo + WIN)
         if m.sum() > 100:
             sig[k] = v[m].std()
     ok = np.isfinite(sig)
@@ -115,8 +129,8 @@ def main():
         j = int(np.argmin(np.abs(t0 - args.times[-1])))
         ad0 = kio.load_frame(pfs0[j]).ds.all_data()
         z_anchor = np.percentile(
-            np.asarray(ad0[("piston_ions", "particle_position_x")]), 99.5) / sc0.di0
-        print(f"  matching on piston front z = {z_anchor:.3f} d_i0 "
+            np.asarray(ad0[("piston_ions", "particle_position_x")]), 99.5) / sc0.rho_i0
+        print(f"  matching on piston front z = {z_anchor:.4f} rho_i0 "
               f"({rows[0][0]} at t*={t0[j]:.3f})")
 
     zb = np.linspace(0, ZMAX, 340)
@@ -131,14 +145,14 @@ def main():
         cfg = kinshock.load(d)
         sc = kinshock.units.derive(cfg)
         mi = cfg["reference"]["mass_ratio"] * ME
-        box = sc.domain_halfwidth / sc.di0
+        box = sc.domain_halfwidth / sc.rho_i0      # 1.156 at every rung
         pfs = kio.plotfiles(d)
         times = np.array([kio.load_frame(p).time * sc.wci0 for p in pfs])
         fronts = None
         if args.match == "piston":
             fronts = np.array([
                 np.percentile(np.asarray(kio.load_frame(p).ds.all_data()[
-                    ("piston_ions", "particle_position_x")]), 99.5) / sc.di0
+                    ("piston_ions", "particle_position_x")]), 99.5) / sc.rho_i0
                 for p in pfs])
         for c, T in enumerate(cols):
             ax = axes[r][c]
@@ -152,7 +166,7 @@ def main():
                 t.set_color(INK2)
             ax.set_xlim(0, ZMAX); ax.set_ylim(vb[0], vb[-1])
             if r == len(rows) - 1 or len(cols) == 1 and r == len(rows) - 1:
-                ax.set_xlabel(r"$z / d_{i0}$", color=INK2, fontsize=11)
+                ax.set_xlabel(r"$z / \rho_{i0}$", color=INK2, fontsize=11)
 
             if args.match == "piston":
                 i = int(np.argmin(np.abs(fronts - z_anchor)))
@@ -167,17 +181,17 @@ def main():
                 continue
 
             ad = kio.load_frame(pfs[i]).ds.all_data()
-            z = np.asarray(ad[("amb_ions", "particle_position_x")]) / sc.di0
+            z = np.asarray(ad[("amb_ions", "particle_position_x")]) / sc.rho_i0
             p = np.asarray(ad[("amb_ions", "particle_momentum_z")])
             w = np.asarray(ad[("amb_ions", "particle_weight")])
             g = np.sqrt(1.0 + (p / (mi * C)) ** 2)
             v = p / (mi * g) / sc.vsh_model
             zp = np.percentile(
-                np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5) / sc.di0
+                np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5) / sc.rho_i0
             depth = wedge_depth(z, v, zp)
 
             # far-upstream control, in the run's own C_s,ab^2 -- the validity gate
-            ze = np.asarray(ad[("amb_electrons", "particle_position_x")]) / sc.di0
+            ze = np.asarray(ad[("amb_electrons", "particle_position_x")]) / sc.rho_i0
             pe = np.stack([np.asarray(ad[("amb_electrons", f"particle_momentum_{a}")])
                            for a in "xyz"])
             mu_ = (ze > UPSTREAM[0]) & (ze < UPSTREAM[1])
@@ -202,13 +216,13 @@ def main():
                         color=WARN, fontsize=7.5, rotation=90, va="top")
             if np.isfinite(depth):
                 ax.axvspan(zp, zp + depth, color=GOOD, alpha=0.07)
-            txt = (f"wedge {depth:.2f} $d_{{i0}}$ = {depth / rho:.4f} " r"$\rho_{i0}$"
+            txt = (rf"wedge {depth:.4f} $\rho_{{i0}}$ = {depth * rho:.2f} $d_{{i0}}$"
                    if np.isfinite(depth) else "wedge: no crossing")
             ax.annotate(txt, xy=(0.975, 0.06), xycoords="axes fraction", ha="right",
                         fontsize=9, color=GOOD if valid else MUTED,
                         bbox=None if valid else dict(boxstyle="round,pad=0.15", fc="none",
                                                      ec=WARN, lw=0.8))
-            ax.annotate(rf"$z_{{piston}}$={zp:.2f}   $T_{{e,up}}$={T_up:.1f}",
+            ax.annotate(rf"$z_{{piston}}$={zp:.4f}$\rho_{{i0}}$   $T_{{e,up}}$={T_up:.1f}",
                         xy=(0.02, 0.06), xycoords="axes fraction", fontsize=8.5,
                         color=INK2 if valid else WARN,
                         bbox=dict(boxstyle="round,pad=0.2", fc=SURFACE, ec="none",
@@ -229,8 +243,9 @@ def main():
                               "\n" rf"$B_0$={B0:.1f} T   $M_A$={MA:.0f}" "\n"
                               rf"$\beta_0$={b0:.2f}   $\rho_{{i0}}/d_{{i0}}$={rho:.1f}"
                               "\n" r"$v_z/v_{sh}$", color=INK2, fontsize=9)
+            # t[7] is rho_i0 (primary), t[8] the d_i0 cross-check
             table.append((label, wpwc, MA, b0, T, times[i], zp, depth,
-                          depth / rho, T_up, valid))
+                          depth * rho, T_up, valid))
         print(f"  row done: {label}", flush=True)
 
     held = (r"HELD: $\varepsilon$, $\gamma$=1.138, $T_{e,ab}$, $T_0$, $n_0$," "\n"
@@ -249,11 +264,13 @@ def main():
 
     print("\n" + "=" * 96)
     print(f"{'run':20}{'wpe/wce':>9}{'M_A':>7}{'beta_0':>8}{'t* got':>8}"
-          f"{'z_pist':>8}{'wedge d_i0':>12}{'wedge rho_i0':>14}{'T_e,up':>9}{'valid':>7}")
+          f"{'z_pist':>9}{'wedge rho_i0':>14}{'wedge d_i0':>12}{'T_e,up':>9}{'valid':>7}")
+    print(f"{'':20}{'':>9}{'':>7}{'':>8}{'':>8}{'[rho_i0]':>9}{'PRIMARY':>14}"
+          f"{'x-check':>12}")
     print("=" * 96)
     for t in table:
         print(f"{t[0]:20}{t[1]:>9.1f}{t[2]:>7.0f}{t[3]:>8.2f}{t[5]:>8.3f}"
-              f"{t[6]:>8.2f}{t[7]:>12.3f}{t[8]:>14.4f}{t[9]:>9.1f}"
+              f"{t[6]:>9.4f}{t[7]:>14.4f}{t[8]:>12.3f}{t[9]:>9.1f}"
               f"{'yes' if t[10] else 'NO':>7}")
     print("=" * 96)
     ok = [t for t in table if t[10]]
@@ -261,15 +278,19 @@ def main():
         a, b = ok[0], ok[-1]
         print(f"\n  valid points only, {a[0].strip()} -> {b[0].strip()} "
               f"(w_pe0/w_ce {a[1]:.0f} -> {b[1]:.0f}):")
-        print(f"    in d_i0   : {a[7]:.3f} -> {b[7]:.3f}   ({b[7]/a[7]-1:+.0%} change)")
-        print(f"    in rho_i0 : {a[8]:.4f} -> {b[8]:.4f}   ({b[8]/a[8]-1:+.0%} change)")
+        print(f"    in rho_i0 (PRIMARY) : {a[7]:.4f} -> {b[7]:.4f}"
+              f"   ({b[7]/a[7]-1:+.0%} change)")
+        print(f"    in d_i0   (x-check) : {a[8]:.3f} -> {b[8]:.3f}"
+              f"   ({b[8]/a[8]-1:+.0%} change)")
         if (b[7] - a[7]) * (b[8] - a[8]) < 0:
-            print("    -> THE TWO NORMALIZATIONS DISAGREE IN SIGN. rho_i0/d_i0 moves with")
-            print("       B0, so the unit choice decides the answer. Settle it first.")
+            print("    -> the two normalizations DISAGREE IN SIGN. rho_i0/d_i0 moves with B0,")
+            print("       so this is expected whenever the wedge is flat in absolute terms;")
+            print("       rho_i0 is the settled unit (see the header) and is the answer to")
+            print("       quote, but the disagreement is printed so it cannot be hidden.")
     bad = [t for t in table if not t[10]]
     if bad:
         print(f"\n  {len(bad)} of {len(table)} panels INVALID: the far-upstream control "
-              f"({UPSTREAM[0]:g}-{UPSTREAM[1]:g} d_i0) is above {T_UP_COLD:g}, so the wedge")
+              f"({UPSTREAM[0]:g}-{UPSTREAM[1]:g} rho_i0) is above {T_UP_COLD:g}, so the wedge")
         print("  numbers there are artifacts of a piston that has swept the box, not "
               "measurements.\n  See runs/M_phase/README.md for the cause and the fix.")
     return 0

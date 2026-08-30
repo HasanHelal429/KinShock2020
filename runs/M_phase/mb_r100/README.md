@@ -32,7 +32,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | dims | 1 | `geometry.dims` |
 | layout | one_sided | `geometry.layout` |
 | slab halfwidth [d_i] | 2 | `geometry.slab_halfwidth_di` |
-| domain halfwidth [d_e] | 1344 | `geometry.domain_halfwidth_de` |
+| domain halfwidth [d_e] | 13440 | `geometry.domain_halfwidth_de` |
 | dz [d_e] | 0.1875 | `geometry.dz_over_de` |
 | boundary lo / hi | lo symmetry, hi open | `geometry.boundary` |
 | CFL | 0.75 | `numerics.cfl` |
@@ -69,7 +69,7 @@ Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/
 | dz [m] | 4.06776e-08 | dz_over_de * d_e |
 | dt [s] | 1.01764e-16 | CFL-limited |
 | dt*omega_pe | 0.140625 | dt * omega_pe |
-| n_cell | 7168 | domain / dz (halved when one_sided) |
+| n_cell | 71680 | domain / dz (halved when one_sided) |
 | steps per 1/omega_ci0 | 795046 | 1/(omega_ci0*dt) |
 | run length [1/omega_ci0] | 0.301832 | max_step * dt * omega_ci0 |
 | T_e,ab [eV] | 47012 | theta_e,ab * m_e c^2 |
