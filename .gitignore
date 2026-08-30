@@ -51,3 +51,6 @@ perlmutter/.runlists/
 slurm-*.out
 slurm-*.err
 schaeffer2020.txt
+
+# scratch frames from make_phase_movie_norm.py (MOVIE_SCRATCH overrides)
+.movie_scratch/
