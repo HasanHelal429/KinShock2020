@@ -57,7 +57,7 @@ os.chdir(ROOT)
 import matplotlib  # noqa: E402
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.colors import LogNorm  # noqa: E402
+from matplotlib.colors import AsinhNorm, LogNorm, Normalize  # noqa: E402
 import kinshock  # noqa: E402
 from kinshock import io as kio  # noqa: E402
 from kinshock.units import C, ME  # noqa: E402
@@ -107,11 +107,26 @@ def main():
     ap.add_argument("--match", choices=("clock", "piston"), default="clock",
                     help="clock: matched t*w_ci0. piston: matched piston front position "
                          "(taken from the anchor at the LAST requested time).")
+    ap.add_argument("--norm", choices=("log", "linear", "asinh"), default="log",
+                    help="colour stretch. log (default) is what the committed figures "
+                         "use. linear is the honest view of where the BULK sits, at the "
+                         "cost of the faint reflected-ion beam. asinh is the middle.")
+    ap.add_argument("--scale", choices=("panel", "shared"), default="panel",
+                    help="panel (default) autoscales each panel independently, so "
+                         "brightness carries no cross-rung information. shared puts every "
+                         "panel on one vmax, so a denser structure actually looks denser "
+                         "-- which is the point of a comparison figure, and is what makes "
+                         "a linear stretch worth having. Same reasoning as "
+                         "make_phase_movie_norm.py's fixed cross-frame scale.")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     if args.out is None:
-        args.out = (f"media/M_phase/wedge_vs_B0"
-                    f"{'_matchpiston' if args.match == 'piston' else ''}.png")
+        tag = ("_matchpiston" if args.match == "piston" else "")
+        if args.norm != "log":
+            tag += f"_{args.norm}"
+        if args.scale != "panel":
+            tag += "_shared"
+        args.out = f"media/M_phase/wedge_vs_B0{tag}.png"
 
     rows = [r for r in ROWS if os.path.isdir(os.path.join(r[1], "diags"))]
     missing = [r[0] for r in ROWS if r not in rows]
@@ -133,6 +148,7 @@ def main():
         print(f"  matching on piston front z = {z_anchor:.4f} rho_i0 "
               f"({rows[0][0]} at t*={t0[j]:.3f})")
 
+    panels = []
     zb = np.linspace(0, ZMAX, 340)
     vb = np.linspace(-VMAX * 0.4, VMAX, 260)
     cols = [args.times[-1]] if args.match == "piston" else args.times
@@ -204,8 +220,7 @@ def main():
             valid = np.isfinite(T_up) and T_up < T_UP_COLD
 
             H, _, _ = np.histogram2d(z, v, bins=[zb, vb], weights=w)
-            ax.pcolormesh(zb, vb, np.ma.masked_where(H <= 0, H).T, norm=LogNorm(),
-                          cmap="magma", shading="auto")
+            panels.append((ax, H))
             ax.axhline(0, color="#fff", lw=.5, alpha=.25)
             ax.axhline(1, color=GOOD, lw=.9, ls=(0, (5, 4)), alpha=.9)
             ax.axvline(zp, color=ACC, lw=1.2)
@@ -253,6 +268,30 @@ def main():
             if len(cols) == 1 else
             r"every row HELD: $\varepsilon$, $\gamma$=1.138, $T_{e,ab}$, $T_0$, $n_0$, "
             r"$\lambda_{D,0}/d_{i0}$=4.42e-3, $dz/\lambda_D$=0.379, $N_D$=264")
+    # One pass over the collected histograms so `--scale shared` can put every panel on the
+    # same vmax. Drawn here rather than inline above for that reason only.
+    # A shared vmax on RAW weighted counts would be a lie here: bins are fixed in
+    # z/rho_i0 but n_cell runs 7168 -> 71680 down the ladder, so rung 5 holds ~10x more
+    # particles per bin and would simply look brighter for a numerical reason. Normalise
+    # each panel to a probability density first. That is meaningful precisely because the
+    # ambient density n_0 is IDENTICAL at every rung, so what differs is how the same
+    # material is distributed in phase space -- which is the question the figure asks.
+    if args.scale == "shared":
+        panels = [(ax, H / H.sum() if H.sum() > 0 else H) for ax, H in panels]
+    vmax = max((H.max() for _, H in panels), default=1.0) if args.scale == "shared" else None
+    for ax, H in panels:
+        if args.norm == "log":
+            nrm = LogNorm(vmax=vmax)
+        elif args.norm == "asinh":
+            nrm = AsinhNorm(linear_width=max(H.max(), 1e-30) * 1e-3, vmin=0, vmax=vmax)
+        else:
+            nrm = Normalize(vmin=0, vmax=vmax)
+        # zorder=0: the mesh is drawn AFTER the guide lines and annotations (it has to be,
+        # so a shared vmax can be known first), so it must be pushed beneath them or it
+        # hides the piston line, the control window and every label.
+        ax.pcolormesh(zb, vb, np.ma.masked_where(H <= 0, H).T, norm=nrm,
+                      cmap="magma", shading="auto", zorder=0)
+
     fig.suptitle(r"Ambient-ion phase space vs $\omega_{pe0}/\omega_{ce}$" "\n"
                  r"at FIXED $\varepsilon$ = 0.3033" "\n" + held,
                  color=INK, fontsize=11 if len(cols) == 1 else 12.5)
