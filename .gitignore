@@ -54,6 +54,14 @@ perlmutter/.runlists/
 # Regenerable, one pair per array task; same category as the run logs above.
 slurm-*.out
 slurm-*.err
+
+# --- the parked-log folders (2026-09-01) ---
+# 111 ad-hoc logs were sitting in the scratch root and this repo's root; they now live
+# here. `*.log` and `slurm-*.{out,err}` above already match their contents, but name the
+# directories too so anything else dropped in (a .txt, a .json) is covered by intent
+# rather than by accident.
+logs/
+slurm/
 schaeffer2020.txt
 
 # scratch frames from make_phase_movie_norm.py (MOVIE_SCRATCH overrides)

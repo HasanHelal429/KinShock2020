@@ -136,6 +136,13 @@ cat -n "$RUNLIST" | sed 's/^/    /'
 
 submit() {   # submit <array> <binary> <name>
     local arr="$1" bin="$2" name="$3"
+    # Slurm writes -o/-e relative to the SUBMISSION cwd, so the #SBATCH defaults in
+    # job.sbatch dropped 72 slurm-*.out/.err into the repo root. Pass an absolute path
+    # here instead, for the same reason -A/-q/-t/--array are passed here: #SBATCH
+    # directives cannot read shell variables. Slurm does NOT create the directory and
+    # the job fails at launch if it is missing, hence the mkdir.
+    local logdir="$KINSHOCK_ROOT/slurm"
+    mkdir -p "$logdir"
     local qos="${QOS_OVERRIDE:-${SWEEP_QOS:-shared}}"
     local wall="${TIME_OVERRIDE:-${SWEEP_TIME:-03:00:00}}"
     # debug is capped at 30 min AND 5 jobs per user (measured 2026-08-11) -- catch the
@@ -145,6 +152,7 @@ submit() {   # submit <array> <binary> <name>
     fi
     local cmd=(sbatch -A "$NERSC_ACCOUNT" -q "$qos"
                -t "$wall" --array="$arr" -J "$name"
+               -o "$logdir/slurm-%A_%a.out" -e "$logdir/slurm-%A_%a.err"
                --export="ALL,KINSHOCK_PM=$KINSHOCK_PM,RUNLIST=$RUNLIST,BINARY=$bin,WORKROOT=$WORKROOT"
                "$KINSHOCK_PM/job.sbatch")
     echo "+ ${cmd[*]}"
