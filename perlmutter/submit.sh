@@ -4,6 +4,7 @@
 #   perlmutter/submit.sh sweep          # the six S_phase points, one GPU each
 #   perlmutter/submit.sh eps            # the four E_phase eps-ladder rungs, one GPU each
 #   perlmutter/submit.sh mag            # the four M_phase B0-scan rungs, one GPU each
+#   perlmutter/submit.sh mu             # the two U_phase physical-mass-ratio twins
 #   perlmutter/submit.sh ab             # the wall A/B: 2 runs per binary
 #   perlmutter/submit.sh sweep --dry    # print the sbatch command, submit nothing
 #
@@ -85,6 +86,25 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="kmag"
     ;;
+  mu)
+    # The physical-mass-ratio twins (runs/U_phase). Each is an existing run with
+    # reference.mass_ratio as the ONLY choice changed, so grid heating, particle noise and
+    # box-filling are common mode with the partner. They cross the foot-instability
+    # threshold v_u/v_te = M_A/sqrt(beta_e mu) from 3.15 (Buneman) to 0.74 (MTSI) --
+    # Umeda+2014. See runs/U_phase/README.md.
+    #
+    # 470 eV first: it is the one that carries the result. The 47 keV twin is the control
+    # whose partner has no notch, so it is only interesting if it grows one.
+    #
+    # BOTH are ~4.5 GPU-h against SWEEP_TIME's 4 h default -- pass --time 10:00:00 or they
+    # die at the wall. `shared` bills elapsed, not requested, so the headroom is free.
+    RUNS=(runs/U_phase/um1836_470eV
+          runs/U_phase/um1836_47keV)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-1"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kmu"
+    ;;
   ab)
     # The wall A/B. Two runs per binary because WarpX on GPU is NOT reproducible --
     # ablastr's RandomSeed.H says so outright ("one should not expect to obtain the same
@@ -104,7 +124,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|mag|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|mag|mu|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
 
 if [[ ${#SUBSET[@]} -gt 0 ]]; then
