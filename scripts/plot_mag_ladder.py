@@ -46,6 +46,7 @@ flattering one. E_phase never had to choose: it pinned `rho_i0/d_i0` = 10.40.
     python scripts/plot_mag_ladder.py [--match clock|piston] [--times ...] [--out PATH]
 """
 import argparse
+import math
 import os
 import sys
 
@@ -61,6 +62,7 @@ from matplotlib.colors import AsinhNorm, LogNorm, Normalize  # noqa: E402
 import kinshock  # noqa: E402
 from kinshock import io as kio  # noqa: E402
 from kinshock.units import C, ME  # noqa: E402
+from kinshock.units import EPS0 as U_EPS0, ME as U_ME, QE as U_QE  # noqa: E402
 
 SURFACE, INK, INK2, MUTED, BASE = "#0d0c10", "#f2f0f6", "#c9c5d4", "#8b8798", "#3a3745"
 GOOD, WARN, ACC = "#5ad2ff", "#ff6b57", "#ffd166"
@@ -68,26 +70,39 @@ GOOD, WARN, ACC = "#5ad2ff", "#ff6b57", "#ffd166"
 # by the anchor's rho_i0/d_i0 = 10.40, so the analysis is unchanged where the two agree.
 ZMAX, VMAX = 1.30, 2.6     # box is 1.156 rho_i0 at every rung, by construction
 TOL = 0.030
-UPSTREAM = (0.481, 1.058)  # = 5-11 d_i0 at the anchor; now a FIXED fraction of the box
+UPSTREAM = (0.78, 0.98)    # far-upstream control, as a FRACTION of each run's box
+                           # (= 5-11 d_i0 at the anchor, whose box is 1.156 rho_i0)
 T_UP_COLD = 5.0            # T_e,upstream above this => the comparison is void
 SPREAD = 0.06              # v_z std / v_sh below which the layer counts as undisturbed
-STEP, WIN, SCAN = 0.002, 0.024, 0.6      # rho_i0: scan step, window width, max offset
+STEP, WIN = 0.002, 0.024   # rho_i0: scan step and window width (E_phase's 0.02/0.25 d_i0
+                           # over the anchor's rho_i0/d_i0 = 10.40)
+SCAN_MAX = 0.6             # rho_i0: FALLBACK cap only. The scan actually runs to the end of
+                           # the available upstream -- a fixed 0.6 was right for the 1.156
+                           # rho_i0 early-formation boxes but silently returns nan on the
+                           # t* = 2.0 runs, whose disturbed layer is deeper than the cap.
 
-# (label, run dir, B0 [T], w_pe0/w_ce, M_A, beta_0, rho_i0/d_i0)
-ROWS = [
-    ("rung 1  es_47keV", "runs/E_phase/es_47keV",  70.273,  10.0,  13.95, 0.196, 10.40),
-    ("rung 2  mb_r20",   "runs/M_phase/mb_r20",    35.137,  20.0,  27.9,  0.783, 20.80),
-    ("rung 3  mb_r32",   "runs/M_phase/mb_r32",    22.222,  31.6,  44.1,  1.957, 32.89),
-    ("rung 4  mb_r56",   "runs/M_phase/mb_r56",    12.497,  56.2,  78.5,  6.190, 58.48),
-    ("rung 5  mb_r100",  "runs/M_phase/mb_r100",    7.027, 100.0, 139.5, 19.57, 104.0),
-]
+# Run dirs only. Every number in the row label is DERIVED from the config below rather
+# than kept in a table here, so it cannot drift from the deck it describes.
+LADDER = ["runs/E_phase/es_47keV", "runs/M_phase/mb_r20", "runs/M_phase/mb_r32",
+          "runs/M_phase/mb_r56", "runs/M_phase/mb_r100"]
+# The formed-shock pair: the two ends of the decade at t* = 2.0, numerics-matched.
+PAIR = ["runs/E_phase/ek_47keV_t2", "runs/M_phase/mb_r100_t2"]
 
 
-def wedge_depth(z, v, zp):
+def row_meta(d):
+    """(label, B0, w_pe0/w_ce, M_A, beta_0, rho_i0/d_i0, box) straight from config.yaml."""
+    cfg = kinshock.load(d)
+    sc = kinshock.units.derive(cfg)
+    wpe0 = math.sqrt(sc.namb * U_QE ** 2 / (U_EPS0 * U_ME))
+    return (os.path.basename(d.rstrip("/")), sc.B0, wpe0 / (U_QE * sc.B0 / U_ME),
+            sc.MA, sc.beta_0, sc.rho_i0 / sc.di0, sc.domain_halfwidth / sc.rho_i0)
+
+
+def wedge_depth(z, v, zp, scan=None):
     """E_phase's continuous depth, in rho_i0: first STEP offset ahead of the piston where
     the local v_z spread falls below SPREAD, linearly interpolated between the bracketing
     samples. STEP/WIN are E_phase's 0.02/0.25 d_i0 over the anchor's rho_i0/d_i0."""
-    offs = np.arange(0, SCAN, STEP)
+    offs = np.arange(0, max(scan or SCAN_MAX, 4 * WIN), STEP)
     sig = np.full(offs.size, np.nan)
     for k, lo in enumerate(offs):
         m = (z - zp >= lo) & (z - zp < lo + WIN)
@@ -118,6 +133,11 @@ def main():
                          "-- which is the point of a comparison figure, and is what makes "
                          "a linear stretch worth having. Same reasoning as "
                          "make_phase_movie_norm.py's fixed cross-frame scale.")
+    ap.add_argument("--runs", nargs="+", default=None,
+                    help="run dirs to plot as rows (default: the five M_phase rungs). "
+                         "`pair` is shorthand for the two formed-shock t*=2.0 runs.")
+    ap.add_argument("--zmax", type=float, default=None,
+                    help="z axis limit in rho_i0 (default: the widest box plotted).")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     if args.out is None:
@@ -128,8 +148,12 @@ def main():
             tag += "_shared"
         args.out = f"media/M_phase/wedge_vs_B0{tag}.png"
 
-    rows = [r for r in ROWS if os.path.isdir(os.path.join(r[1], "diags"))]
-    missing = [r[0] for r in ROWS if r not in rows]
+    want = args.runs or LADDER
+    if want == ["pair"]:
+        want = PAIR
+    have = [d for d in want if os.path.isdir(os.path.join(d, "diags"))]
+    missing = [os.path.basename(d.rstrip("/")) for d in want if d not in have]
+    rows = [(m[0], d) + m[1:] for d, m in ((d, row_meta(d)) for d in have)]
     if missing:
         print(f"  not run yet, omitted: {', '.join(missing)}")
     if not rows:
@@ -149,7 +173,8 @@ def main():
               f"({rows[0][0]} at t*={t0[j]:.3f})")
 
     panels = []
-    zb = np.linspace(0, ZMAX, 340)
+    zmax = args.zmax if args.zmax else (min(r[7] for r in rows) * 1.02 if rows else ZMAX)
+    zb = np.linspace(0, zmax, 340)
     vb = np.linspace(-VMAX * 0.4, VMAX, 260)
     cols = [args.times[-1]] if args.match == "piston" else args.times
     fig, axes = plt.subplots(len(rows), len(cols),
@@ -157,7 +182,7 @@ def main():
                                       3.6 * len(rows) + 1.2), dpi=200,
                              facecolor=SURFACE, sharex=True, sharey=True, squeeze=False)
     table = []
-    for r, (label, d, B0, wpwc, MA, b0, rho) in enumerate(rows):
+    for r, (label, d, B0, wpwc, MA, b0, rho, _box) in enumerate(rows):
         cfg = kinshock.load(d)
         sc = kinshock.units.derive(cfg)
         mi = cfg["reference"]["mass_ratio"] * ME
@@ -180,7 +205,7 @@ def main():
             ax.tick_params(colors=MUTED, labelsize=8.5, length=3)
             for t in ax.get_xticklabels() + ax.get_yticklabels():
                 t.set_color(INK2)
-            ax.set_xlim(0, ZMAX); ax.set_ylim(vb[0], vb[-1])
+            ax.set_xlim(0, zmax); ax.set_ylim(vb[0], vb[-1])
             if r == len(rows) - 1 or len(cols) == 1 and r == len(rows) - 1:
                 ax.set_xlabel(r"$z / \rho_{i0}$", color=INK2, fontsize=11)
 
@@ -204,13 +229,19 @@ def main():
             v = p / (mi * g) / sc.vsh_model
             zp = np.percentile(
                 np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5) / sc.rho_i0
-            depth = wedge_depth(z, v, zp)
+            # scan the whole upstream that exists ahead of the piston in THIS box,
+            # less the window width so the last sample is fully populated
+            depth = wedge_depth(z, v, zp, scan=_box - zp - WIN)
 
             # far-upstream control, in the run's own C_s,ab^2 -- the validity gate
             ze = np.asarray(ad[("amb_electrons", "particle_position_x")]) / sc.rho_i0
             pe = np.stack([np.asarray(ad[("amb_electrons", f"particle_momentum_{a}")])
                            for a in "xyz"])
-            mu_ = (ze > UPSTREAM[0]) & (ze < UPSTREAM[1])
+            # SAME window that is drawn below -- a fraction of THIS run's box, so a
+            # pair with unequal boxes is still measured in the same place relative
+            # to each domain. A fixed rho_i0 pair would sit mid-box in one run and
+            # against the wall in the other.
+            mu_ = (ze > UPSTREAM[0] * _box) & (ze < UPSTREAM[1] * _box)
             if mu_.sum() > 100:
                 p2 = (pe[:, mu_] ** 2).sum(0)
                 gu = np.sqrt(1.0 + p2 / (ME * C) ** 2)
@@ -225,7 +256,8 @@ def main():
             ax.axhline(1, color=GOOD, lw=.9, ls=(0, (5, 4)), alpha=.9)
             ax.axvline(zp, color=ACC, lw=1.2)
             # the two diagnostics this figure exists to show
-            ax.axvspan(*UPSTREAM, color=GOOD if valid else WARN, alpha=0.05)
+            ax.axvspan(UPSTREAM[0] * _box, UPSTREAM[1] * _box,
+                       color=GOOD if valid else WARN, alpha=0.05)
             ax.axvline(box, color=WARN, lw=1.4, ls=(0, (2, 2)))
             ax.annotate("domain edge", xy=(box - 0.12, vb[-1] * 0.93), ha="right",
                         color=WARN, fontsize=7.5, rotation=90, va="top")
@@ -333,7 +365,7 @@ def main():
     bad = [t for t in table if not t[10]]
     if bad:
         print(f"\n  {len(bad)} of {len(table)} panels INVALID: the far-upstream control "
-              f"({UPSTREAM[0]:g}-{UPSTREAM[1]:g} rho_i0) is above {T_UP_COLD:g}, so the wedge")
+              f"(the outer {UPSTREAM[0]:g}-{UPSTREAM[1]:g} of each box) is above {T_UP_COLD:g}, so the wedge")
         print("  numbers there are artifacts of a piston that has swept the box, not "
               "measurements.\n  See runs/M_phase/README.md for the cause and the fix.")
     return 0
