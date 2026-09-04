@@ -376,6 +376,13 @@ def render(cfg: dict) -> str:
         a(f'{name}.maxwellian_u_std_distribution_type = "constant"')
         for comp in ("ux_std", "uy_std", "uz_std"):
             a(f"{name}.{comp} = sqrt({theta})")
+        # Optional bulk drift, in units of c, for driver geometries that launch an
+        # inflow instead of ablating a slab (W_phase's reflecting wall). Absent from
+        # every piston config, where the drive comes from the heater and injector, so
+        # emitting nothing keeps those decks byte-identical.
+        drift = spec.get("drift_uz_over_c")
+        if drift is not None:
+            a(f"{name}.uz_m = {_num(drift)}")
         a("")
 
     # heater --------------------------------------------------------------

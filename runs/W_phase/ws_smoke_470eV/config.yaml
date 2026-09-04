@@ -1,0 +1,130 @@
+# ws_smoke_470eV -- SMOKE TEST: does a reflecting wall drive a shock in this deck?
+#
+# WHY THIS EXISTS BEFORE THE PAIR. Every diagnosis of the notch so far has been internal to
+# ONE driver: the custom kinetic heating operator plus the target injector, ported from PSC
+# and validated only on a 2D flatfoil case. That is the most WarpX-specific, least standard
+# part of the whole setup, and the notch is a FORMATION-STAGE feature sitting on the C --
+# which is the ambipolar structure the heater and injector create. The paper's own Sec. I
+# separates the driver classes and notes that most magnetized-shock simulations use
+# counter-streaming flows or an expanding slab and are "concerned with timescales long
+# after the shock has formed, when the dynamics of the shock is independent of its
+# creation", whereas experiments live in formation where "observable features may be
+# dominated by the formation mechanisms rather than the shock". So the driver is not a
+# detail here, and a second, standard driver is the strongest untried validation.
+#
+# WHAT THIS RUN IS. NOT the comparison -- it is the go/no-go. The reflecting boundary has
+# never been exercised as a DRIVER in this deck, only as a domain edge, and
+# `species.*.drift_uz_over_c` is a brand-new key. This run asks three yes/no questions as
+# cheaply as possible:
+#     1. does the deck build and run with no piston species, no heater, no injector?
+#     2. does the drifting ambient actually reflect off the lo wall?
+#     3. does a density/field ramp appear and MOVE AWAY from the wall?
+# If any answer is no, the pair is not worth building yet.
+#
+# THE DRIVER. The ambient is launched at -v_sh toward a reflecting wall at z = 0; in the
+# wall frame the upstream flows in at v_sh = 0.0139507 c and the shock propagates back out.
+# This is the standard "reflecting wall" / "magnetic piston" setup, and it replaces the
+# heater and injector entirely with the field solver's boundary condition.
+#
+# WHAT CANNOT BE MATCHED, AND IS NOT PRETENDED TO BE. There is no piston population, so
+# v_p, n_t, the target slab and t_ab-referenced piston diagnostics have no counterpart, and
+# `z_piston` -- the origin every notch measurement uses -- does not exist. The wall is the
+# reference instead. What DOES carry over is the dimensionless upstream (M_A = 13.952,
+# M_ms = 12.759, beta_0 = 0.1957, mu = 100), the grid (dz/lambda_D, ppc) and
+# the clock, and the observable that matters: the ambient-ion phase space, the C, and the
+# notch on its lower branch.
+#
+# t* = 0.15 is ~1/4 of the partner's window: long enough for a ramp to separate from the
+# wall, far too short for the notch, which is deliberate. Cost ~1 GPU-min.
+
+meta:
+  run_id: ws_smoke_470eV
+  tier: Smoke
+  description: >
+    SMOKE TEST for the reflecting-wall driver at 470 eV: no piston species, no heater,
+    no injector; the ambient drifts into a reflecting wall at z = 0. Asks only whether
+    a ramp forms and moves away from the wall. See runs/W_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Sec. I"
+  deck: inputs_kinshock_ws_smoke_470eV
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.19767056e-4   # 470 eV
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 0.0        # no target slab: ambient fills the box
+  domain_halfwidth_de: 1344.0
+  dz_over_de: 0.3          # [d_e,ab] -> dz/lambda_D,amb = 6.066
+  layout: one_sided
+  boundary:
+    lo: reflecting              # a RIGID WALL, not a symmetry plane. `symmetry` applies the
+                                # pi-rotation about B0 that models a mirror-image half-domain;
+                                # here the wall IS the driver and must reflect specularly.
+    hi: open
+
+numerics:
+  cfl: 0.75
+  particle_shape: 2           # [-] baseline. h2_shape3 showed order 3 moves the
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 74545          # t*w_ci0 = 0.15, smoke only
+  max_grid_size: 4480      # [cells] = n_cell, i.e. ONE box: correct for a single
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  # No piston species: the wall is the driver. Both ambient species drift toward it at
+  # -v_sh so that in the WALL frame the upstream flows in at v_sh.
+  amb_electrons:    {kind: electron, role: ambient, drift_uz_over_c: -0.0139507243}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1, drift_uz_over_c: -0.0139507243}
+ion_species:     [amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 2485
+                              # acceleration signature)
+  field_intervals: 1242
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 1242
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.0103986833     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.

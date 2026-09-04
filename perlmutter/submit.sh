@@ -5,6 +5,7 @@
 #   perlmutter/submit.sh eps            # the four E_phase eps-ladder rungs, one GPU each
 #   perlmutter/submit.sh mag            # the four M_phase B0-scan rungs, one GPU each
 #   perlmutter/submit.sh mu             # the two U_phase physical-mass-ratio twins
+#   perlmutter/submit.sh wall           # the W_phase reflecting-wall smoke test
 #   perlmutter/submit.sh ab             # the wall A/B: 2 runs per binary
 #   perlmutter/submit.sh sweep --dry    # print the sbatch command, submit nothing
 #
@@ -105,6 +106,16 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="kmu"
     ;;
+  wall)
+    # The reflecting-wall driver (runs/W_phase). SMOKE TEST ONLY at this point: the
+    # reflecting BC has never driven a shock in this deck, only bounded a domain, and
+    # drift_uz_over_c is a new deck key. ~6 GPU-min. See runs/W_phase/README.md.
+    RUNS=(runs/W_phase/ws_smoke_470eV)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-0"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kwall"
+    ;;
   ab)
     # The wall A/B. Two runs per binary because WarpX on GPU is NOT reproducible --
     # ablastr's RandomSeed.H says so outright ("one should not expect to obtain the same
@@ -124,7 +135,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|mag|mu|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|mag|mu|wall|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
 
 if [[ ${#SUBSET[@]} -gt 0 ]]; then
