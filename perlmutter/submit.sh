@@ -106,15 +106,35 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="kmu"
     ;;
-  wall)
-    # The reflecting-wall driver (runs/W_phase). SMOKE TEST ONLY at this point: the
-    # reflecting BC has never driven a shock in this deck, only bounded a domain, and
-    # drift_uz_over_c is a new deck key. ~6 GPU-min. See runs/W_phase/README.md.
+  wall_smoke)
+    # The reflecting-wall go/no-go. PASSED 2026-09-05 (drift to 0.01%, reflection
+    # 0 -> 0.17, both ramps off the wall at +11.5 d_i0/t*). Kept for re-running after any
+    # deck change. ~6 GPU-min; use --time 00:20:00 so it backfills.
     RUNS=(runs/W_phase/ws_smoke_470eV)
     BINARY="$SWEEP_BUILD"
     ARRAY="0-0"
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="kwall"
+    ;;
+  wall47k)
+    # The CLEAN-SIDE control, ~0.22 GPU-h. Submitted SEPARATELY from ws_470eV and with a
+    # short wall on purpose: the two differ 30x in cost, and a 9 h request queues as badly
+    # as the expensive one (2026-09-04: a 4 h request waited 4 h while 20 min backfilled in
+    # minutes). Use --time 01:00:00.
+    RUNS=(runs/W_phase/ws_47keV)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-0"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kw47k"
+    ;;
+  wall470)
+    # The comparison itself, ~6.7 GPU-h (2,783,015 steps at 65,592 cells). Give it real
+    # headroom -- um1836_470eV timed out at 73% on a 6 h wall. Use --time 10:00:00.
+    RUNS=(runs/W_phase/ws_470eV)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-0"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kw470"
     ;;
   ab)
     # The wall A/B. Two runs per binary because WarpX on GPU is NOT reproducible --
@@ -135,7 +155,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|mag|mu|wall|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|mag|mu|wall_smoke|wall47k|wall470|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
 
 if [[ ${#SUBSET[@]} -gt 0 ]]; then

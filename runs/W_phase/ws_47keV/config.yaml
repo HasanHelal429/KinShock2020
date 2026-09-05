@@ -1,0 +1,104 @@
+# ws_47keV -- THE CONTROL: reflecting-wall twin of ek_47keV_t2.
+#
+# ws_470eV alone cannot answer the driver question. If it shows no notch, that could mean
+# the driver caused the notch OR that the wall driver simply produces a weaker/slower
+# shock and would not show one at ANY temperature. This run closes that: ek_47keV_t2 is
+# clean at -8.6, so a clean ws_47keV plus a notching ws_470eV reproduces the piston pair's
+# eps_0 separation under the new driver, and a notching ws_47keV would say the wall driver
+# manufactures notches of its own.
+#
+# BOX. Same two constraints as ws_470eV. The closing rate is 25.5 d_i0 per t* at BOTH
+# temperatures -- shock advance 11.5 (measured) plus upstream drift 13.952, and that drift
+# is identically 13.952 d_i0 per t* at 470 eV and 47 keV because v_sh ~ sqrt(T) and
+# w_ci0 ~ B0 ~ sqrt(T) at fixed beta, so it cancels. At t* = 2.0 that needs L > 51 d_i0.
+# ek_47keV_t2's own 55 d_i0 box would leave only 8% margin, so this run is widened to
+# 80 d_i0 (t*_useful = 3.14, 57% margin). Widening is nearly free here -- the 47 keV run's
+# lambda_D is 10x larger, so the same dz/lambda_D needs 16x fewer cells than at 470 eV.
+#
+# GRID. dz_over_de 0.374950423 (dz/lambda_D = 0.758) and ppc 100 -> N_D = 131.9, identical
+# to ek_47keV_t2 AND to ws_470eV. The whole W_phase pair therefore sits at one resolution,
+# matched to the two canonical piston runs, so nothing in the comparison turns on N_D.
+#
+# Cost ~0.22 GPU-h (79,515 steps at 23,854 cells).
+
+meta:
+  run_id: ws_47keV
+  tier: Physics
+  description: >
+    Reflecting-wall twin of ek_47keV_t2 at 47 keV: no piston species, no heater, no
+    injector. The clean-side control for ws_470eV -- together they test whether the
+    eps_0 separation survives a change of driver. See runs/W_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Sec. I"
+  deck: inputs_kinshock_ws_47keV
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    density_over_n0: 2.0
+    theta_e_heat: 9.200018904e-02   # 47012 eV
+    theta_e_init: 1.957450828e-03   # 1000.3 eV, T_0/T_e,ab held
+    theta_i_init: 1.957450828e-05   # ion-normalized, T_0/T_e,ab held
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.957450828e-03  # = 1000.3 eV
+
+field:
+  orientation: perpendicular
+  B0_tesla: 70.273437465      # [T] from beta_ab = 1150, as ek_47keV_t2
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 0.0        # no target slab: ambient fills the box
+  domain_halfwidth_de: 8944.0   # 80.0 d_i0 (d_i0 = 111.80 d_e,ab) -- see BOX above
+  dz_over_de: 0.374916164       # -> dz/lambda_D,amb = 0.758, as ek_47keV_t2
+  layout: one_sided
+  boundary:
+    lo: reflecting              # a RIGID WALL, not a symmetry plane.
+    hi: open
+
+numerics:
+  filter_npass: 8             # matched to ek_47keV_t2
+  cfl: 0.75
+  particle_shape: 3           # matched to ek_47keV_t2
+  max_step: 79515             # t*w_ci0 = 2.00
+  max_grid_size: 23856        # [cells] = n_cell, i.e. ONE box: correct for a single GPU.
+  ppc:
+    piston: 100
+    ambient: 100              # -> N_D = 131.9, as ek_47keV_t2 and ws_470eV
+
+collisions:
+  model: pairwisecoulomb
+  pairs: all
+  target:
+    quantity: lambda_ab
+    value: 20.0
+  ndt_supercycle: 10
+
+species:
+  # NOTE beta, not gamma*beta -- kinshock.deck applies the Lorentz factor itself. At this
+  # speed that matters: gamma*beta = 0.140895 vs beta = 0.139525, a 1.0% difference (it is
+  # only 0.01% at 470 eV, which is why the smoke test could not have caught a mistake here).
+  amb_electrons:    {kind: electron, role: ambient, drift_uz_over_c: -0.1395250515}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1, drift_uz_over_c: -0.1395250515}
+ion_species:     [amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 1325    # 60 frames
+  field_intervals: 265        # 300 field-only frames
+  reduced_intervals: 132      # 600 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I
+  vp_over_c: 0.103986833      # [c] carried so normalizations resolve identically
