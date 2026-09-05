@@ -52,6 +52,8 @@ def main():
     ap.add_argument("--norm", choices=("linear", "log"), default="linear")
     ap.add_argument("--zmax", type=float, default=None, help="z limit in d_i0")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--max-frames", type=int, default=None,
+                    help="subsample to at most N frames (smoke-testing the render path)")
     args = ap.parse_args()
     rid = os.path.basename(args.run.rstrip("/"))
     out = args.out or f"media/W_phase/{rid}_wall.mp4"
@@ -61,6 +63,9 @@ def main():
     sc = kinshock.units.derive(cfg)
     mi = cfg["reference"]["mass_ratio"] * ME
     pfs = kio.plotfiles(args.run)
+    if args.max_frames and len(pfs) > args.max_frames:
+        pfs = [pfs[i] for i in
+               np.linspace(0, len(pfs) - 1, args.max_frames).round().astype(int)]
     zmax = args.zmax or sc.domain_halfwidth / sc.di0
     nz, nv = 320, 230
     zb = np.linspace(0, zmax, nz + 1)
@@ -83,7 +88,10 @@ def main():
         zf = fr.z_centers / sc.di0
         if Bx is not None:
             kw = max(int(round(0.2 / float(np.median(np.diff(zf))))), 1)
-            b = np.convolve(np.abs(Bx) / sc.B0, np.ones(kw) / kw, mode="same")
+            # smooth the SIGNED field THEN take |.| -- abs-first rectifies upstream
+            # noise into a DC offset (upstream reads 1.67 / 10.92 vs a true 1.00 on
+            # ss_dz1_ppc100_symwall / mb_r100). Peaks are unaffected (1.00x).
+            b = np.abs(np.convolve(Bx / sc.B0, np.ones(kw) / kw, mode="same"))
         else:
             zf, b = np.array([]), np.array([])
         frames.append(dict(t=fr.time * sc.wci0, H=H, n=n / far if far > 0 else n,

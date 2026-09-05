@@ -142,12 +142,21 @@ def main():
                     # window (mb_r100_t2: B0 = 7 T, 186k cells) has such large relative
                     # upstream fluctuations that the raw line paints the whole panel solid
                     # and hides the electron phase space underneath it.
-                    zz, bb = zc[m2], np.abs(Bx[m2]) / sc.B0
+                    # ORDER MATTERS: smooth the SIGNED field, then take |.|. Taking
+                    # |Bx| first rectifies the upstream noise into a DC offset that the
+                    # boxcar then preserves: measured 2026-09-04, upstream <|Bx|>/B0 reads
+                    # 1.67 (ss_dz1_ppc100_symwall) and 10.92 (mb_r100) where the truth is
+                    # 1.00, because rms/B0 there is ~1.9 with zero mean shift. Smoothing
+                    # first gives 0.98 and 1.01. Ramp PEAKS are identical either way
+                    # (1.00x) -- the field is coherent there -- so this inflates the noise
+                    # floor, not the pileup.
+                    zz, bb = zc[m2], Bx[m2] / sc.B0
                     if zz.size > 4:
                         dzc = float(np.median(np.diff(zz)))
                         kw = max(int(round(0.2 / dzc)), 1)
                         if kw > 1:
                             bb = np.convolve(bb, np.ones(kw) / kw, mode="same")
+                    bb = np.abs(bb)
                     tw.plot(zz, bb, color=FIELD, lw=1.3, zorder=5,
                             label=r"$|B_x|/B_0$ (0.2 $d_{i0}$ boxcar)")
                 # n_e/n_e0 straight from the electron weights, normalised to the far

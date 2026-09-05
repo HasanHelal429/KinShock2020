@@ -81,7 +81,9 @@ def main():
         if Bx is not None:
             zf = fr.z_centers / sc.di0
             kw = max(int(round(0.2 / float(np.median(np.diff(zf))))), 1)
-            b = np.convolve(np.abs(Bx) / sc.B0, np.ones(kw) / kw, mode="same")
+            # smooth SIGNED then |.|; abs-first rectifies noise into a DC offset big
+            # enough (10.9 on mb_r100) to sail past the ramp test as a false PASS
+            b = np.abs(np.convolve(Bx / sc.B0, np.ones(kw) / kw, mode="same"))
             j = int(np.argmax(b)); bmax, zbm = b[j], zf[j]
         else:
             bmax, zbm = float("nan"), float("nan")
