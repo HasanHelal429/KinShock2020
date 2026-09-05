@@ -21,9 +21,18 @@ set -u
 [[ "$NERSC_ACCOUNT" == *_g ]] || echo "perlmutter: WARNING NERSC_ACCOUNT '$NERSC_ACCOUNT' does not end in _g; GPU jobs will be rejected" >&2
 
 pm_profile() {
-    [[ -n "${MY_PROFILE:-}" ]] && return 0
-    # shellcheck disable=SC1090
-    source "$HOME/perlmutter_gpu_warpx.profile"
+    # The profile is skipped when already sourced, but the SHIM IS NOT. Sourcing
+    # perlmutter_gpu_warpx.profile by hand sets MY_PROFILE and does NOT add the CUDA 12
+    # path -- and sbatch exports the submitting shell's environment by default. So a job
+    # submitted from a shell that had sourced the profile (e.g. for analysis work) used to
+    # inherit MY_PROFILE, return here early, skip pm_cuda12_shim, and die at startup with
+    #     warpx.1d: error while loading shared libraries: libnvJitLink.so.12
+    # exit 127, 42 s in, with no other diagnostic. Cost the W_phase smoke test one full
+    # 4-hour queue wait on 2026-09-04. pm_cuda12_shim is idempotent, so call it always.
+    if [[ -z "${MY_PROFILE:-}" ]]; then
+        # shellcheck disable=SC1090
+        source "$HOME/perlmutter_gpu_warpx.profile"
+    fi
     pm_cuda12_shim
 }
 
