@@ -97,6 +97,10 @@ def main():
     ap.add_argument("--vsh-c", type=float, default=None,
                     help="shock speed in units of c (overrides shock_fit.yaml; "
                          "default: the by-eye fit, else the config model value)")
+    ap.add_argument("--max-frames", type=int, default=None,
+                    help="subsample evenly to at most N frames; long runs emit thousands "
+                         "of plotfiles (um1836_47keV: 2044) and rendering them all is slow "
+                         "and unwatchable")
     ap.add_argument("--only", choices=("ni", "phase"), default=None,
                     help="render just one movie (default: both). Useful mid-run, "
                          "when you only want the phase space as a progress check.")
@@ -114,6 +118,10 @@ def main():
         else:
             vsh, src = sc.vsh_model, "config MODEL value -- no shock_fit.yaml"
     pfs = io.plotfiles(args.run_dir)
+    if args.max_frames and len(pfs) > args.max_frames:
+        import numpy as _np
+        pfs = [pfs[i] for i in
+               _np.linspace(0, len(pfs) - 1, args.max_frames).round().astype(int)]
     print(f"{cfg['meta']['run_id']}: {len(pfs)} plotfiles -> movies "
           f"(v_sh={vsh/kinshock.units.C:.4f} c from {src})")
     if args.only != "phase":
