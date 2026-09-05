@@ -73,6 +73,7 @@ def main():
 
     # one load pass, so the colour scale can be fixed across the whole movie
     frames = []
+    n0_ref = [None]
     for p in pfs:
         fr = kio.load_frame(p, fields=("Bx",))
         ad = fr.ds.all_data()
@@ -83,7 +84,14 @@ def main():
         w = np.asarray(ad[("amb_ions", "particle_weight")])
         H, _, _ = np.histogram2d(z, v, bins=[zb, vb], weights=w)
         n, _ = np.histogram(z, bins=zb, weights=w)
-        far = np.median(n[-40:])
+        # n_0 from the FIRST frame, held fixed. A wall run is a finite slab drifting into
+        # the wall with no injector behind it, so the far field empties (trailing edge
+        # 12.02 -> 10.71 d_i0 by t* = 0.12, last-40-bin median exactly 0). Re-measuring it
+        # per frame leaves late frames unnormalised at ~1e18 and clipped off-scale, showing
+        # only a vertical edge artefact where the slab ends. Same bug fixed in wallcheck.py.
+        if n0_ref[0] is None:
+            n0_ref[0] = float(np.median(n[-40:]))
+        far = n0_ref[0]
         Bx = fr.comps.get("Bx")
         zf = fr.z_centers / sc.di0
         if Bx is not None:

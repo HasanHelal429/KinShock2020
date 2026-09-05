@@ -61,6 +61,13 @@ def main():
     print(f"{'t*':>7} {'<vz>/vsh':>9} {'refl':>7} {'n/n0':>7} {'z_n':>7} "
           f"{'|Bx|/B0':>8} {'z_B':>7}")
     rows = []
+    # n_0 is fixed at t=0 and reused. A wall run is a FINITE SLAB drifting into the wall
+    # with no injector behind it, so the far field EMPTIES: measured here, the trailing
+    # edge walks 12.02 -> 10.71 d_i0 by t* = 0.12 and the last-40-bin median hits exactly
+    # zero, which sent n/n_0 to 1e19. Total weight is conserved (1.4e21 throughout), so
+    # that was the normalisation, not lost particles. Normalising against the instantaneous
+    # far field is only valid where an injector holds it up.
+    n0_ref = None
     for p in pfs:
         fr = kio.load_frame(p, fields=("Bx",))
         ad = fr.ds.all_data()
@@ -73,10 +80,13 @@ def main():
         refl = float(np.sum(w[v > 0]) / np.sum(w))
         zb = np.linspace(0, sc.domain_halfwidth / sc.di0, 321)
         n, _ = np.histogram(z, bins=zb, weights=w)
-        far = np.median(n[-40:])
-        nn = n / far if far > 0 else n
+        if n0_ref is None:
+            n0_ref = float(np.median(n[-40:]))
+        nn = n / n0_ref if n0_ref > 0 else n
         zc = 0.5 * (zb[1:] + zb[:-1])
-        i = int(np.argmax(nn))
+        # search only where the slab still is -- argmax over emptied bins picks noise
+        occ = n > 0
+        i = int(np.argmax(np.where(occ, nn, -np.inf)))
         Bx = fr.comps.get("Bx")
         if Bx is not None:
             zf = fr.z_centers / sc.di0
@@ -109,11 +119,21 @@ def main():
     ok &= ramp
     print(f"[{'PASS' if ramp else 'FAIL'}] ramp: peak n/n0 {a[:,3].max():.2f}, "
           f"peak |Bx|/B0 {np.nanmax(a[:,5]):.2f}")
-    half = len(a) // 2
-    moved = a[half:, 4].mean() > a[:half, 4].mean() + 0.05
+    # Only frames that HAVE a ramp can say whether the ramp moves. Before one forms, the
+    # density argmax is noise (z_n jumps 0.02 -> 0.66 -> 0.43 in consecutive early frames),
+    # and averaging that into a first-half mean buried a clean monotonic 1.45 -> 1.82 walk.
+    # Require a positive least-squares slope of ramp position vs t* over formed frames.
+    formed = a[:, 3] > 1.3
+    if formed.sum() >= 4:
+        sl_n = float(np.polyfit(a[formed, 0], a[formed, 4], 1)[0])
+        sl_B = float(np.polyfit(a[formed, 0], a[formed, 6], 1)[0])
+        moved = sl_n > 0 and sl_B > 0
+        print(f"[{'PASS' if moved else 'FAIL'}] ramp moves off wall over {int(formed.sum())} "
+              f"formed frames: dz_n/dt* = {sl_n:+.2f}, dz_B/dt* = {sl_B:+.2f} d_i0 per t*")
+    else:
+        moved = False
+        print(f"[FAIL] ramp moves off wall: only {int(formed.sum())} frames with n/n0 > 1.3")
     ok &= moved
-    print(f"[{'PASS' if moved else 'FAIL'}] ramp moves off wall: z_n "
-          f"{a[:half,4].mean():.3f} -> {a[half:,4].mean():.3f} d_i0")
     print(f"\n{'ALL CHECKS PASS' if ok else 'CHECKS FAILED'}")
     return 0 if ok else 1
 
