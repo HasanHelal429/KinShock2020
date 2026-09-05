@@ -281,6 +281,22 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   point**: doing that over-predicted `ss_dz4_ppc100` by 2.7× (2 h 09 m predicted, 48 m
   actual). Overall the A100 is ~1.7× chablis per GPU, ~2.3× where it is fed; the bigger
   win is still running all six sweep points at once (~49 min wall-clock).
+- **A GPU job can die at startup because you sourced the profile in your own shell.**
+  NERSC bumped the default `cudatoolkit` to 13.2 around 2026-08-20; the binaries need
+  `libcudart.so.13` but their 2026-08-11 dependency chain still wants `libnvJitLink.so.12`,
+  which CUDA 13 does not ship. `pm_cuda12_shim` in `perlmutter/_common.sh` appends the
+  CUDA 12.9 lib dir to make both visible. **The trap is how the shim gets skipped**:
+  `pm_profile` used to `return 0` early when `MY_PROFILE` was set — and sourcing
+  `perlmutter_gpu_warpx.profile` by hand sets `MY_PROFILE` *without* adding the shim path,
+  since the shim lives only inside `pm_profile`. `sbatch` exports the submitting shell's
+  environment by default, so **submitting from a shell where you had sourced the profile
+  (routine when doing analysis in the same session) silently disarmed the shim** and the run
+  died 42 s in with `error while loading shared libraries: libnvJitLink.so.12`, exit 127, no
+  other diagnostic — after a 4-hour queue wait (2026-09-04, W_phase smoke test). Fixed in
+  `d3da5c0`: the shim is idempotent and now runs unconditionally. Two consequences worth
+  knowing — `job.sbatch` sources `_common.sh` at *run* time, so **already-pending jobs pick
+  up a fix to it without resubmission**; and `env -u MY_PROFILE` before `submit.sh` is a
+  cheap belt-and-braces. Re-check the shim path after any NERSC module change.
 - **`boundary.reflect_symmetry_axis` did nothing until 2026-08-11.** It is fork-only and
   lived on an unmerged branch (now pushed), so all 27 one-sided runs used plain specular
   reflection and `symmetry` ≡ `reflecting`. `--verify` now reads `run.log`'s "Unused
