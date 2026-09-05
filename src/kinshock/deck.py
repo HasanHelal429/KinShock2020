@@ -376,13 +376,26 @@ def render(cfg: dict) -> str:
         a(f'{name}.maxwellian_u_std_distribution_type = "constant"')
         for comp in ("ux_std", "uy_std", "uz_std"):
             a(f"{name}.{comp} = sqrt({theta})")
-        # Optional bulk drift, in units of c, for driver geometries that launch an
-        # inflow instead of ablating a slab (W_phase's reflecting wall). Absent from
-        # every piston config, where the drive comes from the heater and injector, so
-        # emitting nothing keeps those decks byte-identical.
+        # Optional bulk drift for driver geometries that launch an inflow instead of
+        # ablating a slab (W_phase's reflecting wall). Absent from every piston config,
+        # where the drive comes from the heater and injector, so emitting nothing keeps
+        # those decks byte-identical.
+        #
+        # ⚠ THE KEY IS uz_mean, NOT uz_m. `uz_m` belongs to momentum_distribution_type
+        # `gaussian`/`gaussianflux`; under `maxwellian` WarpX SILENTLY IGNORES it -- the
+        # first W_phase smoke test ran to completion with zero drift and no warning, and
+        # the only trace was run.log's "Unused ParmParse Variables" block. Same trap as
+        # boundary.reflect_symmetry_axis (CLAUDE.md), and the same detector: --verify.
+        #
+        # The value is normalised momentum u = gamma*beta, not beta, so convert -- they
+        # differ by 0.01% at v_sh/c = 0.014 but by 1% at 0.14, which is the 47 keV twin.
         drift = spec.get("drift_uz_over_c")
         if drift is not None:
-            a(f"{name}.uz_m = {_num(drift)}")
+            b = float(drift)
+            u = b / math.sqrt(1.0 - b * b)
+            a(f"{name}.maxwellian_u_mean_distribution_type = \"constant\"")
+            for comp, val in (("ux_mean", 0.0), ("uy_mean", 0.0), ("uz_mean", u)):
+                a(f"{name}.{comp} = {_num(val)}")
         a("")
 
     # heater --------------------------------------------------------------

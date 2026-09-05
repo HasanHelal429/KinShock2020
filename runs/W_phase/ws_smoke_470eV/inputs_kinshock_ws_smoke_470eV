@@ -62,7 +62,10 @@ amb_electrons.maxwellian_u_std_distribution_type = "constant"
 amb_electrons.ux_std = sqrt(theta0)
 amb_electrons.uy_std = sqrt(theta0)
 amb_electrons.uz_std = sqrt(theta0)
-amb_electrons.uz_m = -0.0139507243
+amb_electrons.maxwellian_u_mean_distribution_type = "constant"
+amb_electrons.ux_mean = 0.
+amb_electrons.uy_mean = 0.
+amb_electrons.uz_mean = -0.013952082062066077
 
 # --- ambient ions ---
 amb_ions.charge = q_e
@@ -77,7 +80,10 @@ amb_ions.maxwellian_u_std_distribution_type = "constant"
 amb_ions.ux_std = sqrt(theta0/mass_ratio)
 amb_ions.uy_std = sqrt(theta0/mass_ratio)
 amb_ions.uz_std = sqrt(theta0/mass_ratio)
-amb_ions.uz_m = -0.0139507243
+amb_ions.maxwellian_u_mean_distribution_type = "constant"
+amb_ions.ux_mean = 0.
+amb_ions.uy_mean = 0.
+amb_ions.uz_mean = -0.013952082062066077
 
 # --- Coulomb collisions (pairwise relativistic binary, Perez 2012 -- the
 #     WarpX equivalent of the paper's Takizuka-Abe operator) ---
