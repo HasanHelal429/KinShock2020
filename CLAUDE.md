@@ -267,8 +267,13 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   Four machine facts that cost time (RESULTS 2026-08-11 Perlmutter): the default
   `python3` is **3.6.15** and cannot parse `from __future__ import annotations` (use the
   venv the WarpX profile activates); the system `ffmpeg` has **no H.264 encoder**, so all
-  movie jobs die in `plotting.py:encode` until you `export FFMPEG=$(python -c "import
-  imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())")`; upstream's
+  movie jobs die in `plotting.py:encode` with `Unknown encoder 'libx264'` — **after** the
+  whole (expensive) load-and-render pass. `imageio_ffmpeg` is *not* installed in the
+  profile's venv, so the fix once written here (`FFMPEG=$(python -c "import
+  imageio_ffmpeg;…")`) raises `ModuleNotFoundError`; use the conda build instead, verified
+  2026-09-04: `export FFMPEG=$HOME/.conda/envs/hhelal/bin/ffmpeg`. The system binary has
+  only libvpx (VP8/VP9). Smoke-test any new movie script with `--max-frames 5` before
+  paying for the full pass. Upstream's
   `install_gpu_dependencies.sh` hard-codes `$HOME/src/warpx/requirements.txt` (symlink it);
   and **GPU cost is strongly non-linear in problem size** — one box on one GPU means the
   small points leave an A100 under-occupied, so s/unit runs 479 at cost 1 down to 179 at
