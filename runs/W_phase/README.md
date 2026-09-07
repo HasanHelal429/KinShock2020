@@ -53,11 +53,29 @@ the ambient-ion phase space, the C, and the notch on its lower branch.
 In the wall frame the upstream flows in at `v_sh` and the shock propagates back out into it,
 so the drive speed is set from `v_sh` (Table I's 4.6 `C_s,ab`), not from `v_p`.
 
-## After the smoke test
+## After the smoke test — RAN 2026-09-06, and the plan above was wrong twice
 
-If it passes, the pair is `ws_470eV` and `ws_47keV` — wall-driven twins of
-`ss_dz1_ppc100_int1` and `ek_47keV_t2`, run long enough for the notch (`t*` ≈ 0.6 and 2.0).
-Sized off the same boxes and grids, so ~0.4 and ~0.1 GPU-h respectively.
+The smoke test passed (drift to 0.01%, reflection 0 → 0.17, both ramps off the wall at
++11.5 d_i0/t*). The pair `ws_470eV` / `ws_47keV` then ran and both COMPLETED. **The driver
+is validated; the physics question is not answered.** See RESULTS 2026-09-06.
+
+The plan in the line above was wrong in two ways, both now fixed in the configs:
+
+1. **Boxes.** A wall run is a finite slab with no injector behind it. The front advances at
+   11.5 d_i0/t* while the upstream drifts in at 13.952, closing at **25.6 d_i0/t\***
+   (predicted 25.5). A 12 d_i0 box exhausts at t* = 0.47, before the notch forms. The runs
+   were built at 22 and 80 d_i0 instead.
+2. **Grids.** Twinning `ss_dz1_ppc100_int1` would have put the test at N_D = 16.5, where
+   onset is noise-seeded (RESULTS 2026-09-05) and a notch would prove nothing. Both runs
+   take N_D = 131.9, matching `R1_470eV_s3f8_t2` and `ek_47keV_t2`.
+
+**And the clock was still wrong.** `t*` = 0.70 was chosen to cover the PISTON run's notch
+window — but the wall driver is ~2× slower, and the 47 keV control shows compression only
+steepening at t* ≈ 1.4 (it is at 2.51 at t* = 0.70, where `ws_470eV` ended at 2.44). The two
+drivers must be matched on **shock formation**, not on elapsed t*. Settling the 470 eV case
+needs t* ≈ 1.4–1.5, which needs a 40–44 d_i0 box: **~24–28 GPU-h**, not staged.
+
+Costs actually incurred: 3:08, 7:15 and 6:32 wall-clock (~0.05, 0.12 and 6.7 GPU-h).
 
 ## Run it
 

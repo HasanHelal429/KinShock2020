@@ -4191,3 +4191,455 @@ remain, and note the ladder never actually enters the magnetized regime — `gam
 14.8, 8.3, 4.7, 2.6, 1.5, all > 1, so a clean ECDI comb was arguably never to be expected
 within it. What survives is at most a continuous reduction in `gamma/w_ce`, not a branch
 change.
+
+## 2026-08-23 — The (k,omega) measurement RAN on `ek_47keV_t2`. Both mechanisms are NEGATIVE
+
+The run built to make this measurement possible (`ek_47keV_t2`, completed 2026-08-20, 79515
+steps, 1989 field frames) had never been written up. It has now been analysed over its FULL
+post-formation window, against the 470 eV production run as a control. Both spectra were
+regenerated with the fixed ramp locator (below); the earlier `komega_ek_47keV_t2.png` (256
+frames) and `komega_R1_470eV_s3f8_t2.png` (broken locator) are superseded.
+
+### The locator fix, which is what made the measurement possible at all
+
+`argmax|Bx|` restricted to `model_front +/- 4 d_i0` locates the ramp, but STEERING the window
+by that per-frame position destroys the signal: on `ek_47keV_t2` the real drift is 4.2
+cells/frame while argmax jitters by +-212, so the window's phase is randomised between frames
+and any wave decoheres in omega. That is a fourth way to manufacture a flat spectrum, on top
+of the three recorded 2026-08-19. `scripts/ramp_komega.py` now runs TWO passes: pass 1 locates
+the ramp in every frame and FITS a straight line to the trajectory; pass 2 steers the window
+by the FIT. It reports the fitted speed, the model expectation, and the residual rms, so a
+failed track is visible instead of silent.
+
+| | `ek_47keV_t2` | `R1_470eV_s3f8_t2` (control) |
+|---|---|---|
+| `w_pe/w_ce` | **10.0** | 100.0 |
+| frames used | 597 (all at `t* >= 1.4`) | 91 (all at `t* >= 1.4`) |
+| window | `t*` 1.400 -> 2.000, 9.56 gyroperiods | `t*` 1.400 -> 2.000, 9.66 gyroperiods |
+| `w_ce*dt_field` | 0.1006 | 0.6666 |
+| `w_Nyquist/w_ce` | **31.2 — `w_pe/w_ce` INSIDE** | 4.71 — **ALIASED** |
+| `dw/w_ce` | 0.105 | 0.104 |
+| ramp fit | +3.2 cells/frame (model +4.2) | +323.2 (model +277.3) |
+| residual rms | **122 cells vs an 894-cell window (14%)** | 4601 cells vs 8944 (51%) |
+
+The two windows cover the same number of electron gyroperiods and land at the same
+`dw/w_ce` — necessarily, since `w_ce/w_ci0 = m_i/m_e = 100` is held. They differ only in
+sampling density, i.e. in Nyquist. That makes them a matched pair.
+
+### Integers vs half-integers — `ek_47keV_t2`
+
+| n | `omega/w_ce` | `P(n)/med` | `P(n+1/2)/med` | ratio |
+|---|---|---|---|---|
+| 1 | 1.05 | 5.32 | 5.41 | 0.98 |
+| 2 | 1.99 | 3.39 | 4.00 | 0.85 |
+| 3 | 3.03 | 3.29 | 2.20 | 1.49 |
+| 4 | 3.98 | 2.04 | 1.94 | 1.05 |
+| 5 | 5.02 | 2.91 | 1.30 | 2.25 |
+| 6 | 5.96 | 1.60 | 0.95 | 1.69 |
+| 7 | 7.01 | 1.46 | 1.28 | 1.14 |
+| 8 | 7.95 | 1.02 | 1.01 | 1.01 |
+| 9 | 9.00 | 0.83 | 1.12 | 0.74 |
+| 10 | 10.04 | 0.65 | 0.48 | 1.36 |
+| 11 | 10.98 | 0.86 | 0.84 | 1.03 |
+| 12 | 12.03 | 0.67 | 0.74 | 0.91 |
+
+**mean over n=1..12: integers 2.00, half-integers 1.77, RATIO 1.13.**
+
+**NO CYCLOTRON COMB.** The elevated `P(n)` at low n is exactly what the half-integer control
+was built to catch: a broadband hump that happens to sit under the teeth. `P(n)` falls
+monotonically-ish 5.32 -> 0.67 across n=1..12 and the half-integers track it the whole way.
+This is a red spectrum, not a harmonic series. The three ratios above 1.4 (n=3, 5, 6) do not
+form a pattern and n=1, 2, 4, 8, 11 sit at 1.0.
+
+**NO BUNEMAN BLOB EITHER, and this is the sharper result.** Buneman predicts a single peak at
+`omega/w_ce = w_pe/w_ce = 10`. Measured `P(10)/med = 0.65` — the predicted location carries
+LESS power than the median. Unlike every previous attempt this is a real bound, not an
+inability to look: `w_Nyquist/w_ce = 31.2` puts the line well inside Nyquist, `dw/w_ce = 0.105`
+resolves it, the upstream is clean for every frame by construction, and the locator tracks.
+
+The control returns integers 1.00 / half-integers 1.00, RATIO 1.00 over its four testable
+harmonics, with a spectrum flat to +-10% (dynamic range 0.9-1.0) and no Doppler ridge in the
+(k,omega) map. It is a pure noise reference, as its design guarantees — aliased AND badly
+tracked (residual 51% of the window, from the precursor filling the box past `t* = 1.36`).
+
+### What the map DOES show, and two things not yet chased
+
+`media/E_phase/komega_ek_47keV_t2_full.png` has a clean Doppler ridge along `omega = k v_d`,
+absent in both the pre-fit version and the control. So the window is tracking a real
+structure and the pipeline is not returning noise by construction — which is what makes the
+two negatives above worth quoting.
+
+  1. **The low-omega hump may be the ramp itself.** `P(1)/med = 5.32` decaying with omega is
+     consistent with the ramp's own quasi-static field surviving the per-frame linear detrend.
+     Not yet separated from a physical low-frequency wave.
+  2. **The spectrum RISES again above `omega/w_ce ~ 22`** toward Nyquist, with spiky structure.
+     Unexplained. Could be a noise pile-up near Nyquist. Worth a look before anyone reads
+     anything into the high-omega end.
+
+Also outstanding: the fitted ramp speed is 3.2 cells/frame against the model's 4.2 (24% slow).
+The window follows the FIT so the measurement is unaffected, but this run has no
+`shock_fit.yaml` — the locator's kinematic prior is still the model `v_sh`, not a tuned one.
+`tune_shock.py` has never been run on it, nor have `run_checks.py`, `make_figures.py`, or
+`make_movies.py`. Its README prose is also stale: it still describes the 470 eV production run.
+
+**Status: at `w_pe/w_ce = 10` — the rung where ECDI was most plausible — neither ECDI/Bernstein
+nor Buneman is present in the ramp `E_z` spectrum.** The eps dependence stands; both named
+candidates for the mechanism are now measured against, not merely unproven. Note the ladder
+never entered the magnetized regime (`gamma_B/w_ce` 14.8 -> 1.5, all > 1), so a clean comb was
+arguably never to be expected — but the Buneman bound is not subject to that caveat. The other
+two counterparts have not been run, so there is one rung in this geometry and no trend.
+
+Logs: `komega_ek_full.log`, `komega_R1_full.log` (gitignored; the numbers are above).
+
+## 2026-09-03 — The NOTCH, correctly identified at last: not the wedge, not resolution, not w_pe0/w_ce
+
+Three sessions of measurement had been aimed at the wrong feature. Recording the correction
+first, because it invalidates a conclusion in this file.
+
+### The two features are different objects on different diagnostics
+
+Sec. III C of the paper insists on the distinction and says how to tell them apart — by
+**where** they sit:
+
+* **the C (the "wedge")** — ambient ions swept up and accelerated by the piston's
+  **ambipolar** field, arcing off the undisturbed band and back. Forms with no B field at
+  all. The paper's label **I**. Around z ~ 4 d_i0.
+* **the NOTCH** — the bump at the front of the C's **LOWER** branch, where that population
+  rejoins the undisturbed upstream. Healthy runs roll over smoothly through it; the
+  population that grows out of it and detaches is the paper's **II**, the
+  magnetically-reflected ambient ions, whose appearance *is* `t*_1`. Around z ~ 7 d_i0,
+  "where the magnetic field is compressed".
+
+**In the 470 eV runs the notch instead builds a dense plateau at v_z ~ 0.9 v_sh and drops
+off it vertically** — a standing cliff a few hundredths of a rho_i0 from the piston, which
+never detaches. That cliff is the false shock.
+
+### The metric this repo had could not see it, and said so wrongly
+
+Every wedge number in this file is an offset where the ambient `v_z` **standard deviation**
+falls below 0.06 v_sh. That integrates over the whole C and is structurally blind to a step
+in the **mean** on one branch. Using it to chase the notch produced a confident wrong
+result: that the notch rate tracks `w_pe0/w_ce` (1.83x across M_phase). **Retracted.** The
+wedge *does* track `w_pe0/w_ce` — that part stands — but it is not the notch.
+
+`mb_r100_t2` falsifies the w_pe0/w_ce reading directly. It sits at **w_pe0/w_ce = 100 and
+B0 = 7.03 T, identical to `R1_470eV_s3f8_t2`**, and shows no cliff — smooth rollover, and a
+reflected population that detaches normally. What differs across that pair is `c/v_ti`
+(226 vs 2261) and everything else in the eps family.
+
+⚠ It also kills `E_th/(v_A B0) = beta*c/v_ti`, which RESULTS 2026-08-11 blamed for driving
+ambient ions early: `mb_r100_t2` sits at **4424** against the failing run's **443** — ten
+times more normalised E-field noise — and is clean. Only `beta_0` moving independently
+could have shown that, and only M_phase moved it.
+
+### New diagnostic, and a mistake inside it worth recording
+
+`scripts/notch_resolution_test.py` measures the feature on its own terms: **plateau** (the
+branch at the top of the cliff), **drop** (steepest negative gradient of the median-`v_z`
+profile, in v_sh per rho_i0) and **z_drop**. First version anchored the plateau search to
+`z > 0` relative to the 99.5th-percentile piston front — and in `ss_dz4_ppc400` the whole
+notch sits at `z - z_piston ~ -0.08`, so it stepped over a plateau of 0.88 and reported the
+0.18 left ahead of it, while the steepest-drop half of the SAME metric located the cliff
+correctly at -0.076. Two halves disagreeing; the broken one got quoted as evidence that
+run had no notch. **The piston front is not a reliable origin for this feature** — locate
+it by its own gradient. The ladder now draws the median curve over the phase space so the
+number can be checked against the picture, which is what caught it.
+
+### It is NOT a resolution artifact
+
+470 eV, `t*` = 0.29 unless noted, plateau in v_sh:
+
+| run | dz/lambda_D | N_D | plateau | drop | z_drop |
+|---|---|---|---|---|---|
+| `ss_dz1_ppc100` | 6.07 | 16 | 0.941 | -61.3 | +0.099 |
+| `ss_dz1_ppc100_int1` | 6.07 | 16 | 0.970 | -52.0 | +0.103 |
+| `ss_dz1_ppc100_nocoll` | 6.07 | 16 | 1.006 | -49.7 | +0.110 |
+| `ss_dz1_ppc100_sm` | 6.07 | 16 | 0.902 | -63.4 | +0.085 |
+| `ss_dz4_ppc400` | 1.52 | 264 | 0.88 (t* 0.52) | -85.4 | -0.076 |
+| `R1_470eV_s3f8_t2` | 0.76 | 132 | 0.88-0.91 | -93 to -56 | +0.02 to +0.08 |
+
+Saturated plateau **0.88-1.01 across 8x in dz, the full N_D range, spline order 3 and 8
+filter passes**, and collisions off changes nothing (1.006). The finest run that reaches
+the cliff shows it as strongly as the coarsest. **The "100x more timesteps per unit
+physical displacement at 470 eV" numerics hypothesis is dead — it cannot be refined away.**
+
+### But the ONSET time does look noise-seeded, and that is a physics signature
+
+`ss_dz4_ppc400` (N_D = 264) reads 0.55 at `t*` = 0.40 and 0.88 at 0.52, while the N_D = 16
+runs are already at 0.90-1.01 by `t*` = 0.29. Onset is ordered by N_D; **saturation is
+not**. Noise-seeded onset with a noise-independent saturation amplitude is what an
+instability looks like — the seed sets when, the nonlinearity sets how big.
+
+⚠ NOT yet confirmed: `ss_dz16_ppc100` (dz/lambda_D = 0.379, the finest point in the repo)
+reads plateau 0.396 at `t*` = 0.294 — consistent with delayed onset at its N_D = 264, but
+**it stops at `t*` = 0.302**, before the feature matures, so it cannot distinguish "delayed"
+from "absent". That is the one run that would close this, and extending it is the cheapest
+outstanding test.
+
+⚠ Also note `ss_dz1_ppc1600`'s data **stops at t\* = 0.302** despite its config's `max_step`
+implying 0.604 — the run never finished. Read `t*max` off the plotfiles, not the config.
+
+### Where that leaves the cause
+
+Excluded: the magnetization family (M_phase moved all of it), `E_th/(v_A B0)`, dz, ppc,
+spline order, filtering, collisions, and per-step numerical accumulation. What survives is
+the eps family with everything magnetic stripped out — eps, gamma, `c/v_ti`,
+`lambda_D,0/d_i0`, and absolute `T_e,ab`/`T_0`. The hybrid comparison points inside that
+set: relativistic inertia at 47 keV and a fluid closure at 470 eV are two unrelated brakes
+that both suppress it, and only 470 eV + kinetic + real c is unconstrained.
+
+Tools: `scripts/plot_fig7_style.py` (paper Fig. 7 layout, `--norm log|linear`),
+`scripts/movie_three_run_compare.py`, `scripts/notch_resolution_test.py`. Figures under
+`media/comparison/` (gitignored, regenerable).
+
+## 2026-09-04 — The notch discriminator is `eps_0` ALONE: B0, beta_0, M_A and w_pe0/w_ce each fail a crossing pair
+
+Four runs, one metric, a clean 2x2. The metric is `notch_resolution_test.py`'s steepest
+NEGATIVE gradient of the weighted-median lower-branch v_z profile (`drop`, in v_sh per
+rho_i0), read as the **median over frames**, not a single frame -- a one-frame excursion is
+noise, a sustained cliff is the notch. `ek_47keV_t2` makes that distinction necessary: it
+touches -90.5 at t* = 1.600 with -15.1 and -16.7 either side, and it has no false shock.
+
+| run | verdict | drop | T_0 | T_ab | B0 (T) | beta_0 | eps_0 | w_pe0/w_ce | c/v_ti | M_A |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `R1_470eV_s3f8_t2` | **NOTCH** | -71.7 | 10 eV | 470 eV | 7.03 | 0.196 | 0.00442 | 100.0 | 2261 | 14.0 |
+| `ss_dz4_ppc400` | **NOTCH** | -78.4 | 10 eV | 470 eV | 7.03 | 0.196 | 0.00442 | 100.0 | 2261 | 14.0 |
+| `mb_r100_t2` | clean | -8.9 | 1000 eV | 47 keV | 7.03 | 19.574 | 0.04424 | 100.0 | 226 | 139.5 |
+| `ek_47keV_t2` | clean | -8.6 | 1000 eV | 47 keV | 70.27 | 0.196 | 0.04424 | 10.0 | 226 | 14.0 |
+
+**8x separation in `drop` with no overlap** (-72/-78 vs -8.9/-8.6). Every candidate that
+takes the same value in a notching run AND a clean run is excluded outright:
+
+- **B0 = 7.03 T** — both notch runs *and* `mb_r100_t2`. **EXCLUDED.**
+- **beta_0 = 0.196** — both notch runs *and* `ek_47keV_t2`. **EXCLUDED.**
+- **w_pe0/w_ce = 100** — both notch runs *and* `mb_r100_t2`. **EXCLUDED**, which is the
+  numerical confirmation of the falsification recorded on 2026-09-03. The wedge is a
+  function of w_pe0/w_ce (2026-08-17); the notch is not. They are different features with
+  different controlling parameters, and conflating them cost a retracted conclusion.
+- **M_A = 14.0** — both notch runs *and* `ek_47keV_t2`. **EXCLUDED.**
+- **Resolution** — dz differs 4x between the two notch runs and both notch, consistent with
+  the 8x dz / 16x ppc ladder of 2026-09-03. **EXCLUDED.**
+
+Only `eps_0 = sqrt(theta_0)` separates all four: 0.00442 notching, 0.04424 clean. So does
+`c/v_ti = sqrt(mu)/eps_0` (2261 vs 226) and the upstream temperature itself -- these are one
+knob, not three.
+
+**The uncomfortable direction of the result.** T_0 = 10 eV *is* the paper's upstream
+temperature, so eps_0 = 0.00442 is the PHYSICAL value and the "clean" runs are the ones
+sitting 100x too hot. The notch appears precisely when we run the plasma the paper actually
+describes. That kills the comfortable reading ("a numerical artifact we can tune away") and
+leaves two live branches: either it is real physics that PSC's Fig. 7 also contained and did
+not resolve or plot, or it is a numerical instability whose growth rate scales with eps_0 --
+which would make every clean run clean only by virtue of being unphysically warm.
+
+**Confound, stated plainly: eps_0 and eps_ab are NOT separated by these four runs.** All
+four hold T_0/T_ab = 0.02128 exactly, so the upstream temperature and the heater temperature
+move together and either could be the controlling one. The discriminating run is a fifth
+point at T_0 = 10 eV with T_ab = 47 keV (or the converse) -- breaking the ratio is the only
+way to tell which end of the plasma sets the notch. Nothing here distinguishes them.
+
+**Two side results from the same pass.**
+
+1. **`|Bx|` was being taken BEFORE the 0.2 d_i0 boxcar** in `plot_fig7_style.py`,
+   `movie_wall_driver.py` and `wallcheck.py`. Absolute-value-first rectifies upstream
+   fluctuation into a DC offset the boxcar then preserves: upstream `<|Bx|>/B0` read **1.665**
+   on `ss_dz1_ppc100_symwall` and **10.922** on `mb_r100` where the truth is 1.000 (rms/B0
+   there is ~1.9 about a zero-mean fluctuation). Smoothing the SIGNED field and taking `|.|`
+   after gives 0.984 and 1.010. **Ramp peaks are identical to 1.00x either way** -- the field
+   is coherent at the ramp -- so this inflated the noise floor only and no peak-based
+   conclusion moves. Fixed in `1efe104`; all six fig7 figures regenerated.
+2. **Upstream contamination onset = box/24.73 in t\***, correct on 5/5 runs (predicted vs
+   measured 1.38/1.60 and 0.49/0.58, a consistent 1.16-1.20x overshoot because 24.73 d_i0 per
+   unit t* is the precursor *tip* rate while the threshold needs accumulated flux;
+   `ek_47keV_t2` predicted to contaminate at 2.22 and ran to 2.00, clean by a hair). This
+   flags that **`R1_470eV_s3f8_t2` has NO undisturbed upstream after t\* ~ 1.6** -- its 34.2
+   d_i0 box fills and the far boundary reaches 2.67 B0. Anything read from that run late,
+   including the tail of its movie, is measuring a confined pre-magnetized box.
+   **It is NOT the notch mechanism**: the notch is fully formed at t\* = 0.36-0.60 (drop -71
+   to -78) and contamination starts at 1.60, so cause would have to follow effect. The notch
+   in fact *weakens* afterwards (-77.8 at t\* 0.84 -> -4.6 at 2.00). Hypothesis proposed and
+   killed by its own ordering test the same session; recorded so it is not re-proposed.
+
+## 2026-09-05 — The mu=1836 twins: mass ratio is NOT the cause, and they break the eps_0 / (c/v_ti) degeneracy
+
+`um1836_470eV` and `um1836_47keV` ran (57927274; the 47 keV twin COMPLETED in 5:07:58 with
+2044 plotfiles, the 470 eV twin TIMED OUT at 73% -- step 4,022,551 of 5,508,450, 265
+plotfiles, enough for this measurement but short of its target t\*). Same notch metric as
+2026-09-04: median-over-frames steepest negative gradient of the lower-branch v_z profile.
+
+| run | verdict | drop | mu | T_0 | eps_0 | c/v_ti | M_A | beta_0 | v_u/v_te | foot regime |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `R1_470eV_s3f8_t2` | **NOTCH** | -71.7 | 100 | 10 eV | 0.00442 | 2261 | 14.0 | 0.196 | 3.15 | Buneman |
+| `ss_dz4_ppc400` | **NOTCH** | -78.4 | 100 | 10 eV | 0.00442 | 2261 | 14.0 | 0.196 | 3.15 | Buneman |
+| `um1836_470eV` | **NOTCH** | **-116.0** | **1836** | 10 eV | 0.00442 | 9686 | 14.0 | 0.196 | **0.74** | **MTSI** |
+| `mb_r100_t2` | clean | -8.9 | 100 | 1000 eV | 0.04424 | 226 | 139.5 | 19.574 | 3.15 | Buneman |
+| `ek_47keV_t2` | clean | -8.6 | 100 | 1000 eV | 0.04424 | 226 | 14.0 | 0.196 | 3.15 | Buneman |
+| `um1836_47keV` | clean | **-14.9** | **1836** | 1000 eV | 0.04424 | 969 | 14.0 | 0.196 | **0.74** | **MTSI** |
+
+**1. The mass-ratio hypothesis is dead -- but the load-bearing evidence is the 47 keV twin,
+not the 470 eV one.** `um1836_47keV` is fully resolved (dz/lD = 0.76, N_D = 131.9) and
+COMPLETED, and it is clean at -14.9. **A physical-mass-ratio run at good resolution shows no
+notch**, so mu = 1836 does not by itself produce one, and mu = 100 already appears in both a
+notching and a clean run. That is the exclusion.
+
+⚠ **`um1836_470eV` is the WORST-RESOLVED run in the set and its -116 must NOT be read as a
+magnitude.** dz/lD = 6.07 and N_D = 16.5, EIGHT TIMES coarser than its own 47 keV twin on
+both axes, and it TIMED OUT at 73%. The cause is structural: lambda_D,0/d_i0 = eps_0/sqrt(mu),
+so mu = 1836 at 10 eV shrinks lambda_D 4.29x relative to d_i0, and holding dz/lD = 0.76 over
+its 12 d_i0 box needs ~153,000 cells, not the 19,200 the 4.5 GPU-h costing bought. This
+should have been caught at staging. An earlier version of this entry said the run "notches
+harder"; that is **withdrawn** -- a steeper cliff is precisely what 8x under-resolution
+manufactures.
+
+Worse, the onset timing is fully explained by noise seeding, with no need for mu or eps_0:
+
+| run | N_D | notch onset | drop at t\* ~ 0.30 |
+|---|---|---|---|
+| `ss_dz4_ppc400` | 263.8 | t\* ~ 0.44 | -12.2 (flat) |
+| `ss_dz1_ppc400` | 65.9 | rising by t\* ~ 0.28 | -33.0 (climbing) |
+| `um1836_470eV` | **16.5** | **t\* ~ 0.15** | already -108 |
+
+Onset orders monotonically with N_D, matching 2026-09-03's "onset ordered by N_D, saturation
+not". The direct dz control (`ss_dz1_ppc400` at dz/lD = 6.07 vs `ss_dz4_ppc400` at 1.52, same
+mu, T_0 and box) is **inconclusive on saturated amplitude** because ss_dz1 stopped at
+t\* = 0.302, before either run saturated -- ss_dz4 only takes off after 0.44. So whether a
+properly-resolved mu = 1836 470 eV run notches AT ALL is currently untested.
+
+**2. The Umeda+2014 foot-instability selector is dead too.** v_u/v_te = M_A/sqrt(beta_e mu)
+picks Buneman above 1 and MTSI below. The mu = 100 runs sit at 3.15, the mu = 1836 runs at
+0.74 -- they straddle the boundary, exactly as intended when these twins were staged. **Both
+regimes contain a notching run and a clean run.** Whatever grows in the foot, the notch does
+not care which instability it is. This was the specific concern that motivated the twins and
+it is now answered negatively.
+
+**3. The real gain: eps_0 and c/v_ti are no longer degenerate, and eps_0 wins.** At mu = 100
+alone the two were indistinguishable -- c/v_ti = sqrt(mu)/eps_0, so with mu fixed they moved
+together, both exactly 10x apart. Varying mu by 18.36x breaks that:
+
+- **eps_0 takes exactly TWO values across six runs** -- 0.00442 in every notching run,
+  0.04424 in every clean one. Perfect two-valued separation.
+- **c/v_ti takes FOUR** -- 2261, 9686 notching; 226, 969 clean. It still separates (min
+  notching 2261 > max clean 969) but it is no longer a single number per group.
+
+So the controlling parameter is **eps_0 = v_te,0/c**, not c/v_ti and not lambda_D,0/d_i0.
+That is a sharper statement than 2026-09-04 could make, and the twins are what bought it.
+
+**Unchanged from 2026-09-04:** B0, beta_0, M_A, w_pe0/w_ce and resolution remain excluded by
+their own crossing pairs; T_0 = 10 eV is the PAPER's upstream temperature, so the notch still
+appears precisely at the physical eps_0 and the clean runs are still the ones sitting 100x
+too hot. And the eps_0 / eps_ab confound still stands -- all six runs hold T_0/T_ab = 0.02128,
+so a fifth-and-sixth point breaking that ratio is still the discriminating experiment.
+
+**Metric note.** `um1836_47keV` shows a single -43.5 frame at t\* = 1.760 between neighbours
+of -18.1 and -11.2, just as `ek_47keV_t2` shows a lone -90.5 at t\* = 1.600. Read frame by
+frame either would look like a notch. **The median over frames is what makes this metric
+work** -- a one-frame excursion is noise, a sustained cliff is the notch.
+
+### Follow-up: the cheap way to settle `um1836_470eV` is ppc, NOT dz
+
+Two ways to fix that run, and they differ by ~8x in cost because they scale differently.
+
+**Refining the grid is the expensive one.** Holding dz/lD = 0.76 needs ~153,000 cells (8x),
+and the CFL ties dt to dz so the step count rises 8x too: **~64x, i.e. ~525 GPU-h** against
+the ~8.2 GPU-h this run actually costs to completion (it burned 6 h for 73%). That is not
+worth it to settle one point.
+
+**Raising ppc at FIXED dz is the cheap one, and it is also the better-posed experiment.**
+N_D = ppc x lD/dz, so at dz/lD = 6.07 recovering N_D = 131.9 -- matching every other run in
+the table -- needs **ppc = 800** (8x). Particle work dominates at ppc 100, so this is **~8x,
+i.e. ~65 GPU-h**, and it needs no new deck geometry.
+
+It is better-posed because it **separates the two things dz confounds**. Refining dz improves
+aliasing AND particle noise together; raising ppc at fixed dz moves only the noise. Since the
+onset ordering above is a *noise* signature (N_D), the ppc twin tests the actual hypothesis:
+
+- If `um1836_470eV_ppc800` notches at t\* ~ 0.15 like its ppc100 sibling, the notch is NOT
+  noise-seeded and the mu = 1836 point stands on its own.
+- If the onset slides late (toward ss_dz4's 0.44) or the notch vanishes, the mu = 1836 notch
+  was seeded by N_D = 16.5 and the mass-ratio exclusion rests **solely** on `um1836_47keV`
+  being clean -- which is still a valid exclusion, just a one-legged one.
+
+This is exactly the 2-D (dz/lD, N_D) design H_phase and S_phase were built around; the U_phase
+twins were staged on cost alone and fell off that grid. Note also that `ss_dz1_ppc400` should
+be **extended past t\* = 0.302** -- at 0.30 it is at -33 and still climbing, so the coarse-dz
+saturated amplitude was never measured, and that is the one number the dz control needs.
+
+## 2026-09-06 — W_phase ran: the wall driver WORKS, and the 470 eV test is INCONCLUSIVE because I sized its clock off the wrong driver
+
+All three W_phase runs completed. The reflecting-wall driver is validated. The physics
+question it was built to answer — is the notch the plasma or the heater/injector? — is
+**not** answered, for a reason that is entirely a sizing error of mine and is quantified
+below.
+
+### What ran
+
+| run | state | t\* | cells | dz/lD | N_D | wall |
+|---|---|---|---|---|---|---|
+| `ws_smoke_470eV` | COMPLETED 3:08 | 0.15 | 4,480 | 6.07 | 16.5 | go/no-go |
+| `ws_47keV` | COMPLETED 7:15 | 2.00 | 23,856 | 0.758 | 131.9 | control |
+| `ws_470eV` | COMPLETED 6:32 | 0.70 | 65,592 | 0.758 | 131.9 | the test |
+
+The pair sits at ONE resolution, matched to `R1_470eV_s3f8_t2` and `ek_47keV_t2`
+(dz/lambda_D = 0.758, ppc 100, N_D = 131.9, filter_npass 8, particle_shape 3), so nothing in
+the comparison turns on N_D — which was the trap the mu = 1836 twins fell into.
+
+### The driver works, and the sizing model was right
+
+Smoke test passed all four checks: measured drift matched the request to **0.01%** (the test
+that catches the silently-ignored `uz_m`), reflected fraction 0 -> 0.17, peak n/n_0 2.63 and
+|Bx|/B0 2.19, and both ramps propagating off the wall at **dz_n/dt\* = +11.51 and
+dz_B/dt\* = +11.41** — two independent measures agreeing to 1%.
+
+The finite-slab sizing model predicted a closing rate of **25.5 d_i0 per t\***; `ws_470eV`
+measured **25.6** (front advancing 11.5, slab edge retreating 14.07 against the exact 13.952
+drift). It ended at t\* = 0.70 with 3.9 d_i0 of upstream still ahead of the front, as
+designed. The original W_phase plan's 12 d_i0 box would have exhausted at t\* = 0.47.
+
+`ws_47keV` is clean: a well-formed shock with n/n_0 and |Bx|/B0 peaking together at ~8, a
+smooth C, and no notch. **So the wall driver does not manufacture notches of its own** —
+which is exactly what the control was for, and it earns its keep below.
+
+### Why the 470 eV test is inconclusive: THE WALL DRIVER IS ~2x SLOWER
+
+`ws_470eV` shows no notch. That is **not** evidence, because it also never formed a shock:
+its peak compression sat at 2.1–2.4 for the whole run. The control says why. Peak n/n_0 vs
+t\* for `ws_47keV`:
+
+| t\* | 0.30 | 0.50 | **0.70** | 0.90 | 1.10 | 1.20 | 1.40 | 1.50 | 1.70 | 2.00 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| n/n_0 | 2.11 | 2.26 | **2.51** | 2.89 | 3.55 | 4.15 | 6.48 | 7.70 | 7.94 | 6.56 |
+
+**The control is at 2.51 at t\* = 0.70 and only steepens at t\* ~ 1.4.** `ws_470eV` ended at
+2.44. The two wall runs are at the SAME evolutionary stage; the test was stopped exactly
+where the control was still pre-shock. Comparing a pre-shock wall run against a
+fully-notched piston run says nothing.
+
+**The error was choosing the clock off the wrong driver.** t\* = 0.70 was picked to cover
+`R1_470eV_s3f8_t2`'s notch window (drop -71 by t\* = 0.36, saturated -78 from 0.48 to 0.84).
+But that is the PISTON's clock. The heater and injector drive actively from t = 0, while a
+wall only accumulates what drifts into it, and the control shows the wall takes ~2x longer
+to reach the same compression. Matching t\* across drivers was the mistake — the runs should
+have been matched on **shock formation**, not on elapsed t\*.
+
+### What it costs to settle it
+
+Not just more steps: at 3.9 d_i0 remaining there is no upstream left to buy time with, so the
+box has to grow too (L >= 25.6 t\*).
+
+| target | box | cells | steps | cost |
+|---|---|---|---|---|
+| t\* = 1.4 (control's steepening) | 40 d_i0 | 119,248 | 5,566,030 | **~24 GPU-h** |
+| t\* = 1.5 (control's peak) | 44 d_i0 | 131,168 | 5,963,604 | **~28 GPU-h** |
+
+Against the 6.7 GPU-h already spent. **Not staged** — this is a real GPU-h decision, not a
+routine resubmit.
+
+### Also recorded
+
+`ws_47keV`'s ramp advances to ~8 d_i0 by t\* ~ 0.93 and then holds roughly stationary
+(7.87 / 8.12 / 8.37 / 8.12 through 1.87) while its compression keeps rising to 7.94 and then
+decays to 6.56. A wall-driven shock should propagate at u/(r-1) ~ 4.6 d_i0/t\*. Whether that
+is the density argmax locking onto a narrow overshoot rather than the ramp, or something
+real, is not resolved here. Its upstream |Bx|/B0 also declines slowly to 0.87 by t\* = 2 —
+the trailing-edge rarefaction reaching inward, mild and in the opposite direction to
+`R1_470eV_s3f8_t2`'s contamination to 2.67, but the far upstream is not pristine late.
