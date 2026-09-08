@@ -127,6 +127,19 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="kw47k"
     ;;
+  wall470_t14)
+    # The t* = 1.4 RERUN, ~24 GPU-h -- the project's most expensive single run. ws_470eV
+    # stopped pre-shock at t* = 0.70 because its clock was taken from the piston driver;
+    # the 47 keV control only steepens at t* ~ 1.4. Single GPU on gpu_shared (2-day cap, so
+    # no checkpointing) and deliberately the SAME launch path ws_470eV completed on, not
+    # the untested 4-GPU one. Use --time 36:00:00: shared bills elapsed, not requested, so
+    # headroom is free except for queue position, and a timeout here costs 24 GPU-h.
+    RUNS=(runs/W_phase/ws_470eV_t14)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-0"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kw470t14"
+    ;;
   wall470)
     # The comparison itself, ~6.7 GPU-h (2,783,015 steps at 65,592 cells). Give it real
     # headroom -- um1836_470eV timed out at 73% on a 6 h wall. Use --time 10:00:00.
@@ -155,7 +168,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|mag|mu|wall_smoke|wall47k|wall470|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|mag|mu|wall_smoke|wall47k|wall470|wall470_t14|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
 
 if [[ ${#SUBSET[@]} -gt 0 ]]; then

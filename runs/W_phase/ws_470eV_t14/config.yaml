@@ -1,0 +1,120 @@
+# ws_470eV_t14 -- the t* = 1.4 rerun. ws_470eV was STOPPED PRE-SHOCK; this is the fix.
+#
+# WHY THIS EXISTS. ws_470eV (t* = 0.70) showed no notch, and that was NOT evidence: it never
+# formed a shock either, peaking at n/n_0 = 2.1-2.4 for its whole run. The 47 keV control
+# says why -- ws_47keV sits at 2.51 at t* = 0.70 and only steepens at t* ~ 1.4:
+#
+#   t*     0.30  0.50  0.70  0.90  1.10  1.20  1.40  1.50  1.70  2.00
+#   n/n_0  2.11  2.26  2.51  2.89  3.55  4.15  6.48  7.70  7.94  6.56
+#
+# ws_470eV ended at 2.44 -- the SAME evolutionary stage. The test was stopped exactly where
+# the control was still pre-shock, so it compared a pre-shock wall run against a fully
+# notched piston run, which says nothing.
+#
+# THE ERROR WAS THE CLOCK, NOT THE BOX. t* = 0.70 was chosen to cover R1_470eV_s3f8_t2's
+# notch window (drop -71 by t* = 0.36, saturated -78 from 0.48 to 0.84). But that is the
+# PISTON's clock. The heater and injector drive actively from t = 0; a wall only accumulates
+# what drifts into it, and the control shows the wall needs ~2x longer to reach the same
+# compression. Drivers must be matched on SHOCK FORMATION, not on elapsed t*.
+#
+# BOX. Growing the clock forces growing the box: a wall run is a finite slab with no
+# injector, and front advance (11.5 d_i0/t*) plus upstream drift (13.952) close the
+# undisturbed upstream at 25.6 d_i0/t* (predicted 25.5, measured 25.6 on ws_470eV). At
+# t* = 1.4 that needs L > 35.8; 40 d_i0 leaves 4.2 d_i0 of upstream at the end, the same
+# margin ws_470eV finished with and ran fine on.
+#
+# COST ~24 GPU-h (5,566,030 steps at 119,256 cells, from ws_470eV's measured 0.0085 s/step
+# at 65,592). Single GPU on gpu_shared, whose 2-day cap fits it without checkpointing --
+# deliberately the same launch path ws_470eV just completed on, rather than the untested
+# 4-GPU one. Request >= 30:00:00.
+#
+# EVERYTHING ELSE IS ws_470eV UNCHANGED: same upstream, same dz/lambda_D = 0.758, ppc 100,
+# N_D = 131.9, filter_npass 8, particle_shape 3 -- matched to R1_470eV_s3f8_t2 so the only
+# difference from the piston twin is still the driver.
+
+meta:
+  run_id: ws_470eV_t14
+  tier: Physics
+  description: >
+    ws_470eV rerun to t* = 1.4 in a 40 d_i0 box. ws_470eV was stopped pre-shock at
+    t* = 0.70 (n/n_0 = 2.44) -- the 47 keV control only steepens at t* ~ 1.4, so the
+    wall driver needs ~2x the piston's clock. See runs/W_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Sec. I"
+  deck: inputs_kinshock_ws_470eV_t14
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # Retained though no species carries role `piston`: theta_e_heat defines C_s,ab and
+    # hence t_ab, the time unit every normalization in this repo is drawn against.
+    density_over_n0: 2.0
+    theta_e_heat: 9.19767056e-4   # 470 eV
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] from beta_ab = 1150, as R1_470eV_s3f8_t2
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 0.0        # no target slab: ambient fills the box
+  domain_halfwidth_de: 4472.0   # 40.0 d_i0 (d_i0 = 111.80 d_e,ab) -- see BOX above
+  dz_over_de: 0.037499161            # -> dz/lambda_D,amb = 0.758, as R1_470eV_s3f8_t2
+  layout: one_sided
+  boundary:
+    lo: reflecting              # a RIGID WALL, not a symmetry plane. `symmetry` applies the
+                                # pi-rotation about B0 that models a mirror-image half-domain;
+                                # here the wall IS the driver and must reflect specularly.
+    hi: open
+
+numerics:
+  filter_npass: 8             # matched to R1_470eV_s3f8_t2
+  cfl: 0.75
+  particle_shape: 3           # matched to R1_470eV_s3f8_t2
+  max_step: 5566030           # t*w_ci0 = 1.40
+  max_grid_size: 119256        # [cells] = n_cell, i.e. ONE box: correct for a single GPU.
+  ppc:
+    piston: 100
+    ambient: 100              # -> N_D = 131.9, as R1_470eV_s3f8_t2
+
+collisions:
+  model: pairwisecoulomb
+  pairs: all
+  target:
+    quantity: lambda_ab
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  # No piston species: the wall is the driver. Both ambient species drift toward it at
+  # -v_sh so that in the WALL frame the upstream flows in at v_sh.
+  # NOTE this is beta, not gamma*beta -- kinshock.deck applies the Lorentz factor itself
+  # (u = b/sqrt(1-b^2)) when it writes uz_mean.
+  amb_electrons:    {kind: electron, role: ambient, drift_uz_over_c: -0.0139507243}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1, drift_uz_over_c: -0.0139507243}
+ion_species:     [amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 92767   # 60 frames
+  field_intervals: 18553      # 300 field-only frames
+  reduced_intervals: 9276     # 600 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I
+  vp_over_c: 0.0103986833     # [c] carried so normalizations resolve identically
