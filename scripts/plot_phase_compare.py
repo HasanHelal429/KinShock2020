@@ -65,21 +65,30 @@ def row_meta(run):
 
 
 def movie(args):
-    """One panel per run, stacked, swept over a COMMON time grid.
+    """Stacked comparison movie in the R1-run style: `plotting.phase_distribution`.
 
-    The colour scale is fixed per run across the whole movie, from a first pass. A
-    per-frame scale makes a feature that grows look constant, which is precisely the
-    thing these two runs are being compared for.
+    This is the SAME renderer the shock_phase.mp4 movies in the R1 runs use -- an additive
+    two-colour image with the ambient in blue (C_AMBIENT) and the piston in orange
+    (C_PISTON), overlapping toward white -- not a single-species density map. Both species
+    are drawn, which is the point: the piston is what drives the C, so seeing where it is
+    relative to the ambient is most of the reason to watch.
 
-    Runs have different output cadence (0.039 vs 0.112 t* here), so a common grid plus
-    nearest-frame lookup is the only way to march them together; each panel is stamped with
-    the frame's TRUE t*, so the two never silently drift apart.
+    STATIONARY WINDOW by default here (--frame box): one fixed absolute-z axis shared by
+    both panels, so the distribution moves and the axes do not. Both runs are shown over the
+    same 0..34 d_i0 whatever their own box (34.2 and 80.5), so features are at the same x.
+
+    PEAKS ARE FIXED PER SPECIES PER RUN over the whole movie. phase_distribution's default
+    is each species' own peak IN THAT FRAME, which its docstring flags as wrong for a movie:
+    it rescales every frame independently so brightness carries no information across time.
+    Per-species normalisation is kept -- the ambient is ~250x rarer than the piston and a
+    single shared scale would erase it.
     """
     import yt; yt.set_log_level(50)
-    from kinshock import plotting as P
-    nz, nv = 380, 220
-    zb = np.linspace(args.win[0], args.win[1], nz + 1)
-    vb = np.linspace(args.vlim[0], args.vlim[1], nv + 1)
+    from kinshock import io as _io, plotting as P
+    from kinshock.units import C as _C
+
+    z_edges = np.linspace(args.win[0], args.win[1], 421)
+    v_edges = np.linspace(args.vlim[0], args.vlim[1], 241)
 
     runs = []
     for run in args.runs:
@@ -87,73 +96,81 @@ def movie(args):
         pfs = kio.plotfiles(run)
         times = np.array([kio.load_frame(p).time * sc.wci0 for p in pfs])
         runs.append(dict(run=run, cfg=cfg, sc=sc, pfs=pfs, times=times,
-                         mi=cfg["reference"]["mass_ratio"] * ME,
                          rid=cfg["meta"]["run_id"], meta=row_meta(run)))
         print(f"  {runs[-1]['rid']}: {len(pfs)} frames to t*={times[-1]:.3f}", flush=True)
     tmax = args.tmax if args.tmax else min(r["times"][-1] for r in runs)
     grid_t = np.linspace(0.0, tmax, args.nframes)
-    print(f"  sweeping t* 0 -> {tmax:.3f} in {args.nframes} frames", flush=True)
+    print(f"  sweeping t* 0 -> {tmax:.3f} in {args.nframes} frames "
+          f"({args.frame} frame, {args.norm})", flush=True)
 
-    frames = [[] for _ in runs]
-    for r, R in enumerate(runs):
-        seen = {}
+    frames, peaks = [], []
+    for R in runs:
+        sc = R["sc"]; seen = {}; pk = {}
         for T in grid_t:
             i = int(np.argmin(np.abs(R["times"] - T)))
-            if i not in seen:
-                ad = kio.load_frame(R["pfs"][i]).ds.all_data()
-                z = np.asarray(ad[("amb_ions", "particle_position_x")]) / R["sc"].di0
-                pm = np.asarray(ad[("amb_ions", "particle_momentum_z")])
-                g = np.sqrt(1 + (pm / (R["mi"] * C)) ** 2)
-                v = pm / (R["mi"] * g) / R["sc"].vsh_model
-                w = np.asarray(ad[("amb_ions", "particle_weight")])
-                zp = float(np.percentile(
-                    np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5)) / R["sc"].di0
-                H, _, _ = np.histogram2d(z - zp, v, bins=[zb, vb], weights=w)
-                seen[i] = (R["times"][i], H)
-            frames[r].append(seen[i])
-        print(f"  {R['rid']}: loaded {len(seen)} distinct frames", flush=True)
-    vmax = [max(h.max() for _, h in fr) for fr in frames]
+            if i in seen:
+                continue
+            fr = kio.load_frame(R["pfs"][i])
+            sd = {}
+            zp = np.nan
+            for sp, key in (("piston_ions", "piston"), ("amb_ions", "ambient")):
+                z, uz, w = _io.species_phase_weighted(fr, sp, sc, mass=sc.mi)
+                if not len(z):
+                    continue
+                if sp == "piston_ions":
+                    zp = float(np.percentile(z, 99.5)) / sc.di0
+                x = z / sc.di0
+                if args.frame == "piston":
+                    x = x - zp
+                sd[key] = (x, uz * _C / sc.vsh_model, w)
+                H, _, _ = np.histogram2d(sd[key][0], sd[key][1],
+                                         bins=[z_edges, v_edges], weights=w)
+                nzv = H[H > 0]
+                if nzv.size:
+                    pk.setdefault(key, []).append(nzv)
+            seen[i] = (R["times"][i], sd, zp)
+        frames.append([seen[int(np.argmin(np.abs(R["times"] - T)))] for T in grid_t])
+        # EXPOSE ON A PERCENTILE OF POOLED CELLS, not the global max. The max is set by the
+        # single brightest frame -- early, when the distribution is still concentrated -- so
+        # normalising to it leaves every later frame nearly black once the population
+        # spreads. A high percentile of all nonzero cells pooled over the movie is still
+        # ONE fixed number per species (so brightness stays comparable across frames, which
+        # is the whole reason not to use per-frame peaks) but exposes typical frames
+        # properly and lets the few brightest cells clip.
+        pk = {k: float(np.percentile(np.concatenate(v), args.expose))
+              for k, v in pk.items()}
+        peaks.append(pk)
+        print(f"  {R['rid']}: {len(seen)} distinct frames, p{args.expose} peaks "
+              + ", ".join(f"{k}={v:.3e}" for k, v in pk.items()), flush=True)
 
     scratch = os.environ.get("MOVIE_SCRATCH", os.path.join(ROOT, ".movie_scratch"))
     fdir = os.path.join(scratch, "phase_cmp_" + "_".join(R["rid"] for R in runs))
     import shutil; shutil.rmtree(fdir, ignore_errors=True); os.makedirs(fdir, exist_ok=True)
-    zc = 0.5 * (zb[1:] + zb[:-1]); vc = 0.5 * (vb[1:] + vb[:-1])
     for k in range(args.nframes):
         # even pixel dims: libx264 + yuv420p rejects odd ones, and only at encode time,
         # after the whole load pass has been paid for.
         fig, ax = plt.subplots(len(runs), 1, figsize=(8.8, 4.4 * len(runs)), dpi=125,
-                               facecolor=SURFACE, squeeze=False, sharex=True)
+                               squeeze=False, sharex=True)
         for r, R in enumerate(runs):
-            a = ax[r][0]; a.set_facecolor("#111014")
-            t, H = frames[r][k]
-            nrm = (Normalize(0, vmax[r]) if args.norm == "linear"
-                   else LogNorm(vmin=max(vmax[r] * 1e-4, 1e-30), vmax=vmax[r]))
-            a.pcolormesh(zc, vc, np.ma.masked_where(H <= 0, H).T, norm=nrm,
-                         cmap="magma", shading="auto", zorder=0)
-            a.axhline(1.0, color=VSH, lw=1.0, ls=(0, (6, 4)), alpha=.9, zorder=3)
-            a.axhline(0.0, color="#ffffff", lw=.5, alpha=.22, zorder=2)
-            a.axvline(0.0, color=PISTON, lw=1.6, zorder=4)
+            a = ax[r][0]
+            t, sd, zp = frames[r][k]
+            P.phase_distribution(a, sd, z_edges, v_edges, vline=1.0,
+                                 legend=(r == 0), norm=args.norm, peaks=peaks[r])
+            if args.frame == "box" and np.isfinite(zp):
+                a.axvline(zp, color="#ffd166", lw=1.0, alpha=.55, zorder=5)
             dzl, ppc, nd = R["meta"]
-            a.annotate(f"{R['rid']}   " + rf"$dz/\lambda_D$={dzl:.2f}  ppc={ppc:.0f}  "
-                       + rf"$N_D$={nd:.0f}", xy=(0.015, 0.93), xycoords="axes fraction",
-                       color=INK, fontsize=10)
-            a.annotate(rf"$t\omega_{{ci0}}$ = {t:.3f}", xy=(0.985, 0.93),
-                       xycoords="axes fraction", ha="right", color=VSH, fontsize=10,
-                       family="monospace")
-            a.set_ylabel(r"$v_z/v_{sh}$", color=INK2, fontsize=10)
-            a.set_xlim(args.win); a.set_ylim(args.vlim)
-            a.tick_params(colors=MUTED, labelsize=8.5)
-            for sp in a.spines.values():
-                sp.set_color(BASE)
-        ax[-1][0].set_xlabel(r"$(z - z_{piston}) / d_{i0}$", color=INK2, fontsize=11)
-        fig.suptitle(f"piston-relative ambient-ion phase space  |  {args.norm} colour, "
-                     f"fixed per run", color=INK, fontsize=11.5)
-        fig.tight_layout(rect=[0, 0, 1, 0.965])
-        fig.savefig(os.path.join(fdir, f"frame_{k:03d}.png"), facecolor=SURFACE)
+            a.set_title(f"{R['rid']}   " + rf"$dz/\lambda_D$={dzl:.2f}  ppc={ppc:.0f}  "
+                        + rf"$N_D$={nd:.0f}" + rf"      $t\omega_{{ci0}}$ = {t:.3f}",
+                        fontsize=10)
+            a.set_ylabel(r"$v_z / v_{sh}$", fontsize=10)
+        ax[-1][0].set_xlabel(r"$z / d_{i0}$" if args.frame == "box"
+                             else r"$(z - z_{piston}) / d_{i0}$", fontsize=11)
+        fig.tight_layout()
+        fig.savefig(os.path.join(fdir, f"frame_{k:03d}.png"))
         plt.close(fig)
     print(f"  rendered {args.nframes} frames", flush=True)
     tag = "_".join(R["rid"] for R in runs)
-    out = args.out or f"media/comparison/phase_{tag}_{args.norm}.mp4"
+    out = args.out or f"media/comparison/phase_{tag}_{args.frame}_{args.norm}.mp4"
     os.makedirs(os.path.dirname(out), exist_ok=True)
     print(P.encode(fdir, out, fps=args.fps))
     return 0
@@ -163,8 +180,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("runs", nargs="+")
     ap.add_argument("--times", type=float, nargs="*", default=[0.15, 0.30, 0.45, 0.60])
-    ap.add_argument("--win", type=float, nargs=2, default=[-2.5, 5.5],
-                    help="z - z_piston window in d_i0")
+    ap.add_argument("--frame", choices=("piston", "box"), default="piston",
+                    help="piston: x = z - z_piston, window follows the driver. "
+                         "box: STATIONARY window in absolute z, the piston sweeps through "
+                         "it -- use when the point is where things are, not where they are "
+                         "relative to the driver.")
+    ap.add_argument("--win", type=float, nargs=2, default=None,
+                    help="window in d_i0. Default -2.5..5.5 about the piston (frame=piston) "
+                         "or 0..34 absolute (frame=box).")
+    ap.add_argument("--cmap", default="magma",
+                    help="matplotlib colormap; cividis is the repo's CVD-safe "
+                         "blue->orange phase-space map (make_figures FIG7_CMAP)")
     ap.add_argument("--vlim", type=float, nargs=2, default=[-0.8, 2.2])
     ap.add_argument("--norm", choices=("linear", "log"), default="linear")
     ap.add_argument("--scale", choices=("panel", "row", "shared"), default="panel")
@@ -177,9 +203,14 @@ def main():
                     help="sweep time and encode an mp4 instead of a static grid")
     ap.add_argument("--nframes", type=int, default=60)
     ap.add_argument("--fps", type=int, default=10)
+    ap.add_argument("--expose", type=float, default=99.5,
+                    help="percentile of pooled nonzero cells used as each species' fixed "
+                         "normalisation peak; lower = brighter. 100 = the strict max.")
     ap.add_argument("--tmax", type=float, default=None,
                     help="movie: last t* to sweep to (default: min over runs)")
     args = ap.parse_args()
+    if args.win is None:
+        args.win = [-2.5, 5.5] if args.frame == "piston" else [0.0, 34.0]
     if args.movie:
         return movie(args)
 
@@ -209,8 +240,9 @@ def main():
             w = np.asarray(ad[("amb_ions", "particle_weight")])
             zp = float(np.percentile(
                 np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5)) / sc.di0
-            H, _, _ = np.histogram2d(z - zp, v, bins=[zb, vb], weights=w)
-            grid[(r, c)] = (times[i], H)
+            x = (z - zp) if args.frame == "piston" else z
+            H, _, _ = np.histogram2d(x, v, bins=[zb, vb], weights=w)
+            grid[(r, c)] = (times[i], H, zp)
             print(f"{os.path.basename(run):24}{times[i]:7.3f}{zp:10.2f}{H.max():12.3e}",
                   flush=True)
 
@@ -237,16 +269,17 @@ def main():
                 a.annotate("no frame", xy=(.5, .5), xycoords="axes fraction",
                            ha="center", color=MUTED, fontsize=9)
                 continue
-            t, H = g
+            t, H, zp = g
             vmax = {"panel": H.max(), "row": rowmax[r], "shared": shared}[args.scale]
             nrm = (Normalize(0, vmax) if args.norm == "linear"
                    else LogNorm(vmin=max(vmax * 1e-4, 1e-30), vmax=vmax))
             a.pcolormesh(0.5 * (zb[1:] + zb[:-1]), 0.5 * (vb[1:] + vb[:-1]),
                          np.ma.masked_where(H <= 0, H).T, norm=nrm,
-                         cmap="magma", shading="auto", zorder=0)
+                         cmap=args.cmap, shading="auto", zorder=0)
             a.axhline(1.0, color=VSH, lw=1.0, ls=(0, (6, 4)), alpha=.9, zorder=3)
             a.axhline(0.0, color="#ffffff", lw=.5, alpha=.22, zorder=2)
-            a.axvline(0.0, color=PISTON, lw=1.6, alpha=.95, zorder=4)
+            a.axvline(0.0 if args.frame == "piston" else zp,
+                      color=PISTON, lw=1.6, alpha=.95, zorder=4)
             if r == 0:
                 a.set_title(rf"$t\,\omega_{{ci0}}$ = {t:.2f}", color=INK, fontsize=11.5)
             if c == 0:
@@ -254,9 +287,11 @@ def main():
                              + f"\n$N_D$={nd:.0f}\n\n" + r"$v_z/v_{sh}$",
                              color=INK2, fontsize=8.5)
             if r == len(args.runs) - 1:
-                a.set_xlabel(r"$(z - z_{piston}) / d_{i0}$", color=INK2, fontsize=10)
+                a.set_xlabel(r"$(z - z_{piston}) / d_{i0}$" if args.frame == "piston"
+                             else r"$z / d_{i0}$", color=INK2, fontsize=10)
 
-    fig.suptitle("Ambient-ion phase space, piston-relative  |  "
+    fig.suptitle(f"Ambient-ion phase space, "
+                 f"{'piston-relative' if args.frame == 'piston' else 'stationary window'}  |  "
                  f"{args.norm} colour ({args.scale})  |  "
                  "yellow = piston front, dashed = $v_{sh}$",
                  color=INK, fontsize=12)
