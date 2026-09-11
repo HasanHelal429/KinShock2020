@@ -4643,3 +4643,62 @@ is the density argmax locking onto a narrow overshoot rather than the ramp, or s
 real, is not resolved here. Its upstream |Bx|/B0 also declines slowly to 0.87 by t\* = 2 —
 the trailing-edge rarefaction reaching inward, mild and in the opposite direction to
 `R1_470eV_s3f8_t2`'s contamination to 2.67, but the far upstream is not pristine late.
+
+## 2026-09-11 — `ws_470eV_t14`: the wall driver DOES form a 470 eV shock, and its C carries a bump the control's does not
+
+The t\* = 1.4 rerun COMPLETED (22h47m, full 5,566,030 steps, 365 plotfiles, ~23 GPU-h
+against a 24 estimate). It fixes the sizing error of 2026-09-06 and makes the driver
+comparison interpretable for the first time.
+
+### It steepened — the rerun did what `ws_470eV` could not
+
+Peak compression vs t\*, against the 47 keV control:
+
+| t\* | 0.28 | 0.47 | 0.65 | 0.84 | 0.93 | 1.03 | 1.21 | 1.31 | 1.40 |
+|---|---|---|---|---|---|---|---|---|---|
+| `ws_470eV_t14` n/n_0 | 2.09 | 2.16 | 2.26 | 2.78 | 3.49 | 3.54 | 3.58 | 4.29 | **5.36** |
+| `ws_47keV` at same t\* | 2.11 | 2.26 | 2.51 | 2.89 | 2.89 | 3.55 | 4.15 | 5.18 | **6.48** |
+
+It tracks the control the whole way and ends at n/n_0 = 5.36 with |Bx|/B0 = 5.34 —
+**coincident**, so a genuine magnetosonic shock, not a density pile-up. `ws_470eV` sat at
+2.44 forever. The 2026-09-06 diagnosis was right: the old run was stopped pre-shock, and the
+wall driver simply needs ~2x the piston's clock.
+
+Geometry behaved as designed: front advance 11.1 d_i0/t\* (predicted 11.5), slab edge
+retreat 14.06 (drift 13.952). It ended with **9.73 d_i0** of upstream, more than the 4.2
+predicted, because the front stalls rather than advancing linearly (below).
+
+### The observation: a bump on the lower branch, absent in the control
+
+At matched t\* ~ 1.4:
+
+| | `ws_47keV` (control, t\* = 1.433) | `ws_470eV_t14` (t\* = 1.400) |
+|---|---|---|
+| peak n/n_0 | 8.1 | 5.4 |
+| ramp | near-VERTICAL at z ~ 8.3 | gradual over z ~ 7–11 |
+| C, lower branch | clean rise -1.0 -> +0.5, monotonic | rises to **+0.2 at z ~ 7.3, then FALLS to -0.45** before jumping at z ~ 2.5 |
+
+The 470 eV wall run's dense lower branch is **non-monotonic** — a bump at the front of the C
+followed by a drop — and the control's is not. That is the shape the notch was described as:
+a bump at the front of the C, on its lower half.
+
+**If it holds, the notch is the plasma, not the heater/injector** — it appears with the
+driver replaced by a boundary condition, with no heater, no injector and no piston species.
+That would clear the most WarpX-specific, least-validated component in the setup.
+
+⚠ **NOT yet a conclusion, for one concrete reason: the two runs are not at equal shock
+strength** (n/n_0 5.4 vs 8.1). A gradual, rounded turn is also what an incompletely steepened
+version of the control's vertical transition would look like, so "bump" and "not yet sharp"
+are not separated by these two frames. The honest comparison is at matched COMPRESSION, not
+matched t\* — the control passes 5.4 somewhere near t\* ~ 1.32, and that frame is the one to
+put beside this. Left for the visual analysis.
+
+### Also: BOTH wall runs stall
+
+`ws_47keV`'s ramp stalls at ~8 d_i0 after t\* ~ 0.93; `ws_470eV_t14`'s advances to 10.68 by
+t\* = 1.21 and then recedes slightly to 10.50 by 1.40, while compression keeps climbing.
+Since both do it, this is a property of the **wall driver**, not of 470 eV — which retires
+the open question left on 2026-09-06 about whether the control's stall was a measurement
+artefact of the density argmax. A wall-driven shock should propagate at u/(r-1) ~ 4.6
+d_i0/t\*; neither does, and both keep compressing in place instead. Worth understanding
+before the wall driver is trusted for anything quantitative.
