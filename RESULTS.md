@@ -4644,7 +4644,7 @@ real, is not resolved here. Its upstream |Bx|/B0 also declines slowly to 0.87 by
 the trailing-edge rarefaction reaching inward, mild and in the opposite direction to
 `R1_470eV_s3f8_t2`'s contamination to 2.67, but the far upstream is not pristine late.
 
-## 2026-09-11 — `ws_470eV_t14`: the wall driver DOES form a 470 eV shock, and its C carries a bump the control's does not
+## 2026-09-11 — `ws_470eV_t14`: the wall driver DOES form a 470 eV shock, and it shows NO notch — the eps_0 separation does not survive the change of driver
 
 The t\* = 1.4 rerun COMPLETED (22h47m, full 5,566,030 steps, 365 plotfiles, ~23 GPU-h
 against a 24 estimate). It fixes the sizing error of 2026-09-06 and makes the driver
@@ -4678,20 +4678,44 @@ At matched t\* ~ 1.4:
 | ramp | near-VERTICAL at z ~ 8.3 | gradual over z ~ 7–11 |
 | C, lower branch | clean rise -1.0 -> +0.5, monotonic | rises to **+0.2 at z ~ 7.3, then FALLS to -0.45** before jumping at z ~ 2.5 |
 
-The 470 eV wall run's dense lower branch is **non-monotonic** — a bump at the front of the C
-followed by a drop — and the control's is not. That is the shape the notch was described as:
-a bump at the front of the C, on its lower half.
+That table compares at matched t\*, and it is MISLEADING — the two runs are at different
+shock strengths there (5.4 vs 8.1). ⚠ **An earlier version of this entry read that as "a bump
+the control does not have" and concluded the notch might be the plasma. That is WITHDRAWN.**
+The caveat flagged in the same breath turned out to be decisive, and the check that settles
+it is matched COMPRESSION, not matched t\*. The control passes n/n_0 = 5.2 at t\* = 1.300:
 
-**If it holds, the notch is the plasma, not the heater/injector** — it appears with the
-driver replaced by a boundary condition, with no heater, no injector and no piston species.
-That would clear the most WarpX-specific, least-validated component in the setup.
+| run | t\* | n/n_0 | max v_z | position of max | FALL after max |
+|---|---|---|---|---|---|
+| `ws_470eV_t14` | 1.400 | 5.36 | +0.07 | x = **-0.067** | **1.06** |
+| `ws_47keV` | 1.300 | 5.18 | -0.01 | x = **-0.067** | **0.99** |
+| `ws_47keV` | 1.433 | 6.90 | +0.15 | x = -0.012 | 1.15 |
+| `ws_47keV` | 2.000 | 6.56 | +0.24 | x = +0.337 | 1.08 |
 
-⚠ **NOT yet a conclusion, for one concrete reason: the two runs are not at equal shock
-strength** (n/n_0 5.4 vs 8.1). A gradual, rounded turn is also what an incompletely steepened
-version of the control's vertical transition would look like, so "bump" and "not yet sharp"
-are not separated by these two frames. The honest comparison is at matched COMPRESSION, not
-matched t\* — the control passes 5.4 somewhere near t\* ~ 1.32, and that frame is the one to
-put beside this. Left for the visual analysis.
+(weighted-median v_z of the lower branch, x in rho_i0 about the density peak.)
+
+**At matched compression the two are indistinguishable** — the turnover sits at x = -0.067 in
+BOTH, and the fall is 1.06 vs 0.99. The control's fall is ~1.0-1.15 at every time sampled. So
+the bump-and-fall is simply the shape of the C in a wall-driven run, present at 47 keV and
+470 eV alike, and it is not the notch. By the steepest-gradient measure the 470 eV wall run
+is the LEAST notch-like of the set (-5.5, against -53.7 / -15.3 / -97.7 for the control).
+
+### What this actually says
+
+**Under the wall driver, 470 eV and 47 keV look the SAME.** Under the piston driver they are
+8x apart (drop -71.7 / -78.4 notching vs -8.6 / -8.9 clean, RESULTS 2026-09-04). The eps_0
+separation — the one clean discriminator surviving every other test — **does not reproduce
+when the heater and injector are replaced by a boundary condition.**
+
+That points at the driver: the notch would be a product of the heating operator and target
+injector, the most WarpX-specific and least independently validated components in the setup,
+rather than of the plasma.
+
+⚠ **Two things stop this being final.** (1) The origin differs between metrics — the piston
+numbers are anchored on `z_piston`, these on the density peak — so -5.5 is NOT directly
+comparable to -78, and only the WITHIN-driver comparisons (470 eV vs 47 keV) are sound.
+(2) The wall runs top out near n/n_0 ~ 5-8 and both STALL (below), so they may not reach the
+regime where the piston runs notch. A piston-anchored re-measurement of all four, or a wall
+run carried further, would close it.
 
 ### Also: BOTH wall runs stall
 
