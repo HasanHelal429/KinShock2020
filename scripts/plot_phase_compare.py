@@ -64,6 +64,101 @@ def row_meta(run):
     return dz / lD, ppc, ppc * lD / dz
 
 
+def movie(args):
+    """One panel per run, stacked, swept over a COMMON time grid.
+
+    The colour scale is fixed per run across the whole movie, from a first pass. A
+    per-frame scale makes a feature that grows look constant, which is precisely the
+    thing these two runs are being compared for.
+
+    Runs have different output cadence (0.039 vs 0.112 t* here), so a common grid plus
+    nearest-frame lookup is the only way to march them together; each panel is stamped with
+    the frame's TRUE t*, so the two never silently drift apart.
+    """
+    import yt; yt.set_log_level(50)
+    from kinshock import plotting as P
+    nz, nv = 380, 220
+    zb = np.linspace(args.win[0], args.win[1], nz + 1)
+    vb = np.linspace(args.vlim[0], args.vlim[1], nv + 1)
+
+    runs = []
+    for run in args.runs:
+        cfg = kinshock.load(run); sc = kinshock.units.derive(cfg)
+        pfs = kio.plotfiles(run)
+        times = np.array([kio.load_frame(p).time * sc.wci0 for p in pfs])
+        runs.append(dict(run=run, cfg=cfg, sc=sc, pfs=pfs, times=times,
+                         mi=cfg["reference"]["mass_ratio"] * ME,
+                         rid=cfg["meta"]["run_id"], meta=row_meta(run)))
+        print(f"  {runs[-1]['rid']}: {len(pfs)} frames to t*={times[-1]:.3f}", flush=True)
+    tmax = args.tmax if args.tmax else min(r["times"][-1] for r in runs)
+    grid_t = np.linspace(0.0, tmax, args.nframes)
+    print(f"  sweeping t* 0 -> {tmax:.3f} in {args.nframes} frames", flush=True)
+
+    frames = [[] for _ in runs]
+    for r, R in enumerate(runs):
+        seen = {}
+        for T in grid_t:
+            i = int(np.argmin(np.abs(R["times"] - T)))
+            if i not in seen:
+                ad = kio.load_frame(R["pfs"][i]).ds.all_data()
+                z = np.asarray(ad[("amb_ions", "particle_position_x")]) / R["sc"].di0
+                pm = np.asarray(ad[("amb_ions", "particle_momentum_z")])
+                g = np.sqrt(1 + (pm / (R["mi"] * C)) ** 2)
+                v = pm / (R["mi"] * g) / R["sc"].vsh_model
+                w = np.asarray(ad[("amb_ions", "particle_weight")])
+                zp = float(np.percentile(
+                    np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5)) / R["sc"].di0
+                H, _, _ = np.histogram2d(z - zp, v, bins=[zb, vb], weights=w)
+                seen[i] = (R["times"][i], H)
+            frames[r].append(seen[i])
+        print(f"  {R['rid']}: loaded {len(seen)} distinct frames", flush=True)
+    vmax = [max(h.max() for _, h in fr) for fr in frames]
+
+    scratch = os.environ.get("MOVIE_SCRATCH", os.path.join(ROOT, ".movie_scratch"))
+    fdir = os.path.join(scratch, "phase_cmp_" + "_".join(R["rid"] for R in runs))
+    import shutil; shutil.rmtree(fdir, ignore_errors=True); os.makedirs(fdir, exist_ok=True)
+    zc = 0.5 * (zb[1:] + zb[:-1]); vc = 0.5 * (vb[1:] + vb[:-1])
+    for k in range(args.nframes):
+        # even pixel dims: libx264 + yuv420p rejects odd ones, and only at encode time,
+        # after the whole load pass has been paid for.
+        fig, ax = plt.subplots(len(runs), 1, figsize=(8.8, 4.4 * len(runs)), dpi=125,
+                               facecolor=SURFACE, squeeze=False, sharex=True)
+        for r, R in enumerate(runs):
+            a = ax[r][0]; a.set_facecolor("#111014")
+            t, H = frames[r][k]
+            nrm = (Normalize(0, vmax[r]) if args.norm == "linear"
+                   else LogNorm(vmin=max(vmax[r] * 1e-4, 1e-30), vmax=vmax[r]))
+            a.pcolormesh(zc, vc, np.ma.masked_where(H <= 0, H).T, norm=nrm,
+                         cmap="magma", shading="auto", zorder=0)
+            a.axhline(1.0, color=VSH, lw=1.0, ls=(0, (6, 4)), alpha=.9, zorder=3)
+            a.axhline(0.0, color="#ffffff", lw=.5, alpha=.22, zorder=2)
+            a.axvline(0.0, color=PISTON, lw=1.6, zorder=4)
+            dzl, ppc, nd = R["meta"]
+            a.annotate(f"{R['rid']}   " + rf"$dz/\lambda_D$={dzl:.2f}  ppc={ppc:.0f}  "
+                       + rf"$N_D$={nd:.0f}", xy=(0.015, 0.93), xycoords="axes fraction",
+                       color=INK, fontsize=10)
+            a.annotate(rf"$t\omega_{{ci0}}$ = {t:.3f}", xy=(0.985, 0.93),
+                       xycoords="axes fraction", ha="right", color=VSH, fontsize=10,
+                       family="monospace")
+            a.set_ylabel(r"$v_z/v_{sh}$", color=INK2, fontsize=10)
+            a.set_xlim(args.win); a.set_ylim(args.vlim)
+            a.tick_params(colors=MUTED, labelsize=8.5)
+            for sp in a.spines.values():
+                sp.set_color(BASE)
+        ax[-1][0].set_xlabel(r"$(z - z_{piston}) / d_{i0}$", color=INK2, fontsize=11)
+        fig.suptitle(f"piston-relative ambient-ion phase space  |  {args.norm} colour, "
+                     f"fixed per run", color=INK, fontsize=11.5)
+        fig.tight_layout(rect=[0, 0, 1, 0.965])
+        fig.savefig(os.path.join(fdir, f"frame_{k:03d}.png"), facecolor=SURFACE)
+        plt.close(fig)
+    print(f"  rendered {args.nframes} frames", flush=True)
+    tag = "_".join(R["rid"] for R in runs)
+    out = args.out or f"media/comparison/phase_{tag}_{args.norm}.mp4"
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    print(P.encode(fdir, out, fps=args.fps))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("runs", nargs="+")
@@ -78,7 +173,15 @@ def main():
                          "cadence (0.039 vs 0.112 here), so exact matching is impossible; "
                          "panel titles carry the TRUE t* so any mismatch stays visible.")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--movie", action="store_true",
+                    help="sweep time and encode an mp4 instead of a static grid")
+    ap.add_argument("--nframes", type=int, default=60)
+    ap.add_argument("--fps", type=int, default=10)
+    ap.add_argument("--tmax", type=float, default=None,
+                    help="movie: last t* to sweep to (default: min over runs)")
     args = ap.parse_args()
+    if args.movie:
+        return movie(args)
 
     import yt; yt.set_log_level(50)
     nz, nv = 380, 220
