@@ -106,6 +106,29 @@ case "$WHAT" in
     WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
     JOBNAME="kmu"
     ;;
+  vphase_ab)
+    # V_phase A + B: is the notch caused by an unphysically fast shock? Both restore the
+    # physical v_sh (976 vs Table I's 980 km/s) at mu = 100 by dropping T_ab to 25.6 eV;
+    # vA lets M_A collapse to 3.26, vB restores M_A = 14 by lowering B0 and pays in beta_0.
+    # ~22 GPU-h EACH (they cost the same -- vA needs 4.28x more t*, vB 4.28x more steps per
+    # t*, and the two cancel). Use --time 30:00:00. See runs/V_phase/README.md.
+    RUNS=(runs/V_phase/vA_lowTab runs/V_phase/vB_lowB0)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-1"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kvab"
+    ;;
+  vphase_c)
+    # V_phase C alone: ~409 GPU-h, 18.4x vA/vB, because the lower B0 costs 4.28x in clock
+    # AND the lower T_0 costs 4.28x in grid. It is also the LEAST informative of the three --
+    # it drops eps_0 4.28x below the notching value, so the eps_0 discriminator predicts it
+    # notches harder, i.e. it confirms rather than discriminates. Run only after vA and vB.
+    RUNS=(runs/V_phase/vC_scaled)
+    BINARY="$SWEEP_BUILD"
+    ARRAY="0-0"
+    WORKROOT="${PSCRATCH:-$HOME}/kinshock_work"
+    JOBNAME="kvc"
+    ;;
   wall_smoke)
     # The reflecting-wall go/no-go. PASSED 2026-09-05 (drift to 0.01%, reflection
     # 0 -> 0.17, both ramps off the wall at +11.5 d_i0/t*). Kept for re-running after any
@@ -168,7 +191,7 @@ case "$WHAT" in
     # tasks 0,1 use binary A; tasks 2,3 use binary B -- job.sbatch reads BINARY, so the
     # array is split into two submissions rather than smuggling the mapping into the body.
     ;;
-  *) echo "usage: $0 {sweep|eps|mag|mu|wall_smoke|wall47k|wall470|wall470_t14|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
+  *) echo "usage: $0 {sweep|eps|mag|mu|vphase_ab|vphase_c|wall_smoke|wall47k|wall470|wall470_t14|ab} [run_dir ...] [--dry]" >&2; exit 2 ;;
 esac
 
 if [[ ${#SUBSET[@]} -gt 0 ]]; then
