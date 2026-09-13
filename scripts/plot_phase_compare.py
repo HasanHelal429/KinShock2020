@@ -98,16 +98,42 @@ def movie(args):
         runs.append(dict(run=run, cfg=cfg, sc=sc, pfs=pfs, times=times,
                          rid=cfg["meta"]["run_id"], meta=row_meta(run)))
         print(f"  {runs[-1]['rid']}: {len(pfs)} frames to t*={times[-1]:.3f}", flush=True)
-    tmax = args.tmax if args.tmax else min(r["times"][-1] for r in runs)
-    grid_t = np.linspace(0.0, tmax, args.nframes)
-    print(f"  sweeping t* 0 -> {tmax:.3f} in {args.nframes} frames "
-          f"({args.frame} frame, {args.norm})", flush=True)
+    if args.match == "piston":
+        # piston front vs frame, per run, then a shared travel grid
+        for R in runs:
+            tr = []
+            for pf in R["pfs"]:
+                ad = kio.load_frame(pf).ds.all_data()
+                try:
+                    tr.append(float(np.percentile(
+                        np.asarray(ad[("piston_ions", "particle_position_x")]),
+                        99.5)) / R["sc"].di0)
+                except Exception:
+                    tr.append(np.nan)
+            R["travel"] = np.asarray(tr)
+            print(f"  {R['rid']}: piston {np.nanmin(R['travel']):.2f} -> "
+                  f"{np.nanmax(R['travel']):.2f} d_i0", flush=True)
+        dmax = args.tmax if args.tmax else min(np.nanmax(R["travel"]) for R in runs)
+        grid_key = np.linspace(float(min(np.nanmin(R["travel"]) for R in runs)),
+                               dmax, args.nframes)
+        for R in runs:
+            R["key"] = R["travel"]
+        print(f"  marching on PISTON TRAVEL 0 -> {dmax:.2f} d_i0 in {args.nframes} frames "
+              f"({args.frame} frame, {args.norm})", flush=True)
+    else:
+        dmax = args.tmax if args.tmax else min(r["times"][-1] for r in runs)
+        grid_key = np.linspace(0.0, dmax, args.nframes)
+        for R in runs:
+            R["key"] = R["times"]
+        print(f"  sweeping t* 0 -> {dmax:.3f} in {args.nframes} frames "
+              f"({args.frame} frame, {args.norm})", flush=True)
+    grid_t = grid_key
 
     frames, peaks = [], []
     for R in runs:
         sc = R["sc"]; seen = {}; pk = {}
         for T in grid_t:
-            i = int(np.argmin(np.abs(R["times"] - T)))
+            i = int(np.nanargmin(np.abs(R["key"] - T)))
             if i in seen:
                 continue
             fr = kio.load_frame(R["pfs"][i])
@@ -129,7 +155,7 @@ def movie(args):
                 if nzv.size:
                     pk.setdefault(key, []).append(nzv)
             seen[i] = (R["times"][i], sd, zp)
-        frames.append([seen[int(np.argmin(np.abs(R["times"] - T)))] for T in grid_t])
+        frames.append([seen[int(np.nanargmin(np.abs(R["key"] - T)))] for T in grid_t])
         # EXPOSE ON A PERCENTILE OF POOLED CELLS, not the global max. The max is set by the
         # single brightest frame -- early, when the distribution is still concentrated -- so
         # normalising to it leaves every later frame nearly black once the population
@@ -206,6 +232,11 @@ def main():
     ap.add_argument("--expose", type=float, default=99.5,
                     help="percentile of pooled nonzero cells used as each species' fixed "
                          "normalisation peak; lower = brighter. 100 = the strict max.")
+    ap.add_argument("--match", choices=("tstar", "piston"), default="tstar",
+                    help="what to march the runs on. tstar: common t* grid. piston: common "
+                         "PISTON-TRAVEL grid -- required whenever v_p differs between runs, "
+                         "e.g. V_phase, where v_p ~ sqrt(T_ab) is 4.28x slower than the "
+                         "reference while w_ci0 is unchanged, so equal t* is NOT equal stage.")
     ap.add_argument("--tmax", type=float, default=None,
                     help="movie: last t* to sweep to (default: min over runs)")
     args = ap.parse_args()
