@@ -4726,3 +4726,105 @@ the open question left on 2026-09-06 about whether the control's stall was a mea
 artefact of the density argmax. A wall-driven shock should propagate at u/(r-1) ~ 4.6
 d_i0/t\*; neither does, and both keep compressing in place instead. Worth understanding
 before the wall driver is trusted for anything quantitative.
+
+## 2026-09-13 — The mass-ratio CONVENTION is dimensionlessly inert: PSC's heavy electron is cancelled by its reduced c, and the 47 keV runs already are the PSC-matched plasma
+
+Asked whether WarpX lowers the ion mass while PSC raises the electron mass. **Both halves
+are true**, but the conclusion drawn from it does not follow, and a run staged on that basis
+would have been **further from PSC than what we already have**. Not staged; ~100-800 GPU-h
+not spent.
+
+### Verified: the two codes reduce mu from opposite ends
+
+**Ours (checked in the source, not assumed):** `deck.py:235` writes
+`my_constants.Mi = mass_ratio*m_e`, ions get `mass = Mi`, electrons get
+`species_type = electron` — WarpX's built-in PHYSICAL m_e. `units.py:216` matches:
+`mi = mass_ratio * ME`. So m_i = 100 m_e, **18.36x lighter than a proton**, real electron.
+
+**PSC:** keeps the proton real and raises m_e by 18.36x. This was ALREADY established in
+`scripts/table1.py` (its header, CORRECTED 2026-08-24) and sourced to Sec. II's own wording
+— the "reduced PROTON-to-electron mass ratio", run with "reduced ELECTRON parameters ...
+while simultaneously keeping the ion-scale parameters well-matched to experiments".
+⚠ **I re-derived this from scratch before finding it.** The analysis was in the repo the
+whole time; `table1.py`'s header is the reference for this question and should be read first.
+
+Table I's SI column is the independent check: d_i0 and v_sh depend on m_i alone, and
+104 um / 980 km/s require m_i = m_p, which at mass ratio 100 is only reachable by raising m_e.
+
+### But the convention changes NO dimensionless number, because PSC also reduces c
+
+Write alpha = m_e/m_e0 and gamma = c_sim/c_phys. Every Table I quantity depends only on the
+product **alpha*gamma^2**, which theta_e,ab = 0.092 fixes at 0.0100. The convention only
+changes the map back to SI: speeds and times by sqrt(mu_phys/mu_sim) = 4.285, **lengths
+unaffected** (d_e ~ gamma*sqrt(alpha) ~ sqrt(alpha gamma^2)).
+
+| setup | alpha | gamma | alpha*gamma^2 | **theta_e,ab** | c/C_s,ab (code) |
+|---|---|---|---|---|---|
+| PSC | 18.36 | 0.0234 | 0.0101 | **0.0914** | **33.0** |
+| WarpX 470 eV | 1 | 1 | 1 | 0.00092 | 329.7 |
+| **WarpX 47 keV** | 1 | 1 | 1 | **0.09200** | **33.0** |
+| *proposed native-convention deck* | 18.36 | **1** | 18.36 | **0.00005** | — |
+
+**The proposed deck would have sat 1840x from PSC in theta_e,ab — the worst of the four.**
+PSC's heavy electron is compensated by gamma^2 = 1/1836; WarpX has no reduced-c option, so
+copying only the mass half leaves the compensation out and moves the wrong way.
+
+**`ek_47keV_t2` and its siblings ARE the PSC-matched plasma**: theta_e,ab = 0.09200 against
+PSC's 0.092, c/C_s,ab = 33.0 against 33.0. This is the same conclusion RESULTS 2026-08-17
+reached from the other direction ("the wedge IS a function of eps, and es_47keV reproduces
+R1_paper") — the two now agree for a stated reason.
+
+### ⚠ Retraction
+
+Earlier this session I speculated that "PSC cannot be resolving the Debye length" — that
+this was how it afforded m_i = m_p at mu = 100. **Wrong. PSC resolves it: dz/lambda_D,ab =
+0.989.** Its reduced c makes d_e,ab only 3.3 lambda_D, so the paper's dz = 0.3 d_e,ab
+resolves it comfortably. At real c, d_e,ab is 33.0 lambda_D and the SAME 0.3 d_e,ab cell is
+9.89 lambda_D wide. **The grid heating is caused by the reduced c we cannot reproduce, not
+by the mass-ratio convention** — which is exactly what `table1.py`'s header already said.
+
+### What this reframes
+
+The 470 eV runs are at the PHYSICAL theta_e,ab (9.2e-4) but 10x from PSC's c/C_s,ab. The
+47 keV runs are 100x from the physical temperature but land on PSC's dimensionless plasma
+exactly. So "the 470 eV runs fail to form a proper shock" may be the wrong framing: **470 eV
+at real c is not the plasma the paper simulated.** That does not by itself explain the
+notch, but it does mean the 470 eV runs were never the like-for-like comparison to Fig. 7.
+
+It also retires the 2026-09-11 speed hypothesis as a *convention* question. The absolute
+v_sh being 4.28x high at mu = 100 is real, but it is an artifact of the SI map, not of the
+simulated plasma — every dimensionless number is unchanged. What is genuinely different is
+c/C_s,ab, which is the eps family the project already identified.
+
+### GPU profiling, since it was checked at the same time
+
+`vB_lowB0`, 10,155,754 steps, 64,870 s, one A100, from WarpX's own TinyProfiler:
+
+| | share |
+|---|---|
+| CurrentDeposition | 27.2% |
+| GatherAndPush | 25.3% |
+| PermutationForDeposition | **12.2%** |
+| ApplyBoundaryConditions | **10.2%** |
+| Redistribute (partition + copyplan + impl) | **9.8%** |
+| SortParticlesForDeposition | **5.3%** |
+| field solve (EvolveB + EvolveE) | **1.3%** |
+
+Only ~52% is particle work; **~27% is sorting and redistribute** on a single box and single
+rank, where there is nothing to redistribute across. **The field solve is negligible, so
+cost tracks PARTICLE count and essentially not cell count** — refining dz is expensive only
+because it multiplies particles at fixed ppc.
+
+**Nothing is tuned.** The decks carry `amr.max_grid_size` and no other performance key: no
+`warpx.sort_intervals`, no load balancing, one GPU, and `max_grid_size = n_cell` which
+forecloses multi-GPU without a config change. `job_multigpu.sbatch` exists but has never
+been used, and notes `gpu_shared` is capped at gres/gpu=2 (4 GPUs needs `regular` + a whole
+node). Whether disabling deposition sorting is a net win is NOT established — it could cost
+more in uncoalesced atomics than the 17.5% it saves, and `studies/speedup/` is the place to
+measure it rather than guess.
+
+**Memory could not be assessed.** "Used" reads an identical 30,876 MB at 59,624 / 70,272 /
+119,256 cells — a 2x span with zero change — so that figure is the AMReX arena
+pre-allocation, not real usage, and says nothing about whether a 357k-cell run fits.
+Incidentally `ws_47keV` landed on an 80 GB A100 while the others got 40 GB cards; we do not
+currently request either.

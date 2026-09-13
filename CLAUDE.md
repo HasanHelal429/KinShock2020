@@ -281,6 +281,34 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
   point**: doing that over-predicted `ss_dz4_ppc100` by 2.7× (2 h 09 m predicted, 48 m
   actual). Overall the A100 is ~1.7× chablis per GPU, ~2.3× where it is fed; the bigger
   win is still running all six sweep points at once (~49 min wall-clock).
+- **The mass-ratio CONVENTION differs between the codes but is dimensionlessly inert —
+  read `scripts/table1.py`'s header BEFORE re-deriving any of this.** We do
+  `mi = mass_ratio * ME` (`deck.py:235`, `units.py:216`): a light ion at a real electron.
+  PSC keeps the proton real and raises m_e by 18.36× (Sec. II's "reduced *proton*-to-electron
+  mass ratio", "reduced *electron* parameters … keeping the ion-scale parameters
+  well-matched"). Table I's SI column confirms it — d_i0 = 104 µm and v_sh = 980 km/s depend
+  on m_i alone and need m_i = m_p. **But PSC also reduces c**, and with α = m_e/m_e0,
+  γ = c_sim/c_phys, every Table I quantity depends only on **α·γ² = 0.0100**, fixed by
+  θ_e,ab = 0.092. The convention only changes the map back to SI (speeds and times ×4.285,
+  lengths unaffected). ⚠ **So "copy PSC's convention" is a trap**: raising m_e at real c
+  gives α·γ² = 18.36 and θ_e,ab = 5.0e-5, which is **1840× further from PSC** than what we
+  already run. **`ek_47keV_t2` and the other 47 keV runs already ARE the PSC-matched
+  plasma** — θ_e,ab = 0.09200 vs 0.092, c/C_s,ab = 33.0 vs 33.0. And PSC **does** resolve the
+  Debye length (dz/λ_D,ab = 0.989): its reduced c makes d_e,ab only 3.3 λ_D, whereas at real
+  c d_e,ab is 33.0 λ_D and the same 0.3 d_e,ab cell is 9.89 λ_D wide — **our grid heating
+  comes from the c we cannot reproduce, not from the mass convention** (RESULTS 2026-09-13).
+- **Nothing about the GPU runs is performance-tuned, and the profile is particle-bound.**
+  TinyProfiler on `vB_lowB0` (one A100, 10.2M steps): deposition 27.2%, push 25.3%,
+  PermutationForDeposition 12.2%, ApplyBoundaryConditions 10.2%, Redistribute 9.8%,
+  SortParticlesForDeposition 5.3%, **field solve 1.3%**. So ~52% is particle work, ~27% is
+  sorting/redistribute on a single box where there is nothing to redistribute, and **cost
+  tracks particle count, essentially not cell count**. The decks set `amr.max_grid_size` and
+  no other performance key — no `sort_intervals`, no load balancing, one GPU, and
+  `max_grid_size = n_cell` forecloses multi-GPU. `job_multigpu.sbatch` exists, unused, and
+  notes `gpu_shared` caps at gres/gpu=2 (4 GPUs needs `regular` + a whole node). Whether
+  disabling deposition sorting wins is UNMEASURED — it may cost more in uncoalesced atomics
+  than it saves; use `studies/speedup/`. **GPU "used" memory is meaningless**: it reads an
+  identical 30,876 MB across a 2× span in cells, i.e. it is the AMReX arena, not usage.
 - **A GPU job can die at startup because you sourced the profile in your own shell.**
   NERSC bumped the default `cudatoolkit` to 13.2 around 2026-08-20; the binaries need
   `libcudart.so.13` but their 2026-08-11 dependency chain still wants `libnvJitLink.so.12`,
