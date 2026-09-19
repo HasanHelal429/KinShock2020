@@ -108,7 +108,7 @@ def _asinh_norm_to(H, hmax, softclip=0.03):
 
 def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
                        colors=None, bg=PHASE_BG, legend=False,
-                       norm="asinh", peaks=None):
+                       norm="asinh", peaks=None, vline_label=r"$v_z=v_{sh}$"):
     """Draw a 2D phase-space *distribution* f(z, v) as an additive two-colour image.
 
     ``species_data`` maps a role key ('piston' / 'ambient') -> (z, v, weight) arrays
@@ -157,7 +157,7 @@ def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
     ax.set_ylim(v_edges[0], v_edges[-1])
     if vline is not None:
         ax.axhline(vline, color="w", ls=":", lw=0.9, alpha=0.7)
-        ax.text(0.985, vline, r"$v_z=v_{sh}$", transform=ax.get_yaxis_transform(),
+        ax.text(0.985, vline, vline_label, transform=ax.get_yaxis_transform(),
                 va="bottom", ha="right", fontsize=7, color="w", alpha=0.7)
     if legend:
         y = 0.965

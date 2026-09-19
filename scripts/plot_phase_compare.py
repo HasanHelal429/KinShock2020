@@ -95,8 +95,14 @@ def movie(args):
         cfg = kinshock.load(run); sc = kinshock.units.derive(cfg)
         pfs = kio.plotfiles(run)
         times = np.array([kio.load_frame(p).time * sc.wci0 for p in pfs])
+        import yaml as _y
+        _raw = _y.safe_load(open(os.path.join(run, "config.yaml")))
+        _th = float(_find(_raw, "theta_e_heat"))
         runs.append(dict(run=run, cfg=cfg, sc=sc, pfs=pfs, times=times,
-                         rid=cfg["meta"]["run_id"], meta=row_meta(run)))
+                         rid=cfg["meta"]["run_id"], meta=row_meta(run),
+                         Tab=_th * 511000.0, B0=sc.B0,
+                         vsh_c=sc.vsh_model / C,
+                         cs_c=np.sqrt(_th / cfg["reference"]["mass_ratio"])))
         print(f"  {runs[-1]['rid']}: {len(pfs)} frames to t*={times[-1]:.3f}", flush=True)
     if args.match == "piston":
         # piston front vs frame, per run, then a shared travel grid
@@ -180,18 +186,40 @@ def movie(args):
         for r, R in enumerate(runs):
             a = ax[r][0]
             t, sd, zp = frames[r][k]
-            P.phase_distribution(a, sd, z_edges, v_edges, vline=1.0,
+            # phase_distribution draws on the v_edges grid, which is in v_sh. Rescaling to
+            # c is a pure relabelling of that axis by this run's own v_sh/c -- the data are
+            # untouched, so the 43x span between these runs lands in the tick labels.
+            sc_y = R["vsh_c"] if args.yunit == "c" else 1.0
+            vline = {"vsh": 1.0, "cs_ab": 1.0 / 4.6, "none": None}[args.vline]
+            vlab = {"vsh": r"$v_z=v_{sh}$", "cs_ab": r"$v_z=C_{s,ab}$",
+                    "none": ""}[args.vline]
+            P.phase_distribution(a, sd, z_edges, v_edges, vline=vline, vline_label=vlab,
                                  legend=(r == 0), norm=args.norm, peaks=peaks[r])
+            if args.yunit == "c":
+                import matplotlib.ticker as _mt
+                a.yaxis.set_major_formatter(
+                    _mt.FuncFormatter(lambda y, _p, s=sc_y: f"{y*s:.3f}"))
             if args.frame == "box" and np.isfinite(zp):
                 a.axvline(zp, color="#ffd166", lw=1.0, alpha=.55, zorder=5)
-            dzl, ppc, nd = R["meta"]
-            a.set_title(f"{R['rid']}   " + rf"$dz/\lambda_D$={dzl:.2f}  ppc={ppc:.0f}  "
-                        + rf"$N_D$={nd:.0f}" + rf"      $t\omega_{{ci0}}$ = {t:.3f}",
-                        fontsize=10)
-            a.set_ylabel(r"$v_z / v_{sh}$", fontsize=10)
+            if args.label == "minimal":
+                _T = f"{R['Tab']:,.1f}".removesuffix(".0")   # 47,012.1 / 470 / 25.6,
+                a.set_title(f"{_T} eV      {R['B0']:.2f} T"     # never scientific notation
+                            + rf"          $t\omega_{{ci0}}$ = {t:.3f}", fontsize=11)
+            else:
+                dzl, ppc, nd = R["meta"]
+                a.set_title(f"{R['rid']}   " + rf"$dz/\lambda_D$={dzl:.2f}  ppc={ppc:.0f}  "
+                            + rf"$N_D$={nd:.0f}" + rf"      $t\omega_{{ci0}}$ = {t:.3f}",
+                            fontsize=10)
+            a.set_ylabel(r"$v_z / c$" if args.yunit == "c" else r"$v_z / v_{sh}$",
+                         fontsize=10)
         ax[-1][0].set_xlabel(r"$z / d_{i0}$" if args.frame == "box"
                              else r"$(z - z_{piston}) / d_{i0}$", fontsize=11)
-        fig.tight_layout()
+        fig.suptitle(("stationary window" if args.frame == "box" else "piston-relative")
+                     + "   |   " + ("dashed = $C_{s,ab}$" if args.vline == "cs_ab"
+                                    else "dashed = $v_{sh}$")
+                     + "   |   y axis per panel, "
+                     + ("$v_z/c$" if args.yunit == "c" else "$v_z/v_{sh}$"), fontsize=11)
+        fig.tight_layout(rect=[0, 0, 1, 0.975])
         fig.savefig(os.path.join(fdir, f"frame_{k:03d}.png"))
         plt.close(fig)
     print(f"  rendered {args.nframes} frames", flush=True)
@@ -214,6 +242,18 @@ def main():
     ap.add_argument("--win", type=float, nargs=2, default=None,
                     help="window in d_i0. Default -2.5..5.5 about the piston (frame=piston) "
                          "or 0..34 absolute (frame=box).")
+    ap.add_argument("--yunit", choices=("vsh", "c"), default="vsh",
+                    help="v_z normalisation. 'c' rescales each panel by that run's own "
+                         "v_sh/c, so per-panel limits differ by the same factor the runs "
+                         "differ in v/c -- the disparity shows in the TICK LABELS, not the "
+                         "geometry. --vlim is then read in units of v_sh and converted.")
+    ap.add_argument("--vline", choices=("vsh", "cs_ab", "none"), default="vsh",
+                    help="what the dashed line marks. cs_ab = the ABLATION sound speed "
+                         "sqrt(Z kT_e,ab/m_i) = v_sh/4.6, the partner to a T_ab label; "
+                         "the upstream C_s0 is ~10x smaller again and would sit on zero.")
+    ap.add_argument("--label", choices=("full", "minimal"), default="full",
+                    help="minimal = ablation temperature and B0 only, no run id or grid "
+                         "metadata. Run ids then live only in the filename/caption.")
     ap.add_argument("--cmap", default="magma",
                     help="matplotlib colormap; cividis is the repo's CVD-safe "
                          "blue->orange phase-space map (make_figures FIG7_CMAP)")
