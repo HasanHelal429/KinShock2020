@@ -40,6 +40,14 @@ WHICH="${1:-both}"
 }
 : "${AMREX_CUDA_ARCH:?the WarpX profile did not load - check \$HOME/perlmutter_gpu_warpx.profile}"
 
+# OPENPMD IS OFF (was ON until 2026-09-19). NERSC removed cray-hdf5-parallel/1.12.2.9,
+# and 1.14.x ships soname libhdf5_parallel_gnu_123.so.310 where the old binaries linked
+# .so.200 -- so BOTH build_pm_{a,b}/bin/warpx.1d stopped loading entirely:
+#     error while loading shared libraries: libhdf5_parallel_gnu_123.so.200
+# openPMD was never used: every deck writes AMReX plotfiles (diags/<name>/Header, Level_0)
+# and no config sets a `format` or `openpmd` key. Turning it off removes the HDF5 link
+# rather than re-pinning it to a version NERSC will bump again. The WarpX commit -- the
+# actual provenance -- is unchanged.
 build_one() {
     local tag="$1" commit="$2" bdir="$3"
     echo "=== building $tag at $commit -> $bdir"
@@ -52,7 +60,7 @@ build_one() {
         -DWarpX_DIMS=1 -DWarpX_COMPUTE=CUDA \
         -DAMReX_CUDA_ARCH="${AMREX_CUDA_ARCH}" \
         -DWarpX_MPI=ON -DWarpX_MPI_THREAD_MULTIPLE=ON \
-        -DWarpX_PRECISION=DOUBLE -DWarpX_OPENPMD=ON \
+        -DWarpX_PRECISION=DOUBLE -DWarpX_OPENPMD=OFF \
         -DWarpX_EB=ON -DWarpX_QED=ON -DWarpX_FFT=OFF \
         -DWarpX_APP=ON -DWarpX_LIB=ON -DWarpX_PYTHON=OFF \
         -DCMAKE_BUILD_TYPE=Release
