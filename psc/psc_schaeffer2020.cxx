@@ -131,7 +131,7 @@ void setupParameters(int argc, char** argv)
   g.nz     = p.getOrDefault<int>("nz", 60000);
   g.Ly     = p.getOrDefault<double>("Ly", 5.);
   g.Lz     = p.getOrDefault<double>("Lz", 18000.);
-  g.npz    = p.getOrDefault<int>("npz", 240);
+  g.npz    = p.getOrDefault<int>("npz", 300); // nz/npz must be a multiple of 4 (CUDA BS144)
   g.nicell = p.getOrDefault<int>("nicell", 1000);
   g.cfl    = p.getOrDefault<double>("cfl", 0.75);
   g.nmax   = p.getOrDefault<int>("nmax", 400000);

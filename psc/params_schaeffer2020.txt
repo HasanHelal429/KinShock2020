@@ -25,7 +25,7 @@ Ly 5                 # [P] 5 d_e,ab transverse
 nz 60000             # [D] paper: 30000 cells / 9000 d_e,ab. Doubled: Fig. 5 puts the shock
 Lz 18000             #     at 56 d_i0 = 5600 d_e,ab, outside a centred +-4500 box; +-9000 holds it.
                      #     Literal alternative: nz 30000, Lz 9000 (same dz = 0.3).
-npz 240              # [I] decomposition only (250 cells per patch)
+npz 300              # [I] decomposition: 200 cells/patch; CUDA needs a multiple of 4
 nicell 1000          # [P] 1000 macroparticles per cell at n_e,ab = 1
 cfl 0.75             # [D] 2D Courant -> dt = 0.1826/w_pe; 400,000 steps = 221.5 t_ab (paper: 220)
 nmax 400000          # [P] 400,000 timesteps
