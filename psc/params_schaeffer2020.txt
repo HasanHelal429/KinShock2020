@@ -1,0 +1,43 @@
+# psc_schaeffer2020 -- Schaeffer et al. 2020 (PoP) Sec. II / Table I, PSC run
+# Code units: lengths d_e,ab at n = 1, times 1/w_pe,ab, T in m_e c^2 (PSC's
+# heavy electron and reduced c), B in sqrt(m_e c^2) units.
+# Keys not listed take the defaults compiled into psc_schaeffer2020.cxx, which
+# are these same values.
+#
+# [P] = stated in the paper   [D] = derived from paper numbers
+# [I] = inferred / PSC default -- NOT given in the paper
+
+# -- plasma
+mass_ratio 100       # [P] mu_p = 100, d_i,ab = 10 d_e,ab (Sec. II.2)
+Zi 1                 # [P] hydrogen
+Te_ab 0.092          # [P] theta_e,ab (Table I); heating-operator target
+target_n 2.5         # [P] target density 2.5 n_e,ab for 0 < z <= 2 d_i,ab
+target_hw_di 2       # [P] target half-width 2 d_i,ab (centred, ablates both ways)
+target_T0 0.002      # [I] initial target T; paper only says it ramps to T_e,ab over ~t_ab
+amb_n 0.01           # [P] n_e0 = 0.01 (Table I), only |z| > 2 d_i,ab
+amb_T 0.002          # [P] T_e0 = T_i0 = 0.002 (Table I)
+B0 0.01              # [P] B0 = 0.01 (Table I), transverse, only |z| > 2 d_i,ab
+lambda_ab 20         # [P] w_ce,ab / nu_ei,ab = 20 at T_ab, n = 1 -> collision_nu = 0.00159
+
+# -- grid
+ny 12                # [P] 12 transverse cells
+Ly 5                 # [P] 5 d_e,ab transverse
+nz 60000             # [D] paper: 30000 cells / 9000 d_e,ab. Doubled: Fig. 5 puts the shock
+Lz 18000             #     at 56 d_i0 = 5600 d_e,ab, outside a centred +-4500 box; +-9000 holds it.
+                     #     Literal alternative: nz 30000, Lz 9000 (same dz = 0.3).
+npz 240              # [I] decomposition only (250 cells per patch)
+nicell 1000          # [P] 1000 macroparticles per cell at n_e,ab = 1
+cfl 0.75             # [D] 2D Courant -> dt = 0.1826/w_pe; 400,000 steps = 221.5 t_ab (paper: 220)
+nmax 400000          # [P] 400,000 timesteps
+
+# -- operator cadences
+inject_interval 20   # [I] PSC flatfoil value; target density held at 2.5 (paper)
+inject_tau 40        # [I] PSC flatfoil value
+heating_interval 20  # [I] PSC flatfoil value; heats the whole target, uniform transverse
+collision_interval 10 # [I] PSC flatfoil value (Takizuka-Abe, as in the paper)
+
+# -- output (sized for disk, not physics)
+field_every 800      # [I] ~0.44 t_ab; fields + moments
+prt_every 8000       # [I] every 20th particle
+energy_every 0       # PSC main's DiagEnergies throws for an invariant x; off
+checkpoint_every 0   # needs ADIOS2, which this build lacks -> no restart
