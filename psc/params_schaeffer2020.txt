@@ -22,16 +22,17 @@ lambda_ab 20         # [P] w_ce,ab / nu_ei,ab = 20 at T_ab, n = 1 -> collision_n
 # -- grid
 ny 12                # [P] 12 transverse cells
 Ly 5                 # [P] 5 d_e,ab transverse
-nz 60000             # [D] paper: 30000 cells / 9000 d_e,ab. Doubled: Fig. 5 puts the shock
-Lz 18000             #     at 56 d_i0 = 5600 d_e,ab, outside a centred +-4500 box; +-9000 holds it.
-                     #     Literal alternative: nz 30000, Lz 9000 (same dz = 0.3).
-npz 300              # [I] decomposition: 200 cells/patch; CUDA needs a multiple of 4
+nz 30000             # [P] 30000 cells / 9000 d_e,ab, centred (z in +-4500). NB the paper's
+Lz 9000              #     t*_3 shock at 56 d_i0 = 6270 d_e,ab lies outside +-4500 -- the
+                     #     paper's numbers are inconsistent there; the box is taken literally.
+npz 150              # [I] decomposition: 200 cells/patch; CUDA needs a multiple of 4
 nicell 1000          # [P] 1000 macroparticles per cell at n_e,ab = 1
 cfl 0.75             # [D] 2D Courant -> dt = 0.1826/w_pe; 400,000 steps = 221.5 t_ab (paper: 220)
 nmax 400000          # [P] 400,000 timesteps
 
 # -- operator cadences
-inject_interval 20   # [I] PSC flatfoil value; target density held at 2.5 (paper)
+inject_interval 200  # [I] 0.11 t_ab; target density held at 2.5 (paper). Not flatfoil's 20:
+                     #     the host density moment copies all particles off the GPU each time
 inject_tau 40        # [I] PSC flatfoil value
 heating_interval 20  # [I] PSC flatfoil value; heats the whole target, uniform transverse
 collision_interval 10 # [I] PSC flatfoil value (Takizuka-Abe, as in the paper)

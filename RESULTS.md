@@ -4191,3 +4191,37 @@ remain, and note the ladder never actually enters the magnetized regime — `gam
 14.8, 8.3, 4.7, 2.6, 1.5, all > 1, so a clean ECDI comb was arguably never to be expected
 within it. What survives is at most a continuous reduction in `gamma/w_ce`, not a branch
 change.
+
+## 2026-09-30 — PSC case `psc/psc_schaeffer2020.cxx`: built from the paper, sized on GPU and CPU
+
+A PSC deck written from Schaeffer 2020 §II / Table I, not adapted from a test case.
+`psc/params_schaeffer2020.txt` tags every value as stated / derived / inferred. Geometry:
+12 × 30000 cells at 0.3 d_e,ab (5 × 9000 d_e,ab, centred, periodic), 1000 ppc at n = 1,
+CFL 0.75 in 2D → dt = 0.1826 ω_pe⁻¹, so 400,000 steps = 221.5 t_ab (paper: 220). Not run
+yet — awaiting approval.
+
+**Cost, measured** (1 A100, full box, 800 steps): **1.11 ns per particle-step**. Particle
+growth comes from the WarpX PSC-matched run `ek_47keV_t2` (`PN.txt`): the target ablates at
+a steady **10.0 n0·d_e per t_ab per side** (= n0·C_s), linear for all 68 t_ab. In PSC units
+(×1.25) that is 4.4e8 particles at 221.5 t_ab, a mean of 2.4e8, so **≈29 A100-hours**. One
+CPU node (128 ranks) gives ≈0.59 ns per particle-step per node once balanced, so ≈16 CPU
+node-hours (~2000 core-hours). That is consistent with the paper having run it without
+trouble.
+
+Why the first estimate (67–300 GPU-h) was high:
+1. **The injection hook was 78% of the step time.** A host density moment every 20 steps
+   copies every particle off the GPU. The CUDA moments cannot replace it: PSC calls the
+   inject hook after the push but before the block re-sort, so both CUDA moment kernels read
+   stale block offsets and return ~0 (domain sum 680 vs 9550 on CPU). That would refill the
+   target from empty at every injection; flatfoil's CUDA selector has the same flaw. Fix:
+   keep the host moment and inject every 200 steps (0.11 t_ab). Throughput went from
+   3.0 to 1.11 ns.
+2. The flux was guessed at 1–4 n·C_s; it is measured at 1.
+3. The doubled ±9000 box only added ambient particles (<3% of cost). It is reverted to the
+   literal ±4500 box, though the paper's t*₃ shock at 56 d_i0 = 6270 d_e,ab lies outside
+   it — an inconsistency in the paper.
+
+PSC-main traps found: the 3-arg `InitNptFunc` adapter dangles (segfault; use the 5-arg
+lambda); `DiagEnergies` throws for an invariant x; the CUDA pusher needs nz/npz to be a
+multiple of 4 (BS144); a z-wall half-domain is impossible on GPU (conducting walls are y-only,
+no CUDA particle reflection); and no ADIOS2 means no checkpoints.

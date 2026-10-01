@@ -96,6 +96,13 @@ using Marder = PscConfig::Marder;
 // phase-space dump tens of GB. Sparse ambient is thinned in proportion.
 using OutputParticles =
   OutputParticlesHdf5<Mparticles, ParticleSelectorEveryNth<20>>;
+// Host density moment, also on GPU. PSC calls the injection hook after the push
+// but before particles are re-sorted into blocks, and both CUDA moment kernels
+// read the stale block offsets: they return ~0 (domain sum 680 vs 9550 on CPU)
+// and the target is refilled from empty at every injection (flatfoil's CUDA
+// selector has this problem). The host moment is correct but copies every
+// particle off the GPU, so injection runs every 200 steps (0.11 t_ab) rather
+// than flatfoil's 20, where it was 78% of the step time.
 using Moment_n = Moment_n_1st<MfieldsSingle::Storage, Dim>;
 using Heating = typename HeatingSelector<Mparticles>::Heating;
 
@@ -128,15 +135,15 @@ void setupParameters(int argc, char** argv)
   g.target_hw_di = p.getOrDefault<double>("target_hw_di", 2.);
 
   g.ny     = p.getOrDefault<int>("ny", 12);
-  g.nz     = p.getOrDefault<int>("nz", 60000);
+  g.nz     = p.getOrDefault<int>("nz", 30000);
   g.Ly     = p.getOrDefault<double>("Ly", 5.);
-  g.Lz     = p.getOrDefault<double>("Lz", 18000.);
-  g.npz    = p.getOrDefault<int>("npz", 300); // nz/npz must be a multiple of 4 (CUDA BS144)
+  g.Lz     = p.getOrDefault<double>("Lz", 9000.);
+  g.npz    = p.getOrDefault<int>("npz", 150); // nz/npz must be a multiple of 4 (CUDA BS144)
   g.nicell = p.getOrDefault<int>("nicell", 1000);
   g.cfl    = p.getOrDefault<double>("cfl", 0.75);
   g.nmax   = p.getOrDefault<int>("nmax", 400000);
 
-  g.inject_interval    = p.getOrDefault<int>("inject_interval", 20);
+  g.inject_interval    = p.getOrDefault<int>("inject_interval", 200);
   g.heating_interval   = p.getOrDefault<int>("heating_interval", 20);
   g.collision_interval = p.getOrDefault<int>("collision_interval", 10);
   g.inject_tau         = p.getOrDefault<double>("inject_tau", 40.);
