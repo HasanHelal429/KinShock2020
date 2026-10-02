@@ -4225,3 +4225,32 @@ PSC-main traps found: the 3-arg `InitNptFunc` adapter dangles (segfault; use the
 lambda); `DiagEnergies` throws for an invariant x; the CUDA pusher needs nz/npz to be a
 multiple of 4 (BS144); a z-wall half-domain is impossible on GPU (conducting walls are y-only,
 no CUDA particle reflection); and no ADIOS2 means no checkpoints.
+
+## 2026-10-01 — PSC on GPU: broken CUDA moments, Marder off, heating calibrated; WarpX rebuilt with openPMD
+
+**PSC main's CUDA moment kernels are wrong for this setup.** The domain-summed rho is a
+few % of the truth, and the Gauss error is 0.56 at step 0 (9e-8 on CPU). Three things read
+that rho: injection (already on the host moment), `pfd_moments`, and the Gauss check plus
+**Marder**, which on GPU was "correcting" E toward a wrong rho every 100 steps. Marder and
+Gauss now default off on GPU. With Marder off, a CPU/GPU A/B at 1.1 t_ab agrees: target T_e
+0.1416 vs 0.1421, n_e 2.482 vs 2.482, ablation n_e 0.250 vs 0.251, E_z and B_y within PIC
+noise (mean ambipolar E_z within 1%). So the GPU push and deposition are sound. On GPU,
+`pfd_moments` is replaced by a host-side `PhaseSpaceDiag`: (z,u_z), (z,u_x) and n, <u>,
+<u²/γ> per species every `ps_every` steps, read with `psc/read_ps.py`. It agrees with the
+particle dumps (n_e 1.221 vs 1.222; θ_e 0.0755 vs 0.0757) at negligible cost.
+
+**The heating operator overshoots T_e,ab.** Its plateau is set by heating vs outflow, not
+by its T parameter. With `heat_T` = T_e,ab = 0.092 the ablation plasma settles at
+θ_e = 0.117 (target 0.137), measured with the pressure moment <u²/γ>/3; <u²>/3 reads
+0.185 and overstates it. `heat_T` 0.0723 gives 0.0895, so 0.074 interpolates to Table I's
+0.092. Plateau within ~2 t_ab, target n held at 2.42, ablation n → 1.22 (Table I 1.25).
+
+**The literal ±4500 box wraps at t·ω_ci0 ≈ 3.2.** The front moves at 45.5 d_e/t_ab
+(0.138 c ≈ v_sh) and reaches the periodic boundary at ~96 t_ab. That covers t*₁ ≈ 1 and
+t*₂ ≈ 2.5 but not t*₃ ≈ 5; the paper's full 400k steps run 57% past the wrap. Costed
+options (1.11 ns/particle-step, growth 1.2× the WarpX rate): ±4500 to 95 t_ab, ~7 GPU-h;
+±7500 to 165 t_ab (t*₃ + margin), ~21 GPU-h; literal 400k steps, ~37 GPU-h.
+
+**WarpX A and B rebuilt with openPMD** (A: `acc2d6621`, B: `fcb48c9fe`, both link
+libhdf5 .so.310), so the default phase-space histograms in `deck.render` can run. B's
+stale CMake cache (MPI not found) moved to `build_pm_b.stale-20261001`.
