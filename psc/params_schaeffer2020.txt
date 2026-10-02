@@ -37,9 +37,10 @@ inject_tau 40        # [I] PSC flatfoil value
 heating_interval 20  # [I] PSC flatfoil value; heats the whole target, uniform transverse
 collision_interval 10 # [I] PSC flatfoil value (Takizuka-Abe, as in the paper)
 
-heat_T 0.092         # [I] heating-operator T. = T_e,ab gives theta_e 0.117 in the ablation
-                     #     plasma (pilot, pressure moment), 1.28x Table I; the plateau scales
-                     #     ~linearly, so 0.0723 should give 0.092 -- being verified.
+heat_T 0.074         # [D] calibrated: the heating operator's plateau is set by outflow
+                     #     losses, not by its T parameter. Pilots (20 t_ab, pressure moment):
+                     #     heat_T 0.092 -> ablation theta_e 0.117; 0.0723 -> 0.0895. 0.074
+                     #     interpolates to Table I's 0.092 (target itself ~0.11).
 marder_every 0       # GPU: PSC's CUDA rho is wrong here, so Marder would corrupt E. The 1vb
 gauss_every 0        #     deposition conserves charge; Marder is only a round-off cleaner.
 
