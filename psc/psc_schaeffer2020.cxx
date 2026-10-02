@@ -30,7 +30,11 @@
 #include "../libpsc/psc_heating/psc_heating_impl.hxx"
 #include "heating_spot_foil.hxx"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <fstream>
+#include <vector>
 
 // Two species, as in the paper's single-species runs: H ions and ONE electron
 // population. (flatfoil adds a hot-electron population; the paper has none.)
@@ -56,6 +60,7 @@ struct Sch2020
   double amb_T;       // T_0 = T_e0 = T_i0 = 0.002 m_e c^2 Table I, Sec. II.1
   double B0;          // 0.01 sqrt(m_e c^2), along y here  Table I
   double lambda_ab;   // 20                                Table I, Sec. II.2
+  double heat_T;      // heating-operator T parameter (default T_e,ab; see params)
   double target_hw_di;// 2 d_i,ab (0 < z <= 2 d_i,ab)       Sec. II.2
   // -- grid / numerics
   int ny, nz;         // 12 x (see params.txt)             Sec. II.2
@@ -69,6 +74,8 @@ struct Sch2020
   double inject_tau;
   // -- output
   int field_every, prt_every, energy_every;
+  int ps_every, ps_ubins;     // binned phase space (PhaseSpaceDiag)
+  double ps_zbin, ps_umax_i, ps_umax_e;
   // -- derived
   double d_i;
 } g;
@@ -109,6 +116,126 @@ using Heating = typename HeatingSelector<Mparticles>::Heating;
 // ----------------------------------------------------------------------
 // the target: 0 < |z| <= 2 d_i,ab, uniform in y (quasi-1D, Sec. II.1)
 
+// ----------------------------------------------------------------------
+// PhaseSpaceDiag: binned phase space + 1D moments from the particles, on the host.
+//
+// PSC main's GPU moment kernels are wrong for this setup (rho off by ~30x, see
+// Moment_n note), so every particle-derived diagnostic is computed here from a
+// host copy of the particles -- correct on CPU and GPU alike. Per species:
+//   hist[kind][axis][iz][iu]  axis 0 = (z, u_z), axis 1 = (z, u_x); sum of w
+//   mom[kind][c][iz]          c = sum w, sum w u_{x,y,z}, sum w u_{x,y,z}^2
+// u = gamma*beta. Density per bin = sum w / (nicell * ny * cells_per_bin), the
+// same normalisation as the particle dumps. Raw float32, layout in ps_header.txt.
+
+struct PhaseSpaceDiag
+{
+  int every = 0, nzb = 0, nub = 0, nkinds = 0;
+  double zlo = 0., zhi = 0.;
+  std::vector<double> ulo, uhi;
+  std::vector<double> hist, mom;
+
+  void init(const Grid_t& grid, int every_, double zbin, int nub_,
+            const std::vector<double>& umax, int nicell, int ny, double dz)
+  {
+    every = every_;
+    if (every <= 0)
+      return;
+    nkinds = grid.kinds.size();
+    zlo = grid.domain.corner[2];
+    zhi = zlo + grid.domain.length[2];
+    nzb = std::max(1, int(std::lround((zhi - zlo) / zbin)));
+    nub = nub_;
+    for (int k = 0; k < nkinds; k++) {
+      ulo.push_back(-umax[k]);
+      uhi.push_back(umax[k]);
+    }
+    hist.assign(size_t(nkinds) * 2 * nzb * nub, 0.);
+    mom.assign(size_t(nkinds) * 7 * nzb, 0.);
+    int rank;
+    MPI_Comm_rank(grid.comm(), &rank);
+    if (rank == 0) {
+      FILE* f = fopen("ps_header.txt", "w");
+      fprintf(f, "every %d\nnz_bins %d\nnu_bins %d\nzlo %.17g\nzhi %.17g\n", every,
+              nzb, nub, zlo, zhi);
+      fprintf(f, "nicell %d\nny %d\ndz %.17g\ncells_per_zbin %.17g\n", nicell, ny,
+              dz, (zhi - zlo) / nzb / dz);
+      for (int k = 0; k < nkinds; k++)
+        fprintf(f, "kind %d %s ulo %.17g uhi %.17g\n", k,
+                std::string(grid.kinds[k].name).c_str(), ulo[k], uhi[k]);
+      fprintf(f, "file ps.<step>.bin: float32 hist[kind][axis(0=z-uz,1=z-ux)]"
+                 "[nz_bins][nu_bins] then mom[kind][7][nz_bins]\n");
+      fprintf(f, "mom components: sum_w, sum_w_ux, sum_w_uy, sum_w_uz, "
+                 "sum_w_ux2, sum_w_uy2, sum_w_uz2 (u = gamma*beta)\n");
+      fclose(f);
+    }
+  }
+
+  template <typename MP>
+  void accumulate(MP& mprts)
+  {
+    std::fill(hist.begin(), hist.end(), 0.);
+    std::fill(mom.begin(), mom.end(), 0.);
+    const double zs = nzb / (zhi - zlo);
+    auto accessor = mprts.accessor();
+    for (int p = 0; p < mprts.n_patches(); p++) {
+      for (auto prt : accessor[p]) {
+        int iz = int(std::floor((prt.position()[2] - zlo) * zs));
+        if (iz < 0 || iz >= nzb)
+          continue;
+        int k = prt.kind();
+        double w = prt.w();
+        auto u = prt.u();
+        double* m = &mom[size_t(k) * 7 * nzb];
+        m[iz] += w;
+        for (int d = 0; d < 3; d++) {
+          m[(1 + d) * nzb + iz] += w * u[d];
+          m[(4 + d) * nzb + iz] += w * u[d] * u[d];
+        }
+        const double us = nub / (uhi[k] - ulo[k]);
+        const double ua[2] = {u[2], u[0]};
+        for (int a = 0; a < 2; a++) {
+          int iu = int(std::floor((ua[a] - ulo[k]) * us));
+          if (iu >= 0 && iu < nub)
+            hist[((size_t(k) * 2 + a) * nzb + iz) * nub + iu] += w;
+        }
+      }
+    }
+  }
+
+  template <typename Mparticles>
+  void operator()(Mparticles& mprts)
+  {
+    const auto& grid = mprts.grid();
+    if (every <= 0 || grid.timestep() % every != 0)
+      return;
+#ifdef USE_CUDA
+    auto& h = mprts.template get_as<MparticlesSingle>();
+    accumulate(h);
+    mprts.put_as(h, MP_DONT_COPY);
+#else
+    accumulate(mprts);
+#endif
+    int rank;
+    MPI_Comm_rank(grid.comm(), &rank);
+    std::vector<double> hsum(rank == 0 ? hist.size() : 0),
+      msum(rank == 0 ? mom.size() : 0);
+    MPI_Reduce(hist.data(), hsum.data(), hist.size(), MPI_DOUBLE, MPI_SUM, 0,
+               grid.comm());
+    MPI_Reduce(mom.data(), msum.data(), mom.size(), MPI_DOUBLE, MPI_SUM, 0,
+               grid.comm());
+    if (rank != 0)
+      return;
+    char fname[64];
+    snprintf(fname, sizeof(fname), "ps.%09d.bin", grid.timestep());
+    FILE* f = fopen(fname, "wb");
+    std::vector<float> buf(hsum.begin(), hsum.end());
+    fwrite(buf.data(), sizeof(float), buf.size(), f);
+    buf.assign(msum.begin(), msum.end());
+    fwrite(buf.data(), sizeof(float), buf.size(), f);
+    fclose(f);
+  }
+};
+
 struct Target
 {
   double zh, n, T;
@@ -132,6 +259,11 @@ void setupParameters(int argc, char** argv)
   g.amb_T        = p.getOrDefault<double>("amb_T", 0.002);
   g.B0           = p.getOrDefault<double>("B0", 0.01);
   g.lambda_ab    = p.getOrDefault<double>("lambda_ab", 20.);
+  // The operator heats at a fixed rate ~ heat_T^1.5 and the plateau is set by
+  // outflow losses, so the measured T_e scales ~linearly with heat_T. With
+  // heat_T = T_e,ab the pilot settles at theta_e = 0.117 in the ablation plasma
+  // (0.137 in the target), 1.28x Table I's 0.092.
+  g.heat_T       = p.getOrDefault<double>("heat_T", g.Te_ab);
   g.target_hw_di = p.getOrDefault<double>("target_hw_di", 2.);
 
   g.ny     = p.getOrDefault<int>("ny", 12);
@@ -153,6 +285,15 @@ void setupParameters(int argc, char** argv)
   // 0 = off. PSC main's DiagEnergiesField builds an empty view for an
   // invariant x (ibn[0] = 0) and throws; flatfoil disables it the same way.
   g.energy_every = p.getOrDefault<int>("energy_every", 0);
+  // Binned phase space at 10x the particle-dump cadence (0.44 t_ab). Windows in
+  // u = gamma*beta: ions +-3 v_sh = +-3 * 4.6 C_s,ab (= +-0.42 here), electrons
+  // +-8 v_te,ab (= +-2.43). z bins of 2 d_e,ab.
+  g.ps_every  = p.getOrDefault<int>("ps_every", 800);
+  g.ps_zbin   = p.getOrDefault<double>("ps_zbin", 2.);
+  g.ps_ubins  = p.getOrDefault<int>("ps_ubins", 200);
+  g.ps_umax_i = p.getOrDefault<double>(
+    "ps_umax_i", 3. * 4.6 * std::sqrt(g.Te_ab / g.mass_ratio));
+  g.ps_umax_e = p.getOrDefault<double>("ps_umax_e", 8. * std::sqrt(g.Te_ab));
 
   psc_params.nmax = g.nmax;
   psc_params.cfl = g.cfl;
@@ -245,14 +386,27 @@ void run(int argc, char** argv)
   mpi_printf(grid.comm(), "collision_nu = %g (lambda_ab = %g)\n", collision_nu,
              g.lambda_ab);
 
+  // Gauss check and Marder both read rho from PSC's CUDA moment kernel, which is
+  // wrong on GPU here (max |rho - div E| = 0.56 at step 0, vs 9e-8 on CPU), so
+  // on GPU Marder would "correct" E toward a wrong rho every interval. The 1vb
+  // current deposition is charge-conserving, so Marder is only a round-off
+  // cleaner: off by default on GPU, flatfoil's cadence on CPU.
+#ifdef USE_CUDA
+  const int gauss_default = 0, marder_default = 0;
+#else
+  const int gauss_default = 1000, marder_default = 100;
+#endif
+  InputParams p_chk(params_path);
   ChecksParams checks_params{};
   checks_params.continuity.check_interval = 0;
-  checks_params.gauss.check_interval = 1000;
+  checks_params.gauss.check_interval =
+    p_chk.getOrDefault<int>("gauss_every", gauss_default);
   checks_params.gauss.err_threshold = 1e-4;
   checks_params.gauss.print_max_err_always = true;
   Checks checks{grid, MPI_COMM_WORLD, checks_params};
 
-  psc_params.marder_interval = 100;
+  psc_params.marder_interval =
+    p_chk.getOrDefault<int>("marder_every", marder_default);
   Marder marder(grid, 0.9, 3, false);
 
   // -- output
@@ -277,7 +431,7 @@ void run(int argc, char** argv)
   hp.xc = 0.;
   hp.yc = 0.;
   hp.rH = 0.;
-  hp.T[MY_ELECTRON] = g.Te_ab;
+  hp.T[MY_ELECTRON] = g.heat_T;
   hp.T[MY_ION] = 0.;
   hp.Mi = grid.kinds[MY_ION].m;
   hp.n_kinds = N_MY_KINDS;
@@ -293,9 +447,20 @@ void run(int argc, char** argv)
   double inject_fac = (g.inject_interval * grid.dt / g.inject_tau) /
                       (1. + g.inject_interval * grid.dt / g.inject_tau);
 
+  PhaseSpaceDiag ps_diag;
+  {
+    std::vector<double> umax(N_MY_KINDS);
+    umax[MY_ION] = g.ps_umax_i;
+    umax[MY_ELECTRON] = g.ps_umax_e;
+    ps_diag.init(grid, g.ps_every, g.ps_zbin, g.ps_ubins, umax, g.nicell, g.ny,
+                 g.Lz / g.nz);
+  }
+
   auto lf_inject_heat = [&](Mparticles& mprts, MfieldsState& mflds) {
     const Grid_t& grid = mprts.grid();
     auto timestep = grid.timestep();
+
+    ps_diag(mprts);
 
     if (g.inject_interval > 0 && timestep % g.inject_interval == 0) {
       Moment_n moment_n{grid};
@@ -353,7 +518,11 @@ void run(int argc, char** argv)
                                           balance, collision, checks);
   psc.add_gauss_corrector(&marder);
   psc.add_diagnostic(&out_fields);
+#ifndef USE_CUDA
+  // On GPU these moments come from the broken CUDA kernels; PhaseSpaceDiag's
+  // host-side moments replace them there.
   psc.add_diagnostic(&out_moments);
+#endif
   psc.add_diagnostic(&outp);
   psc.add_diagnostic(&oute);
   psc.add_injector(

@@ -37,8 +37,18 @@ inject_tau 40        # [I] PSC flatfoil value
 heating_interval 20  # [I] PSC flatfoil value; heats the whole target, uniform transverse
 collision_interval 10 # [I] PSC flatfoil value (Takizuka-Abe, as in the paper)
 
+heat_T 0.092         # [I] heating-operator T. = T_e,ab gives theta_e 0.117 in the ablation
+                     #     plasma (pilot, pressure moment), 1.28x Table I; the plateau scales
+                     #     ~linearly, so 0.0723 should give 0.092 -- being verified.
+marder_every 0       # GPU: PSC's CUDA rho is wrong here, so Marder would corrupt E. The 1vb
+gauss_every 0        #     deposition conserves charge; Marder is only a round-off cleaner.
+
 # -- output (sized for disk, not physics)
 field_every 800      # [I] ~0.44 t_ab; fields + moments
-prt_every 8000       # [I] every 20th particle
+prt_every 8000       # [I] every 20th particle (4.4 t_ab, 50 dumps)
+ps_every 800         # [I] binned phase space + host moments, 10x the dump cadence (500 frames);
+ps_zbin 2.           #     z bins 2 d_e; u = gamma*beta windows ions +-0.42 (3 v_sh), electrons
+ps_ubins 200         #     +-2.43 (8 v_te,ab). Read with psc/read_ps.py. Replaces pfd_moments,
+                     #     which PSC computes with its broken CUDA kernels on GPU.
 energy_every 0       # PSC main's DiagEnergies throws for an invariant x; off
 checkpoint_every 0   # needs ADIOS2, which this build lacks -> no restart
