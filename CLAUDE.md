@@ -208,6 +208,15 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 - **Physics caveat.** dz/λ_D ≈ 7 (Debye under-resolved) → grid heating. Near-shock foot
   turbulence is physical (converged); far-upstream small-scale (lambda<~2-3 d_e) hash is
   numerical grid noise (filter_npass=8 cuts it 31%). See `studies/bfield_convergence/` + RESULTS.
+- **Binned phase space is ON by default (2026-10-01).** `deck.render` adds one WarpX
+  `ParticleHistogram2D` per species (z × u_z; `diagnostics.phase_space` sets axes, bins,
+  windows and cadence; `phase_space: false` opts out) at ~10× the particle-dump cadence:
+  compressed phase space for smooth time integration, with the raw dumps unchanged.
+  **It needs a WarpX built with openPMD** — ParticleHistogram2D aborts at its first write
+  otherwise — and the Perlmutter binaries are currently built `-DWarpX_OPENPMD=OFF`
+  (commit 9627ef0). Rebuild before launching a deck that carries it. `--verify` flags a
+  missing histogram only when the config sets `phase_space` explicitly, so runs that
+  predate the feature still verify clean.
 - **`B_compression` in `criteria.json` is a GLOBAL max — cut the outer 2 d_i0 before quoting it.**
   From t*ω_ci0 ≈ 5.5 the open hi boundary throws an ~80× B⊥/B0 spike (vs ~15–19 for the real
   ramp) in every run, so late-time values are the artifact, not the shock (RESULTS 2026-07-29).

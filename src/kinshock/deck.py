@@ -185,6 +185,63 @@ def _diag_intervals(cfg: dict):
     return plot, red, field
 
 
+_U_AXES = ("ux", "uy", "uz")
+
+
+def _phase_space(cfg: dict, sc, plot_int: int) -> list[dict]:
+    """Binned (z, u) phase-space histograms, one ParticleHistogram2D per species x axis.
+
+    ON BY DEFAULT: compressed phase space at ~10x the raw-particle cadence, for smooth
+    time integration (the particle dumps stay as they are). ``diagnostics.phase_space:
+    false`` turns it off. Keys, all optional::
+
+        intervals: <steps>      # default plotfile_intervals // 10
+        z_bin_de: 2.0           # z bin width [d_e]
+        u_bins: 200             # momentum bins
+        axes: [uz]              # any of ux uy uz (u = gamma*beta)
+        species: all            # or a list of species names
+        u_range_c: {<species>: [lo, hi]}   # override the momentum window [c]
+
+    Default momentum windows: ions +-3 v_sh/c (reflected ions reach ~2 v_sh), electrons
+    +-8 v_te,ab/c. Needs a WarpX built with openPMD: ParticleHistogram2D aborts
+    otherwise (ParticleHistogram2D.cpp WriteToFile).
+    """
+    d = (cfg.get("diagnostics") or {}).get("phase_space", True)
+    if d is False or d is None:
+        return []
+    d = {} if d is True else dict(d)
+    if d.get("enabled", True) is False:
+        return []
+    geo = cfg["geometry"]
+    one_sided = geo.get("layout", "symmetric") == "one_sided"
+    length_de = float(geo["domain_halfwidth_de"]) * (1 if one_sided else 2)
+    z_bins = max(1, int(round(length_de / float(d.get("z_bin_de", 2.0)))))
+    u_bins = int(d.get("u_bins", 200))
+    interval = int(d.get("intervals", max(1, plot_int // 10)))
+    axes = list(d.get("axes", ["uz"]))
+    bad = [ax for ax in axes if ax not in _U_AXES]
+    if bad:
+        raise ValueError(f"diagnostics.phase_space.axes: unknown {bad}; use {_U_AXES}")
+    names = list(cfg["species"])
+    sel = d.get("species", "all")
+    names = names if sel == "all" else [s for s in names if s in sel]
+    over = d.get("u_range_c") or {}
+    out = []
+    for sp in names:
+        kind = cfg["species"][sp]["kind"]
+        if sp in over:
+            lo, hi = (float(v) for v in over[sp])
+        elif kind == "ion":
+            lo, hi = -3 * sc.vsh_model / units.C, 3 * sc.vsh_model / units.C
+        else:
+            lo, hi = -8 * sc.vte_ab / units.C, 8 * sc.vte_ab / units.C
+        for ax in axes:
+            out.append(dict(name=f"PS_{_alias(sp)}_z{ax}", species=sp, axis=ax,
+                            intervals=interval, z_bins=z_bins, u_bins=u_bins,
+                            u_lo=lo, u_hi=hi, one_sided=one_sided))
+    return out
+
+
 def render(cfg: dict) -> str:
     """Build a WarpX input deck (as a string) from a loaded KinShock2020 config."""
     ref, pis = cfg["reference"], cfg["plasma"]["piston"]
@@ -443,13 +500,35 @@ def render(cfg: dict) -> str:
 
     # diagnostics ---------------------------------------------------------
     a("# --- diagnostics ---")
+    ps = _phase_space(cfg, sc, plot_int)
     a("# Reduced diags: operator sanity (energy balance, piston replenishment).")
-    a("warpx.reduced_diags_names = EP PN")
+    a(f"warpx.reduced_diags_names = {' '.join(['EP', 'PN'] + [h['name'] for h in ps])}")
     a("EP.type      = ParticleEnergy")
     a(f"EP.intervals = {red_int}")
     a("PN.type      = ParticleNumber")
     a(f"PN.intervals = {red_int}")
     a("")
+    if ps:
+        h0 = ps[0]
+        nps = int(cfg["numerics"]["max_step"]) // h0["intervals"]
+        a(f"# Phase space, binned (ParticleHistogram2D, openPMD output; needs a WarpX built")
+        a(f"# with openPMD): z x u = gamma*beta, value = weight, ~{nps} frames, "
+          f"{h0['z_bins']} z bins x {h0['u_bins']} u bins.")
+        for h in ps:
+            p = h["name"]
+            a(f"{p}.type           = ParticleHistogram2D")
+            a(f"{p}.species        = {h['species']}")
+            a(f"{p}.intervals      = {h['intervals']}")
+            a(f"{p}.bin_number_abs = {h['z_bins']}")
+            a(f"{p}.bin_min_abs    = {'0.' if h['one_sided'] else '-half'}")
+            a(f"{p}.bin_max_abs    = half")
+            a(f"{p}.bin_number_ord = {h['u_bins']}")
+            a(f"{p}.bin_min_ord    = {_num(h['u_lo'])}")
+            a(f"{p}.bin_max_ord    = {_num(h['u_hi'])}")
+            a(f"{p}.histogram_function_abs(t,x,y,z,ux,uy,uz,w) = \"z\"")
+            a(f"{p}.histogram_function_ord(t,x,y,z,ux,uy,uz,w) = \"{h['axis']}\"")
+            a(f"{p}.value_function(t,x,y,z,ux,uy,uz,w) = \"w\"")
+        a("")
     diags = ["diag1"] + (["diag_fields"] if field_int else [])
     nframes = int(cfg["numerics"]["max_step"]) // plot_int if plot_int else 0
     a(f"# diag1: fields + raw particles for (z,uz) phase space (~{nframes} frames).")
@@ -596,6 +675,16 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
             out[k] = int(float(d[k]))
     if "diag_fields.write_species" in d:
         out["diag_fields.write_species"] = int(float(d["diag_fields.write_species"]))
+    for rd in d.get("warpx.reduced_diags_names", "").split():
+        if d.get(f"{rd}.type") != "ParticleHistogram2D":
+            continue
+        out[f"{rd}.species"] = d.get(f"{rd}.species", "")
+        out[f"{rd}.ord"] = d.get(f"{rd}.histogram_function_ord(t,x,y,z,ux,uy,uz,w)",
+                                 "").strip('"')
+        for k in ("intervals", "bin_number_abs", "bin_number_ord"):
+            out[f"{rd}.{k}"] = int(float(d[f"{rd}.{k}"]))
+        for k in ("bin_min_abs", "bin_max_abs", "bin_min_ord", "bin_max_ord"):
+            out[f"{rd}.{k}"] = _eval(d[f"{rd}.{k}"], ns)
     return out
 
 
@@ -621,8 +710,14 @@ def verify(cfg: dict, inputs_path: str, rtol: float = 1e-6) -> list[str]:
     finally:
         os.unlink(gen_path)
 
+    # Phase-space histograms are on by default since 2026-10-01, so every run that
+    # predates them would "miss" them. Only a config that asks for them explicitly
+    # gets the strict check; for the rest an absent histogram is history, not drift.
+    ps_explicit = "phase_space" in (cfg.get("diagnostics") or {})
     warns = []
     for k in sorted(set(want) | set(got)):
+        if k.startswith("PS_") and k not in got and not ps_explicit:
+            continue
         # my_constants are an implementation detail: WarpX prunes unused ones from
         # warpx_used_inputs, and the same value may be written as 20.*de or 2.*di.
         # Value-check only constants present in BOTH decks; the scalar settings

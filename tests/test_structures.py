@@ -389,6 +389,51 @@ def test_table1_self_consistent_physical_scales():
     assert wx["dz_over_lamD"] > 5.0, f"WarpX dz/lamD = {wx['dz_over_lamD']}"
 
 
+def test_phase_space_histograms_default_on():
+    """Binned (z, u) phase space is on by default, opt-out with `false`, overridable,
+    round-trips through key_params, and is strict only when the config asks for it."""
+    import copy
+    import tempfile
+    from kinshock import deck
+    cfg = kinshock.load(R1_WARM)
+    cfg.setdefault("diagnostics", {}).pop("phase_space", None)
+    names = list(cfg["species"])
+    text = deck.render(cfg)
+    for sp in names:
+        assert f".species        = {sp}" in text
+    assert text.count("= ParticleHistogram2D") == len(names)
+
+    off = copy.deepcopy(cfg)
+    off["diagnostics"]["phase_space"] = False
+    assert "ParticleHistogram2D" not in deck.render(off)
+
+    on = copy.deepcopy(cfg)
+    ion = next(s for s in names if cfg["species"][s]["kind"] == "ion")
+    on["diagnostics"]["phase_space"] = {"axes": ["uz", "ux"], "u_bins": 64,
+                                        "u_range_c": {ion: [-0.1, 0.3]}}
+    paths = []
+    for c in (on, off):
+        with tempfile.NamedTemporaryFile("w", suffix=".inputs", delete=False) as fh:
+            fh.write(deck.render(c))
+        paths.append(fh.name)
+    try:
+        kp = deck.key_params(paths[0])
+        assert deck.verify(on, paths[0]) == []
+        # A deck without histograms: silent for a config that predates them,
+        # flagged for one that requests them explicitly.
+        assert deck.verify(cfg, paths[1]) == []
+        assert any(w.startswith("PS_") for w in deck.verify(on, paths[1]))
+    finally:
+        for p in paths:
+            os.unlink(p)
+    ps = {k: v for k, v in kp.items() if k.startswith("PS_")}
+    assert sum(k.endswith(".ord") for k in ps) == 2 * len(names)
+    tag = deck._alias(ion)
+    assert ps[f"PS_{tag}_zux.bin_min_ord"] == -0.1
+    assert ps[f"PS_{tag}_zux.bin_max_ord"] == 0.3
+    assert ps[f"PS_{tag}_zuz.bin_number_ord"] == 64
+
+
 if __name__ == "__main__":
     print("KinShock2020 structure tests\n" + "=" * 40)
     sys.exit(0 if _run_all() else 1)
