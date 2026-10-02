@@ -123,7 +123,7 @@ using Heating = typename HeatingSelector<Mparticles>::Heating;
 // Moment_n note), so every particle-derived diagnostic is computed here from a
 // host copy of the particles -- correct on CPU and GPU alike. Per species:
 //   hist[kind][axis][iz][iu]  axis 0 = (z, u_z), axis 1 = (z, u_x); sum of w
-//   mom[kind][c][iz]          c = sum w, sum w u_{x,y,z}, sum w u_{x,y,z}^2
+//   mom[kind][c][iz]          c = sum w, sum w u_{x,y,z}, sum w u_{x,y,z}^2/gamma
 // u = gamma*beta. Density per bin = sum w / (nicell * ny * cells_per_bin), the
 // same normalisation as the particle dumps. Raw float32, layout in ps_header.txt.
 
@@ -165,7 +165,7 @@ struct PhaseSpaceDiag
       fprintf(f, "file ps.<step>.bin: float32 hist[kind][axis(0=z-uz,1=z-ux)]"
                  "[nz_bins][nu_bins] then mom[kind][7][nz_bins]\n");
       fprintf(f, "mom components: sum_w, sum_w_ux, sum_w_uy, sum_w_uz, "
-                 "sum_w_ux2, sum_w_uy2, sum_w_uz2 (u = gamma*beta)\n");
+                 "sum_w_ux2/g, sum_w_uy2/g, sum_w_uz2/g (u = gamma*beta, g = gamma)\n");
       fclose(f);
     }
   }
@@ -185,11 +185,14 @@ struct PhaseSpaceDiag
         int k = prt.kind();
         double w = prt.w();
         auto u = prt.u();
+        const double ig = 1. / std::sqrt(1. + u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
         double* m = &mom[size_t(k) * 7 * nzb];
         m[iz] += w;
         for (int d = 0; d < 3; d++) {
           m[(1 + d) * nzb + iz] += w * u[d];
-          m[(4 + d) * nzb + iz] += w * u[d] * u[d];
+          // pressure moment u_d v_d = u_d^2/gamma: equals theta for a
+          // Maxwell-Juttner, where <u^2>/3 overstates it (0.185 vs 0.137 here)
+          m[(4 + d) * nzb + iz] += w * u[d] * u[d] * ig;
         }
         const double us = nub / (uhi[k] - ulo[k]);
         const double ua[2] = {u[2], u[0]};

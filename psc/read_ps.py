@@ -7,8 +7,9 @@
     fr["n"][kind], fr["T"][kind]   # density and temperature profiles along z
 
 Density per z bin = sum w / (nicell * ny * cells_per_zbin), the particle-dump
-normalisation. T = <u^2> - <u>^2 averaged over the three axes (m = 1 for e; times
-the mass ratio for ions gives T in m_e c^2), non-relativistic moment.
+normalisation. T = <u^2/gamma> - <u>^2 averaged over the three axes: the pressure
+moment, exact (= theta) for a Maxwell-Juttner at rest, with a non-relativistic drift
+correction. Times the species mass (m_e = 1) gives T in m_e c^2.
 """
 import os
 import numpy as np
