@@ -22,6 +22,7 @@ DT, WCI_INV, DI0, B0 = 0.182595, 1.0e4, 100.0, 0.01
 ap = argparse.ArgumentParser()
 ap.add_argument("run")
 ap.add_argument("--movie", action="store_true")
+ap.add_argument("--no-b", action="store_true", help="movie without the B_y overlay")
 args = ap.parse_args()
 run = args.run
 hdr = load_header(run)
@@ -40,7 +41,7 @@ def by_profile(step):
     return z, by
 
 
-def panel(ax, step, vmax=None):
+def panel(ax, step, vmax=None, show_b=True, counter=False):
     fr = load_frame(run, step, hdr, masses=[1, 100])
     ion = hdr["kinds"].index(next(k for k in hdr["kinds"] if k["name"] == "i"))
     H = fr["hist"][ion, 0].T
@@ -51,7 +52,7 @@ def panel(ax, step, vmax=None):
     ax.imshow(np.where(Hp > 0, Hp, np.nan), origin="lower", aspect="auto", cmap="viridis",
               extent=[0, hdr["zhi"] / DI0, ki["ulo"], ki["uhi"]],
               norm=LogNorm(vmin=vmax * 1e-4, vmax=vmax))
-    z, by = by_profile(step)
+    z, by = by_profile(step) if show_b else (None, None)
     if z is not None:
         ax2 = ax.twinx()
         m = z >= 0
@@ -60,8 +61,13 @@ def panel(ax, step, vmax=None):
         ax2.set_ylabel("B_y / B0", color="0.4", fontsize=8)
         ax2.tick_params(labelsize=7)
     ax.set_ylabel("ion u_z = γβ_z", fontsize=8)
-    ax.text(0.01, 0.92, f"t·ω_ci0 = {step * DT / WCI_INV:.2f}", transform=ax.transAxes,
-            color="w", fontsize=9)
+    tg = step * DT / WCI_INV
+    if counter:
+        ax.text(0.985, 0.95, f"t = {tg:.2f} ω_ci0⁻¹", transform=ax.transAxes, ha="right",
+                va="top", fontsize=14, color="k",
+                bbox=dict(boxstyle="round,pad=0.3", fc="w", ec="0.5", alpha=0.9))
+    else:
+        ax.text(0.01, 0.92, f"t·ω_ci0 = {tg:.2f}", transform=ax.transAxes, color="w", fontsize=9)
     ax.tick_params(labelsize=7)
     return vmax
 
@@ -101,16 +107,17 @@ print(f"late-time (t·ω_ci0 > 1) θ_e = {np.mean([a for a, b in zip(th, t) if b
 
 # --- movie
 if args.movie:
-    fdir = f"{run}/movie_frames"
+    tag = "ion_phase_noB" if args.no_b else "ion_phase"
+    fdir = f"{run}/movie_frames_{tag}"
     os.makedirs(fdir, exist_ok=True)
     vmax = None
     for i, s in enumerate(steps):
         fig, ax = plt.subplots(figsize=(10, 3.4))
-        vmax = panel(ax, s, vmax=None)
+        vmax = panel(ax, s, vmax=None, show_b=not args.no_b, counter=True)
         ax.set_xlabel("z / d_i0")
         fig.tight_layout(); fig.savefig(f"{fdir}/f{i:04d}.png", dpi=100); plt.close(fig)
     ff = os.environ.get("FFMPEG", "ffmpeg")
     subprocess.run([ff, "-y", "-loglevel", "error", "-framerate", "12", "-i", f"{fdir}/f%04d.png",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                    f"{run}/ion_phase.mp4"], check=True)
-    print("wrote", f"{run}/ion_phase.mp4")
+                    f"{run}/{tag}.mp4"], check=True)
+    print("wrote", f"{run}/{tag}.mp4")
