@@ -4254,3 +4254,18 @@ options (1.11 ns/particle-step, growth 1.2× the WarpX rate): ±4500 to 95 t_ab,
 **WarpX A and B rebuilt with openPMD** (A: `acc2d6621`, B: `fcb48c9fe`, both link
 libhdf5 .so.310), so the default phase-space histograms in `deck.render` can run. B's
 stale CMake cache (MPI not found) moved to `build_pm_b.stale-20261001`.
+
+## 2026-10-02 — PSC option-A run `psc_runs/sch2020_A` COMPLETED
+
+Job 59184222, one 80 GB A100 (shared QoS): 171,530 / 171,530 steps (95 t_ab,
+t·ω_ci0 = 3.13) in **4 h 42 m**, exit 0. The ~7 h estimate was high; particles
+1.52e7 → 2.51e8 (predicted 2.43e8). Outputs: 215 field frames, 214 binned phase-space
+frames (`ps.*.bin`, every 800 steps), 22 dumps of every 20th particle; 15 GB total.
+
+Ablation plasma (25 < |z| < 75 d_e, pressure moment) with `heat_T` = 0.074: θ_e plateaus at
+0.090 within t·ω_ci0 ≈ 0.1, then drifts up to 0.096 by the end (mean 0.0947 for
+t·ω_ci0 > 1, vs Table I 0.092). n_e there rises to 1.38 (mean over t·ω_ci0 > 1; Table I 1.25).
+**Wrap:** by t·ω_ci0 ≈ 3.0 ions from the z < 0 side reappear through the periodic boundary
+at z ≈ 44 d_i0 with u_z ≈ −0.15, so treat the last ~0.1 ω_ci0⁻¹ as contaminated near the
+right edge. Figures `overview_ion_phase.png` and `ablation_check.png`, plus the movie
+`ion_phase.mp4` (all 214 frames), are in the run directory (`psc/plot_psc_run.py`).
