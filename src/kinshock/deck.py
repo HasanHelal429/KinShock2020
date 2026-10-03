@@ -289,8 +289,16 @@ def render(cfg: dict) -> str:
     a("# --- primaries (mirror config.yaml) ---")
     a(f"my_constants.n0           = {_num(ref['n0'])}")
     a(f"my_constants.mass_ratio   = {_num(ref['mass_ratio'])}")
-    a("my_constants.Mi           = mass_ratio*m_e")
-    a("my_constants.wpe          = sqrt(n0*q_e^2/(epsilon0*m_e))")
+    # Heavy simulated electron (PSC's convention, reference.electron_mass_factor):
+    # emitted only when != 1 so every physical-electron deck stays byte-identical.
+    me_fac = float(ref.get("electron_mass_factor", 1.0))
+    me_sym = "m_e"
+    if me_fac != 1.0:
+        a(f"my_constants.me_fac       = {_num(me_fac)}")
+        a("my_constants.me_sim       = me_fac*m_e")
+        me_sym = "me_sim"
+    a(f"my_constants.Mi           = mass_ratio*{me_sym}")
+    a(f"my_constants.wpe          = sqrt(n0*q_e^2/(epsilon0*{me_sym}))")
     a("my_constants.de           = clight/wpe")
     a("my_constants.di           = de*sqrt(mass_ratio)")
     a(f"my_constants.nt           = {_num(pis['density_over_n0'])}*n0")
@@ -419,7 +427,11 @@ def render(cfg: dict) -> str:
         theta = _init_theta(role, kind)
         a(f"# --- {role} {kind}s ---")
         if kind == "electron":
-            a(f"{name}.species_type = electron")
+            if me_fac == 1.0:
+                a(f"{name}.species_type = electron")
+            else:
+                a(f"{name}.charge = -q_e")
+                a(f"{name}.mass   = me_sim")
         else:
             Z = int(spec.get("charge_state", 1))
             a(f"{name}.charge = {'' if Z == 1 else f'{Z}*'}q_e")

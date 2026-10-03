@@ -92,6 +92,7 @@ class Scales:
 
     # --- collisions (ablation-unit electron-ion; None when the config has no
     #     `collisions` block, i.e. the run is collisionless) ---
+    me: float = ME               # SIMULATED electron mass [kg] (reference.electron_mass_factor x m_e)
     Te_ab_eV: float = 0.0        # ablation electron temperature [eV]
     vte_ab: float = 0.0          # ablation electron thermal speed sqrt(kT_e/m_e) [m/s]
     wce_ab: float = 0.0          # electron cyclotron frequency eB0/m_e [rad/s]
@@ -213,10 +214,17 @@ def derive(cfg: dict) -> Scales:
 
     n0 = float(ref["n0"])
     mass_ratio = float(ref["mass_ratio"])
-    mi = mass_ratio * ME
+    # PSC's reduced-mass convention raises m_e instead of lowering m_i:
+    # reference.electron_mass_factor = 18.36 with mass_ratio = 100 gives m_i = m_p.
+    # Every theta is kT in units of the SIMULATED electron's rest energy, so the
+    # dimensionless run is set by (theta, mass_ratio) alone and the factor only
+    # changes the map to SI. Absent = 1 = the physical electron.
+    me = float(ref.get("electron_mass_factor", 1.0)) * ME
+    me_c2_ev = me * C * C / QE
+    mi = mass_ratio * me
 
     # ablation scales (built on n0 = n_e,ab)
-    wpe = math.sqrt(n0 * QE * QE / (EPS0 * ME))
+    wpe = math.sqrt(n0 * QE * QE / (EPS0 * me))
     de = C / wpe
     di = de * math.sqrt(mass_ratio)
 
@@ -230,7 +238,7 @@ def derive(cfg: dict) -> Scales:
     namb = float(amb["density_over_n0"]) * n0
 
     # upstream scales
-    wpe0 = math.sqrt(namb * QE * QE / (EPS0 * ME))
+    wpe0 = math.sqrt(namb * QE * QE / (EPS0 * me))
     de0 = C / wpe0
     di0 = de0 * math.sqrt(mass_ratio)
 
@@ -260,13 +268,13 @@ def derive(cfg: dict) -> Scales:
     #       which is Table I's 1/w_ci0 row. Under a factor-2 beta it would be 48.0.
     # This was previously carried as "a convention difference, not physics" and reported
     # at 2x; it is now a definition, so the 2 is gone and every beta row matches Table I.
-    beta_ab = MU0 * n0 * theta_e * ME_C2_J / (B0 * B0)
-    beta_0 = MU0 * namb * theta_0 * ME_C2_J / (B0 * B0)
+    beta_ab = MU0 * n0 * theta_e * me * C * C / (B0 * B0)
+    beta_0 = MU0 * namb * theta_0 * me * C * C / (B0 * B0)
 
     # ablation electron kinetics (used by the collision block below)
-    Te_ab_eV = theta_e * ME_C2_EV
+    Te_ab_eV = theta_e * me_c2_ev
     vte_ab = math.sqrt(theta_e) * C
-    wce_ab = QE * B0 / ME
+    wce_ab = QE * B0 / me
 
     dz = float(geo["dz_over_de"]) * de
     dt = float(num["cfl"]) * dz / C                       # 1D CFL
@@ -288,8 +296,8 @@ def derive(cfg: dict) -> Scales:
     nu_ii_amb = 0.0
     mfp_ii_amb = math.inf
     if cfg.get("collisions"):
-        coulomb_log = coulomb_log_for(cfg["collisions"], n0, Te_ab_eV, vte_ab, de, wce_ab)
-        nu_ei_ab = nu_ei(n0, Te_ab_eV, coulomb_log)
+        coulomb_log = coulomb_log_for(cfg["collisions"], n0, Te_ab_eV, vte_ab, de, wce_ab, me=me)
+        nu_ei_ab = nu_ei(n0, Te_ab_eV, coulomb_log, me=me)
         mfp_ei_ab = vte_ab / nu_ei_ab
         # Schaeffer 2020 Sec. II: lambda_ab = omega_ce,ab/nu_ei,ab = mfp/d_e,ab, with
         # omega_ce,ab at the FUNDAMENTAL field B_ab = sqrt(mu0 n_e,ab T_e,ab). Since
@@ -302,14 +310,14 @@ def derive(cfg: dict) -> Scales:
         # forced lnLambda applies to every pair in the deck (one `coulomb_log`
         # constant), so the ambient ions are collisional by the same factor the
         # ablation electrons were tuned to.
-        Ti_amb_eV = theta_0 * ME_C2_EV
+        Ti_amb_eV = theta_0 * me_c2_ev
         vti_amb = math.sqrt(theta_0 / mass_ratio) * C
         nu_ii_amb = nu_ii(namb, Ti_amb_eV, coulomb_log, mi,
                           Z=float(ref.get("charge_state", 1)))
         mfp_ii_amb = vti_amb / nu_ii_amb
 
     return Scales(
-        n0=n0, mass_ratio=mass_ratio, mi=mi,
+        n0=n0, mass_ratio=mass_ratio, mi=mi, me=me,
         wpe=wpe, de=de, di=di, t_ab=t_ab, Cs_ab=Cs_ab, nt=nt,
         namb=namb, de0=de0, di0=di0, Cs0=Cs0, B0=B0, vA=vA,
         wci0=wci0, wci0_inv=wci0_inv, rho_i0=rho_i0,
@@ -328,9 +336,13 @@ def derive(cfg: dict) -> Scales:
 # --------------------------------------------------------------------------- #
 # Coulomb collisions
 # --------------------------------------------------------------------------- #
-def nu_ei(n_e: float, Te_eV: float, coulomb_log: float) -> float:
-    """NRL electron-ion collision rate [s^-1] for ``n_e`` [m^-3], ``Te_eV`` [eV]."""
-    return NU_EI_NRL * (n_e / 1e6) * coulomb_log * Te_eV ** -1.5
+def nu_ei(n_e: float, Te_eV: float, coulomb_log: float, me: float = ME) -> float:
+    """NRL electron-ion collision rate [s^-1] for ``n_e`` [m^-3], ``Te_eV`` [eV].
+
+    At fixed T the rate goes as m_e^-1/2 (v_te^-3 with v_te ~ (T/m_e)^1/2, times
+    1/m_e^2 in the cross-section, times m_e in the momentum), so a heavy simulated
+    electron (``me``) collides sqrt(m_e/me) times less often."""
+    return NU_EI_NRL * (n_e / 1e6) * coulomb_log * Te_eV ** -1.5 * math.sqrt(ME / me)
 
 
 def nu_ii(n_i: float, Ti_eV: float, coulomb_log: float, mi: float,
@@ -358,7 +370,7 @@ def _lnL_nrl(n_e: float, Te_eV: float) -> float:
 
 
 def coulomb_log_for(coll: dict, n0: float, Te_ab_eV: float, vte_ab: float,
-                    de: float, wce_ab: float) -> float:
+                    de: float, wce_ab: float, me: float = ME) -> float:
     """Resolve the ``collisions.target`` block to the lnLambda the deck must use.
 
     Because :mod:`kinshock` runs the paper's dimensionless problem at the REAL
@@ -391,7 +403,7 @@ def coulomb_log_for(coll: dict, n0: float, Te_ab_eV: float, vte_ab: float,
     quantity = tgt.get("quantity", "coulomb_log")
     value = tgt.get("value", "physical")
     # rate per unit lnLambda: nu_ei = rate1 * lnLambda
-    rate1 = nu_ei(n0, Te_ab_eV, 1.0)
+    rate1 = nu_ei(n0, Te_ab_eV, 1.0, me=me)
     if quantity == "coulomb_log":
         return _lnL_nrl(n0, Te_ab_eV) if value == "physical" else float(value)
     if quantity == "mfp_over_de":

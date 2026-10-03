@@ -389,6 +389,26 @@ def test_table1_self_consistent_physical_scales():
     assert wx["dz_over_lamD"] > 5.0, f"WarpX dz/lamD = {wx['dz_over_lamD']}"
 
 
+def test_inflated_electron_mass():
+    """electron_mass_factor: m_i = m_p at mu = 100, same SI shock as um1836, and the
+    deck carries an explicit heavy electron; absent factor leaves decks untouched."""
+    from kinshock import deck
+    run = os.path.join(ROOT, "runs", "IM_phase", "im_470eV_t03")
+    cfg = kinshock.load(run)
+    sc = kinshock.units.derive(cfg)
+    assert abs(sc.me / kinshock.units.ME - 18.3615) < 1e-9
+    assert abs(sc.mi / 1.67262192e-27 - 1.0) < 1e-4          # real proton
+    assert abs(sc.Te_ab_eV - 470.0) < 0.5 and abs(sc.MA - 13.95) < 0.05
+    assert abs(sc.beta_ab - 1150.0) < 1.0
+    text = deck.render(cfg)
+    assert "my_constants.me_sim       = me_fac*m_e" in text
+    assert "piston_electrons.mass   = me_sim" in text and "species_type = electron" not in text
+    assert deck.verify(cfg, os.path.join(run, "inputs_kinshock_im_470eV_t03")) == []
+    # physical-electron configs keep species_type = electron and no me_sim
+    plain = deck.render(kinshock.load(R1_WARM))
+    assert "species_type = electron" in plain and "me_sim" not in plain
+
+
 def test_phase_space_histograms_default_on():
     """Binned (z, u) phase space is on by default, opt-out with `false`, overridable,
     round-trips through key_params, and is strict only when the config asks for it."""

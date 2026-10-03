@@ -1,0 +1,110 @@
+# im_470eV_t03 -- "WarpX Inflated ME": PSC's reduced-mass convention at real c.
+#
+# m_i = m_p (real hydrogen) and mu_p = 100 reached by RAISING the electron mass 18.3615x
+# (reference.electron_mass_factor), exactly as PSC does -- but WITHOUT PSC's reduced c.
+# Physical inputs identical to um1836_470eV (470 eV ablation, 10 eV upstream, 7.0264 T,
+# n0 = 6e26): every theta below is that kT over the HEAVY electron's rest energy
+# (theta / 18.3615), so the dimensionless run is mu = 100 at eps = v_te/c 4.3x below the
+# 470 eV mu = 100 runs. In SI, v_p, C_s,ab, v_sh, d_i0 and w_ci0 equal um1836_470eV's.
+#
+# RESOLVED, unlike um1836_470eV: lambda_D does not depend on m_e (1.0730e-8 m upstream),
+# but d_e grows by sqrt(18.36), so dz = 0.758 lambda_D,amb is 0.00875 d_e -- the adopted
+# resolved numerics of R1_470eV_s3f8_t2 (dz/lambda_D 0.758, shape 3, filter 8, ppc 100).
+#
+# REDUCED: t*w_ci0 = 0.3 (early formation, cf. S_phase), box 9 d_i0 (precursor reaches
+# 24.73 d_i0 per t*, so 0.3 needs 7.4; 9 keeps the 0.604-sizing margin).
+#
+#     cells 115,008   steps ~21.9 M   see RESULTS 2026-10-03 for the measured cost
+
+meta:
+  run_id: im_470eV_t03
+  tier: Sweep
+  description: >
+    Inflated-electron-mass twin of um1836_470eV at Debye-resolved numerics: m_i = m_p,
+    m_e x 18.3615 (mu = 100), real c, 470 eV / 10 eV / 7.03 T, to t*w_ci0 = 0.3 on a
+    9 d_i0 one-sided box.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_im_470eV_t03
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab
+  mass_ratio: 100.0           # [-] m_i / m_e,sim
+  electron_mass_factor: 18.3615  # [-] m_e,sim / m_e -> m_i = 1836.15 m_e = m_p
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.0
+    theta_e_heat: 5.00921468e-5   # 470 eV / (18.3615 m_e c^2)
+    theta_e_init: 1.06579478e-6   # 10 eV
+    theta_i_init: 1.06579478e-8   # 10 eV, ion-normalized (theta/mass_ratio)
+  ambient:
+    density_over_n0: 0.008
+    theta_0: 1.06579478e-6        # 10 eV -> lambda_D,amb = 1.0730e-8 m (m_e-independent)
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] as um1836_470eV: w_ci0 = eB0/m_p identical
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 1006.2   # [d_e,sim] = 9.0 d_i0 (d_i0 = 111.80 d_e,sim)
+  dz_over_de: 0.008748957          # [d_e,sim] -> dz = 8.133 nm = 0.758 lambda_D,amb
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8
+  cfl: 0.75
+  particle_shape: 3
+  max_step: 21915000           # ~0.300 / w_ci0 (checked against units.derive)
+  max_grid_size: 115008        # = n_cell, one box (single GPU)
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0
+
+collisions:
+  model: pairwisecoulomb
+  pairs: all
+  target:
+    quantity: lambda_ab
+    value: 20.0
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 730500   # 30 raw-particle frames
+  field_intervals: 73050       # 300 field frames
+  reduced_intervals: 36525     # 600 rows
+  # phase_space: default on -> every 73,050 steps (300 frames), z x u_z per species
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.00242674572     # v_p/C_s,ab = 3.4288; C_s,ab/c = sqrt(theta/mu) as um1836

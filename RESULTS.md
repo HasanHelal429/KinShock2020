@@ -4269,3 +4269,58 @@ t·ω_ci0 > 1, vs Table I 0.092). n_e there rises to 1.38 (mean over t·ω_ci0 >
 at z ≈ 44 d_i0 with u_z ≈ −0.15, so treat the last ~0.1 ω_ci0⁻¹ as contaminated near the
 right edge. Figures `overview_ion_phase.png` and `ablation_check.png`, plus the movie
 `ion_phase.mp4` (all 214 frames), are in the run directory (`psc/plot_psc_run.py`).
+
+## 2026-10-03 — Inflated-ME deck built; multi-GPU and load balancing measured; quasi-1D costed
+
+**`runs/IM_phase/im_470eV_t03`** is "WarpX Inflated ME": PSC's mass convention at real c.
+New primary `reference.electron_mass_factor` (= 18.3615) with mass_ratio 100 gives
+m_i = m_p, and every θ is kT over the heavy electron's rest energy. `units.derive` threads
+m_e,sim through ω_pe, β, T_eV, ω_ce and ν_ei (∝ m_e^-1/2). The deck emits `me_sim` and
+explicit electron mass/charge only when the factor ≠ 1, so all 57 existing decks still
+verify byte-identical. ParticleHeater and TargetInjector need no change: H = 8θ^1.5c³/(√µ·
+width) once ω_pe·d_e = c cancels, and the injector works in u/c. The physics equals
+`um1836_470eV` in SI (d_i0 103.94 µm, v_sh 976 km/s, M_A 13.95, β_ab 1150), but at
+Debye-resolved numerics (dz/λ_D 0.758, shape 3, filter 8, ppc 100). It runs to
+t·ω_ci0 = 0.300 on a 9 d_i0 box: 115,008 cells, 21.9 M steps. Keeping λ_ab = 20 needs
+lnΛ = 2.85 (physical 12.2).
+
+**Measured on A100s, run-average = mean of the t = 0 and late-time states.** The late-time
+proxy pre-fills the ablation plasma to the t·ω_ci0 = 0.3 piston position.
+
+| layout | s/step t0 / late | wall | GPU-h |
+|---|---|---|---|
+| 1 GPU | 0.01468 / 0.01938 | 104 h | 104 |
+| 2 GPUs, 2 boxes | 0.00908 / 0.01367 | 69 h | 139 |
+| 4 GPUs, 4 boxes | 0.00611 / 0.00925 | 47 h | 187 |
+| 4 GPUs, 8 boxes + LB | — / 0.00926 | ~49 h | ~195 |
+
+The ~75–90 GPU-h scaling estimate was 15–40% low. Parallel efficiency is 0.75 on 2 GPUs and
+0.55 on 4. The late state is 0.69 load-balanced by particle count, so the piston-side box
+sets the pace.
+
+**Dynamic load balancing** (heuristic costs, every 100 steps) works but does not pay here.
+It lifts efficiency from 0.69 to 0.88 (8 boxes) or 0.93 (16 boxes), but splitting into more
+boxes costs ~13% (4g8b static 0.01057 vs 4g4b 0.00937), so net it ties the 4-box layout.
+At t = 0 there is nothing to balance (efficiency 1.00). Two traps: with
+`--gpu-bind=single:1` an adopted rebalance hangs in `cuIpcOpenMemHandle` (use
+`--gpus-per-node=4` with no gpu-bind); and the custom heater/injector are not
+timer-instrumented, so use `load_balance_costs_update = Heuristic`. **Home quota:**
+benchmark plotfiles under `$CLAUDE_JOB_DIR` (home) filled the 40 GiB quota and killed
+later runs at the step-0 plotfile write. Benchmarks now go to `$PSCRATCH`, with
+`diag1.intervals = 1000000000:1000000000` to skip the step-0 dump.
+
+**Quasi-1D cost (2D, x along B0, periodic, 16 cells at PSC's dy = 0.417 d_e,ab, so
+Lx = 6.7 d_e,ab), from the R1_470eV_s3f8_t2 deck on 1 GPU** (2D binary rebuilt at
+`build_pm_2d`, commit A, openPMD). 2D costs **1.24–1.43 ns per particle-step vs 0.647 in
+1D (1.9–2.2×)**. Relative to the 1D run (≈33 GPU-h on 1 GPU; it actually ran 27 h on
+2 GPUs):
+
+| 2D ppc | particles × 1D | s/step × 1D | 1-GPU GPU-h | N_D (2D) |
+|---|---|---|---|---|
+| 6 (= 1D count per z-slice) | 0.96 | 2.1 | ~70 | 0.9 |
+| 25 | 4.0 | 7.6 | ~250 | 3.9 |
+| 100 | 16 | ~30 (extrap.) | ~1000 (needs ≥ 2 GPUs for memory) | 15.7 |
+
+1D's N_D is 132, so quasi-1D at affordable ppc is far noisier per cell. And 6.7 d_e only
+admits electron-scale k ∥ B0: an MTSI-capable width (~2π d_i,ab ≈ 63 d_e) is ×9.4 more
+cells.
