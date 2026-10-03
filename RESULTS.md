@@ -4348,3 +4348,21 @@ and TargetInjector hold only config, so a restart continues them exactly. WarpX 
 Checkpoints every 219,150 steps (~1 h). Work dir
 `$PSCRATCH/kinshock_runs/IM_phase/im_470eV_t03`; read `.chain/chain.log` first. Expected
 ~104 h of compute.
+
+## 2026-10-03 — 47 keV Inflated ME scoped and staged (`runs/IM_phase/im_47keV_t03`), not launched
+
+`im_470eV_t03` with every temperature ×100: 47 keV ablation, 1 keV upstream. B₀ ×10 =
+70.26 T holds β_ab = 1150 and β₀ = 0.196, and velocities go ×10 (v_sh = 9,760 km/s,
+M_A 13.95). **Dimensionlessly it is an ε-ladder rung:** θ_e,ab = 47 keV/(18.36 m_e c²) =
+0.0050, so ε = 0.0708, between `es_1p5keV` (0.054) and `es_4p7keV` (0.096). It is the same
+PIC problem as a real-m_e µ = 100 run at 2.56 keV. Reading "47 keV" as θ = 0.092 against the
+heavy electron (863 keV) is just `es_47keV` relabelled. Its numerics match im_470eV_t03:
+dz/λ_D 0.758, shape 3, filter 8, ppc 100, 9 d_i0 one-sided, t·ω_ci0 = 0.3. So
+**im_470eV vs im_47keV is a clean ×10-in-ε pair at fixed numerics**, and the 47 keV end
+overlaps the ladder's ε range (different numerics) as a cross-check. λ_D, dz and dt grow
+×10 while the box does not: 11,504 cells × 219,150 steps, 1/1000 the cell-steps.
+λ_ab = 20 needs lnΛ = 28,538 (physical 10.8).
+
+**Measured** on one A100 (4,000 steps, diags off): 0.00334 s/step at t = 0 with 2.30 M
+particles. Applying the 470 eV run's 1.32× late-state slowdown gives ≈14 min plus
+diagnostic writes, ~0.3 GPU-h, one debug or shared job.

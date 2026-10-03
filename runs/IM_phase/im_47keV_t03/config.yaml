@@ -1,0 +1,108 @@
+# im_47keV_t03 -- "WarpX Inflated ME" at 47 keV: im_470eV_t03 with every temperature x100.
+#
+# m_i = m_p, mu_p = 100 by raising the electron mass 18.3615x (reference.electron_mass_factor),
+# real c. Physical inputs: 47 keV ablation, 1 keV upstream, B0 = 70.26 T (x10, so beta_ab =
+# 1150 and beta_0 = 0.196 hold), n0 = 6e26. Velocities x10 (v_sh = 9760 km/s, M_A 13.95).
+#
+# DIMENSIONLESSLY this is an eps-ladder rung: theta_e,ab = 47 keV / (18.36 m_e c^2) = 0.0050,
+# eps = v_te,ab/c = 0.0708 -- between es_1p5keV (0.054) and es_4p7keV (0.096), i.e. the same
+# PIC problem as a real-m_e mu = 100 run at 2.56 keV (with this run's numerics, not the
+# ladder's). The other reading of "47 keV inflated" -- theta = 0.092 against the HEAVY
+# electron (863 keV) -- is es_47keV relabelled and adds nothing.
+#
+# Numerics as im_470eV_t03 (dz/lambda_D,amb 0.758, shape 3, filter 8, ppc 100, 9 d_i0
+# one-sided, t*w_ci0 = 0.3). lambda_D, dz and dt all grow x10, d_i0 and the box do not:
+#     cells 11,504 (x1/10)   steps 219,150 (x1/100)   cell-steps x1/1000
+# Collisions: lambda_ab = 20 needs lnLambda = 28,538 (physical 10.8; es_47keV used 1.2e5).
+
+meta:
+  run_id: im_47keV_t03
+  tier: Sweep
+  description: >
+    im_470eV_t03 with every temperature x100: m_i = m_p, m_e x 18.3615 (mu = 100), real c,
+    47 keV / 1 keV / 70.3 T (eps = 0.0708), to t*w_ci0 = 0.3 on a 9 d_i0 one-sided box.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_im_47keV_t03
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab
+  mass_ratio: 100.0           # [-] m_i / m_e,sim
+  electron_mass_factor: 18.3615  # [-] m_e,sim / m_e -> m_i = 1836.15 m_e = m_p
+  charge_state: 1
+
+plasma:
+  piston:
+    density_over_n0: 2.0
+    theta_e_heat: 0.00500921468   # 47 keV / (18.3615 m_e c^2)
+    theta_e_init: 0.000106579478   # 1 keV
+    theta_i_init: 1.06579478e-06   # 1 keV, ion-normalized (theta/mass_ratio)
+  ambient:
+    density_over_n0: 0.008
+    theta_0: 0.000106579478        # 1 keV -> lambda_D,amb = 1.0730e-7 m (m_e-independent)
+
+field:
+  orientation: perpendicular
+  B0_tesla: 70.26446809478    # [T] 10 x im_470eV_t03: beta held, w_ci0 x10
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0
+  domain_halfwidth_de: 1006.2   # [d_e,sim] = 9.0 d_i0 (d_i0 = 111.80 d_e,sim)
+  dz_over_de: 0.0874652295          # [d_e,sim] -> dz = 81.31 nm = 0.758 lambda_D,amb
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8
+  cfl: 0.75
+  particle_shape: 3
+  max_step: 219150           # ~0.300 / w_ci0 (checked against units.derive)
+  max_grid_size: 11504        # = n_cell, one box (single GPU)
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0
+
+collisions:
+  model: pairwisecoulomb
+  pairs: all
+  target:
+    quantity: lambda_ab
+    value: 20.0
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 7305     # 30 raw-particle frames
+  field_intervals: 730         # 300 field frames
+  reduced_intervals: 365       # 600 rows
+  # phase_space: default on -> every 730 steps (300 frames), z x u_z per species
+
+model:
+  vsh_over_Csab: 4.6
+  vp_over_c: 0.0242674572     # v_p/C_s,ab = 3.4288 (10 x im_470eV_t03)
