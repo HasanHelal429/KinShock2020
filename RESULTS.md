@@ -4366,3 +4366,11 @@ overlaps the ladder's ε range (different numerics) as a cross-check. λ_D, dz a
 **Measured** on one A100 (4,000 steps, diags off): 0.00334 s/step at t = 0 with 2.30 M
 particles. Applying the 470 eV run's 1.32× late-state slowdown gives ≈14 min plus
 diagnostic writes, ~0.3 GPU-h, one debug or shared job.
+
+**Launched and completed same day** (λ_ab = 20, lnΛ = 28,538; `submit_chain.sh`, debug,
+job 59283911, code 1880870). It ran all 219,150 steps in 15 min wall (0.0041 s/step, ≈0.25
+GPU-h) with exit 0. The spare segment cancelled itself. The run wrote 31 particle frames,
+301 field frames and 301 phase-space histogram frames per species (5.1 GB). Particles went
+2.30 M → 2.59 M and EP has no NaNs. `--verify` flags only `reflect_symmetry_axis`, unused
+by binary A (known; measured immaterial). Output:
+`$PSCRATCH/kinshock_runs/IM_phase/im_47keV_t03` (pass it as run_dir to the analysis scripts).
