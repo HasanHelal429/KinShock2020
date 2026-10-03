@@ -101,6 +101,7 @@ diagnostics:
   plotfile_intervals: 7305     # 30 raw-particle frames
   field_intervals: 730         # 300 field frames
   reduced_intervals: 365       # 600 rows
+  checkpoint_intervals: 73050  # 3 checkpoints; lets submit_chain run it (debug + spare segment)
   # phase_space: default on -> every 730 steps (300 frames), z x u_z per species
 
 model:

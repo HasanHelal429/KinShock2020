@@ -246,7 +246,7 @@ PS_ai_zuz.histogram_function_ord(t,x,y,z,ux,uy,uz,w) = "uz"
 PS_ai_zuz.value_function(t,x,y,z,ux,uy,uz,w) = "w"
 
 # diag1: fields + raw particles for (z,uz) phase space (~30 frames).
-diagnostics.diags_names = diag1 diag_fields
+diagnostics.diags_names = diag1 diag_fields chk
 diag1.intervals = 7305
 diag1.diag_type = Full
 
@@ -256,3 +256,11 @@ diag_fields.intervals     = 730
 diag_fields.diag_type     = Full
 diag_fields.write_species = 0
 diag_fields.fields_to_plot = Ex Ey Ez Bx By Bz jx jy jz rho rho_piston_electrons rho_piston_ions rho_amb_electrons rho_amb_ions
+
+# chk: checkpoint every 73050 steps and on SIGUSR1 (sbatch --signal).
+chk.intervals = 73050
+chk.diag_type = Full
+chk.format    = checkpoint
+warpx.break_signals = SIGUSR1
+diag1.dump_last_timestep = 0
+diag_fields.dump_last_timestep = 0
