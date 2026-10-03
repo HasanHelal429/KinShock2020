@@ -4324,3 +4324,27 @@ Lx = 6.7 d_e,ab), from the R1_470eV_s3f8_t2 deck on 1 GPU** (2D binary rebuilt a
 1D's N_D is 132, so quasi-1D at affordable ppc is far noisier per cell. And 6.7 d_e only
 admits electron-scale k ∥ B0: an MTSI-capable width (~2π d_i,ab ≈ 63 d_e) is ×9.4 more
 cells.
+
+## 2026-10-03 — Chained restartable jobs; `im_470eV_t03` submitted
+
+**New: `diagnostics.checkpoint_intervals`** (opt-in; all 58 loadable decks byte-identical)
+renders a `chk` checkpoint diag plus `warpx.break_signals = SIGUSR1`, and
+`dump_last_timestep = 0` on the plotfile diags. **`perlmutter/submit_chain.sh`** runs the
+deck in `$PSCRATCH/kinshock_runs/<phase>/<id>` from a code snapshot, as N single-GPU
+jobs linked `afterany` and sent `--signal=USR1@600`. `job_chain.sbatch` restarts from the
+newest checkpoint, falls back one if it will not load, and keeps 3. The segment that
+reaches `max_step` runs `--verify` and cancels the spare segments; a segment that makes
+no progress cancels the rest. Design notes: perlmutter/README.md.
+
+**Restart verified on Perlmutter** (debug QOS, 2 × 8 min, SIGUSR1 at 5 min, IM deck):
+segment 1 checkpointed at step 18928 on the signal and exited rc=0. Segment 2 restarted
+with step 18929 at exactly t(18928)+dt, and the reduced diags appended under one header.
+Each ran at 0.0141 s/step (benchmark 0.0147). A checkpoint is 1.1 GB. The ParticleHeater
+and TargetInjector hold only config, so a restart continues them exactly. WarpX writes a
+`chk000000` at step 0 (pruned later).
+
+**Inflated ME submitted** as 3 × 48 h + 1 spare on `shared`, one A100 (40 GB is ample:
+~30 M particles late; the 80 GB constraint was dropped to widen the node pool).
+Checkpoints every 219,150 steps (~1 h). Work dir
+`$PSCRATCH/kinshock_runs/IM_phase/im_470eV_t03`; read `.chain/chain.log` first. Expected
+~104 h of compute.

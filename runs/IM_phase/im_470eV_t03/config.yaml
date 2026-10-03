@@ -103,6 +103,7 @@ diagnostics:
   plotfile_intervals: 730500   # 30 raw-particle frames
   field_intervals: 73050       # 300 field frames
   reduced_intervals: 36525     # 600 rows
+  checkpoint_intervals: 219150 # 100 checkpoints, ~1 h wall apart on one A100 (chained jobs)
   # phase_space: default on -> every 73,050 steps (300 frames), z x u_z per species
 
 model:

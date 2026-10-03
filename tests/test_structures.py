@@ -407,6 +407,10 @@ def test_inflated_electron_mass():
     # physical-electron configs keep species_type = electron and no me_sim
     plain = deck.render(kinshock.load(R1_WARM))
     assert "species_type = electron" in plain and "me_sim" not in plain
+    # checkpoint_intervals -> restartable deck (chained jobs); opt-in, absent by default
+    assert "chk.format    = checkpoint" in text and "warpx.break_signals = SIGUSR1" in text
+    assert "diag1.dump_last_timestep = 0" in text
+    assert "chk." not in plain and "break_signals" not in plain
 
 
 def test_phase_space_histograms_default_on():

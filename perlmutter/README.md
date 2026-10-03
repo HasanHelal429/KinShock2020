@@ -130,6 +130,34 @@ run rather than the 100-minute one.
 `numerics.max_grid_size = n_cell`, i.e. one box, and one box cannot be split across ranks.
 `scripts/launch.sh` refuses that on chablis for the same reason. More GPUs would idle.
 
+## Runs longer than one job: `submit_chain.sh`
+
+The `shared` QOS caps a job at 48 h. A longer single-GPU run goes as a **chain**:
+
+```bash
+# config.yaml: diagnostics.checkpoint_intervals: <steps>, then regenerate the deck
+perlmutter/submit_chain.sh runs/IM_phase/im_470eV_t03 --segments 3 --dry
+perlmutter/submit_chain.sh runs/IM_phase/im_470eV_t03 --segments 3
+perlmutter/submit_chain.sh runs/IM_phase/im_470eV_t03 --resume --segments 1   # add a segment
+```
+
+- `checkpoint_intervals` makes the deck write `diags/chkNNNNNN` periodically and set
+  `warpx.break_signals = SIGUSR1`; jobs go in with `--signal=USR1@600`, so 10 min before
+  walltime WarpX flushes a checkpoint and exits cleanly. (A break flushes every diag with
+  `dump_last_timestep`, which already includes the checkpoint; `checkpoint_signals` too
+  would write it twice. The plotfile diags opt out, so no off-cadence frame appears.)
+- The run executes in **`$PSCRATCH/kinshock_runs/<phase>/<id>`**, not the repo, with a
+  code snapshot (`src/ scripts/ perlmutter/` + `COMMIT`) in `.chain/code` that every
+  segment runs. A multi-day chain must not depend on a checkout that can change under it.
+- Segments are linked `afterany`. Each restarts from the newest checkpoint; if that one
+  will not load (killed mid-write) it is renamed `.bad` and the previous one is used.
+  WarpX output goes to `run_segNN.log` (`run.log` links the latest). A segment that
+  reaches `max_step` runs `--verify` and cancels the remaining queued segments; one that
+  makes no progress cancels them too. Only the newest three checkpoints are kept.
+- `.chain/chain.log` is the one-line-per-event record; read it first.
+- The custom heater and injector hold no state between steps (config only), and reduced
+  diags append on restart, so a restart continues them exactly.
+
 ## Read the results
 
 ```bash

@@ -541,7 +541,9 @@ def render(cfg: dict) -> str:
             a(f"{p}.histogram_function_ord(t,x,y,z,ux,uy,uz,w) = \"{h['axis']}\"")
             a(f"{p}.value_function(t,x,y,z,ux,uy,uz,w) = \"w\"")
         a("")
-    diags = ["diag1"] + (["diag_fields"] if field_int else [])
+    chk_int = (cfg.get("diagnostics", {}) or {}).get("checkpoint_intervals")
+    chk_int = int(chk_int) if chk_int else None
+    diags = ["diag1"] + (["diag_fields"] if field_int else []) + (["chk"] if chk_int else [])
     nframes = int(cfg["numerics"]["max_step"]) // plot_int if plot_int else 0
     a(f"# diag1: fields + raw particles for (z,uz) phase space (~{nframes} frames).")
     a(f"diagnostics.diags_names = {' '.join(diags)}")
@@ -560,6 +562,20 @@ def render(cfg: dict) -> str:
         a("diag_fields.diag_type     = Full")
         a("diag_fields.write_species = 0")
         a(f"diag_fields.fields_to_plot = {' '.join(field_vars)}")
+    if chk_int:
+        # Restartable run (chained batch jobs): periodic checkpoints, plus one on SIGUSR1.
+        # A break signal makes WarpX flush every diag with dump_last_timestep (default 1)
+        # and exit, so the checkpoint diag alone catches it -- checkpoint_signals as well
+        # would write it twice. The plotfile diags opt out so an early exit does not drop
+        # an off-cadence frame into the series. Restart: amr.restart = diags/chkNNNNNN.
+        a("")
+        a(f"# chk: checkpoint every {chk_int} steps and on SIGUSR1 (sbatch --signal).")
+        a(f"chk.intervals = {chk_int}")
+        a("chk.diag_type = Full")
+        a("chk.format    = checkpoint")
+        a("warpx.break_signals = SIGUSR1")
+        for dn in diags[:-1]:
+            a(f"{dn}.dump_last_timestep = 0")
     a("")
     return "\n".join(L)
 
@@ -681,7 +697,7 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
         out[f"{cn}.CoulombLog"] = _eval(d[f"{cn}.CoulombLog"], ns) \
             if f"{cn}.CoulombLog" in d else -1.0
         out[f"{cn}.ndt_supercycle"] = int(float(d.get(f"{cn}.ndt_supercycle", 1)))
-    for diag in ("EP", "PN", "diag1", "diag_fields"):
+    for diag in ("EP", "PN", "diag1", "diag_fields", "chk"):
         k = f"{diag}.intervals"
         if k in d:
             out[k] = int(float(d[k]))
