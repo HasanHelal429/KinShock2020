@@ -4374,3 +4374,12 @@ GPU-h) with exit 0. The spare segment cancelled itself. The run wrote 31 particl
 2.30 M → 2.59 M and EP has no NaNs. `--verify` flags only `reflect_symmetry_axis`, unused
 by binary A (known; measured immaterial). Output:
 `$PSCRATCH/kinshock_runs/IM_phase/im_47keV_t03` (pass it as run_dir to the analysis scripts).
+
+**Phase-space movie (2026-10-04).** New `scripts/make_phase_hist_movie.py` renders the binned
+ParticleHistogram2D output, which no script read before. It shows ions (v_z/v_sh) and
+electrons (v_z/v_te,ab), piston + ambient, one frame per dump, through the same renderer as
+`shock_phase.mp4`. That renderer is split out as `plotting.phase_image` and verified
+pixel-identical for particle data. For im_47keV_t03 it renders all 301 dumps in ~3 min on a
+login node, giving a 20 s movie at
+`$PSCRATCH/kinshock_runs/IM_phase/im_47keV_t03/media/phase_hist_asinh.mp4`. v_sh is the
+model value (0.0326 c) because there is no shock_fit.yaml yet.

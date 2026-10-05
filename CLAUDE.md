@@ -111,6 +111,7 @@ python scripts/make_figures.py runs/<ID>                # A–D diagnostics (rea
 | `tune_shock.py` | fit v_sh + front trajectory BY EYE vs the B/n_e streaks → `runs/<ID>/shock_fit.yaml` |
 | `make_figures.py` | paper diagnostics A–D |
 | `make_movies.py` | density + phase-space movies |
+| `make_phase_hist_movie.py` | phase-space movie from the binned `PS_*` histograms (ions + electrons, ~10× dump cadence; WarpX venv for openpmd_api) |
 | `make_thomson.py` | synthetic Thomson EPW/IAW spectrograms (two-env: reads under `physics`, models under `tsnn`) |
 | `run_progress_logger.py` | sidecar wall-clock progress/ETA log (`<run_dir>/progress.log`) |
 | `bfield_diagnostic.py` | B-field fluctuation: physical vs numerical (spectra/polarization/particle-response) |

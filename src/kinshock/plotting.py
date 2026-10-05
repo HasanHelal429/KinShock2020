@@ -131,33 +131,52 @@ def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
     frames comparable. Per-species normalisation is kept either way -- the ambient is
     ~250x rarer than the piston, so a single shared scale would erase it.
     """
-    colors = colors or PHASE_COLORS
-    nz, nv = len(z_edges) - 1, len(v_edges) - 1
-    rgb = np.zeros((nv, nz, 3))
-    present = []
+    hists = {}
     for key, (z, v, w) in species_data.items():
         if len(z) == 0:
             continue
         H, _, _ = np.histogram2d(z, v, bins=[z_edges, v_edges], weights=w)
+        hists[key] = H.T                                   # (nv, nz)
+    return phase_image(ax, hists, [z_edges[0], z_edges[-1], v_edges[0], v_edges[-1]],
+                       vline=vline, colors=colors, bg=bg, legend=legend,
+                       norm=norm, peaks=peaks)
+
+
+def phase_image(ax, hists, extent, vline=1.0, colors=None, bg=PHASE_BG, legend=False,
+                norm="asinh", peaks=None, vline_label=r"$v_z=v_{sh}$"):
+    """The drawing half of ``phase_distribution`` for data that is ALREADY binned.
+
+    ``hists`` maps a role key -> a weight histogram in image order (nv, nz), e.g. one
+    frame of a WarpX ParticleHistogram2D; ``extent`` = [z0, z1, v0, v1] in plot units.
+    Same stretch, per-species normalisation, ``peaks`` and additive tinting as
+    ``phase_distribution``, so binned-diagnostic movies match particle-dump ones.
+    """
+    colors = colors or PHASE_COLORS
+    rgb = None
+    present = []
+    for key, H in hists.items():
+        H = np.asarray(H, dtype=float)
+        if rgb is None:
+            rgb = np.zeros(H.shape + (3,))
+        if not H.size or H.max() <= 0:
+            continue
         pk = (peaks or {}).get(key)
         if norm == "linear":
-            pk = pk if pk else (float(H.max()) if H.size else 0.0)
-            inten = (np.clip(H / pk, 0.0, 1.0) if pk > 0 else H).T
+            pk = pk if pk else float(H.max())
+            inten = np.clip(H / pk, 0.0, 1.0) if pk > 0 else H
         else:
-            inten = (_asinh_norm(H) if pk is None else
-                     _asinh_norm_to(H, pk)).T          # (nv, nz)
+            inten = _asinh_norm(H) if pk is None else _asinh_norm_to(H, pk)
         rgb += inten[..., None] * np.asarray(colors.get(key, (1, 1, 1)))
         present.append(key)
-    rgb = np.clip(rgb, 0.0, 1.0)
+    rgb = np.clip(rgb if rgb is not None else np.zeros((1, 1, 3)), 0.0, 1.0)
 
-    ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest",
-              extent=[z_edges[0], z_edges[-1], v_edges[0], v_edges[-1]])
+    ax.imshow(rgb, origin="lower", aspect="auto", interpolation="nearest", extent=extent)
     ax.set_facecolor(bg)
-    ax.set_xlim(z_edges[0], z_edges[-1])
-    ax.set_ylim(v_edges[0], v_edges[-1])
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
     if vline is not None:
         ax.axhline(vline, color="w", ls=":", lw=0.9, alpha=0.7)
-        ax.text(0.985, vline, r"$v_z=v_{sh}$", transform=ax.get_yaxis_transform(),
+        ax.text(0.985, vline, vline_label, transform=ax.get_yaxis_transform(),
                 va="bottom", ha="right", fontsize=7, color="w", alpha=0.7)
     if legend:
         y = 0.965
@@ -166,31 +185,6 @@ def phase_distribution(ax, species_data, z_edges, v_edges, vline=1.0,
                     fontsize=8, fontweight="bold", color=colors.get(key, (1, 1, 1)))
             y -= 0.085
     return rgb
-
-
-def stamp(ax, cfg, scales, extra=None, shock=None):
-    """Annotate a figure with run_id + key parameters, so every plot in media/ is
-    self-describing (plan §6.0a).
-
-    ``shock`` (a make_figures ``_Shock``) supplies the Mach numbers when a by-eye
-    shock_fit.yaml is in play. Without it the stamp falls back to ``scales.MA/Mms``,
-    which are MODEL values -- and that was a silent inconsistency: after fitting
-    R1_paper_470eV at v_sh = 0.0165c every figure still stamped the model M_A = 14.0,
-    M_ms = 12.8 while the figure body used the fit (RESULTS 2026-08-05). The source is
-    now spelled out in the stamp so the two can never disagree unnoticed.
-    """
-    rid = cfg.get("meta", {}).get("run_id", "?")
-    if shock is not None:
-        MA, Mms = shock.MA, shock.Mms
-        src = "fit" if getattr(shock, "fit", None) is not None else "auto"
-    else:
-        MA, Mms, src = scales.MA, scales.Mms, "model"
-    txt = (f"{rid}  |  M_A={MA:.1f}  M_ms={Mms:.1f} ({src})  "
-           f"m_i/m_e={scales.mass_ratio:.0f}  n_t/n_e0={scales.nt/scales.namb:.0f}")
-    if extra:
-        txt += "  |  " + extra
-    ax.text(0.0, 1.02, txt, transform=ax.transAxes, va="bottom", ha="left",
-            fontsize=8, color=C_REF)
 
 
 def encode(framedir, out, fps=8):
