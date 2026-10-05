@@ -4383,3 +4383,13 @@ pixel-identical for particle data. For im_47keV_t03 it renders all 301 dumps in 
 login node, giving a 20 s movie at
 `$PSCRATCH/kinshock_runs/IM_phase/im_47keV_t03/media/phase_hist_asinh.mp4`. v_sh is the
 model value (0.0326 c) because there is no shock_fit.yaml yet.
+
+**Field panel (2026-10-05).** `make_phase_hist_movie.py --fields` adds B_x/B₀ plus E_z and E_y
+in units of v_A·B₀, read from `diag_fields` at the same step (same 73,050 cadence, so every
+frame matches). The y-limits are fixed over the movie. The fields get a running mean
+(`--field-smooth-de`, default 10 d_e ≈ d_i,ab). At Debye-resolved dz (0.009 d_e) the raw
+E noise is ~10⁴ v_A·B₀, and even 2 d_e leaves E_z noise as large as the ramp spike. **E_y stays
+noise-dominated upstream, ±300 v_A·B₀:** it is the E half of the light-wave noise that also
+moves B_x, and v_A·B₀ units multiply it by c/v_A ≈ 4×10³. B_x reverses to ≈ −5 B₀ just behind
+the piston in im_47keV_t03, so the floor is taken from the data. Movies are
+`media/phase_hist_asinh_fields.mp4` in both IM work dirs (470 eV: 146 frames, to t·ω_ci0 = 0.145).

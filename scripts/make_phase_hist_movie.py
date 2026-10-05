@@ -3,13 +3,22 @@
 
     python scripts/make_phase_hist_movie.py <run_dir> [--fps 15] [--norm asinh|linear]
                                             [--fixed-scale] [--vsh-c 0.0326] [--out DIR]
+                                            [--fields]
 
-Two panels on a shared z axis, one frame per histogram dump (deck.render writes them at
+Panels on a shared z axis, one frame per histogram dump (deck.render writes them at
 ~10x the raw-particle cadence, so this is the smooth-in-time movie; make_movies.py's
 shock_phase.mp4 is the particle-dump one):
 
   * ions      piston + ambient, v_z / v_sh       (dotted: v_z = v_sh, reflected-ion line)
   * electrons piston + ambient, v_z / v_te,ab
+  * fields    (--fields) B_x/B0 on the left axis, E_z and E_y / (v_A B0) on the right,
+              from the diag_fields plotfile at the same step. B0 is along x, so B_x is
+              the compressed component. Smoothed by a running mean (--field-smooth-de,
+              default 10 d_e ~ d_i,ab). Axis limits are fixed over the whole movie
+              (99.9th percentile of every frame), so growth reads as growth.
+              E_y stays noise-dominated upstream: it is the E half of the light-wave
+              noise that also wiggles B_x, and in v_A B0 units it carries c/v_A (~4e3
+              at 470 eV), so delta B_x/B0 ~ 0.1 reads as E_y ~ 300 v_A B0.
 
 The rendering is plotting.phase_image -- the same stretch, per-species normalisation and
 two-colour tint as shock_phase.mp4 -- so the two movies read the same way. Default is
@@ -39,6 +48,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import kinshock  # noqa: E402
+from kinshock import io as kio  # noqa: E402
 from kinshock import metrics  # noqa: E402
 from kinshock import plotting as P  # noqa: E402
 
@@ -79,6 +89,10 @@ def main():
     ap.add_argument("--vsh-c", type=float, default=None)
     ap.add_argument("--out", default=None, help="output dir (default media/<phase>/<id>)")
     ap.add_argument("--every", type=int, default=1, help="use every Nth dump")
+    ap.add_argument("--fields", action="store_true",
+                    help="add a B_x / E_z / E_y panel from the diag_fields plotfiles")
+    ap.add_argument("--field-smooth-de", type=float, default=10.0,
+                    help="running-mean width for the field panel [d_e] (0 = raw)")
     args = ap.parse_args()
 
     cfg = kinshock.load(args.run_dir)
@@ -97,6 +111,36 @@ def main():
               for _, _, roles, _ in PANELS for h in roles.values()}
     its = sorted(set.intersection(*(set(s.iterations) for s in series.values())))
     its = its[::args.every]
+
+    fields = {}
+    if args.fields:
+        by_step = {kio._step_key(p)[0]: p for p in kio.field_plotfiles(args.run_dir)}
+        missing = [i for i in its if i not in by_step]
+        if missing:
+            print(f"  {len(missing)} dumps have no field plotfile at the same step -- dropped")
+        its = [i for i in its if i in by_step]
+        EB = sc.vA * sc.B0
+        # Running mean over field_smooth_de: at Debye-resolved dz (~0.01 d_e) the raw
+        # cell-scale E noise is ~1e4 v_A B0 and buries the shock. 2 d_e (the histogram
+        # z bin) still leaves E_z noise comparable to the ramp spike; the default 10 d_e
+        # (~ d_i,ab, the smallest ion scale) keeps the ramp and quiets the upstream.
+        nk = max(1, int(round(args.field_smooth_de * sc.de / sc.dz)))
+        ker = np.ones(nk) / nk
+
+        def sm(a):
+            return np.convolve(a, ker, mode="same") if nk > 1 else a
+
+        for i in its:
+            fr = kio.load_frame(by_step[i], fields=("Ey", "Ez"))
+            zero = np.zeros_like(fr.Bx)
+            fields[i] = (fr.z_centers / sc.di0, sm(fr.Bx / sc.B0),
+                         sm(fr.comps.get("Ez", zero) / EB),
+                         sm(fr.comps.get("Ey", zero) / EB))
+        blim = 1.1 * max(np.percentile(f[1], 99.9) for f in fields.values())
+        # B_x reverses sign behind the piston front, so the floor comes from the data too
+        bfloor = min(-0.05 * blim, 1.1 * min(np.percentile(f[1], 0.1) for f in fields.values()))
+        elim = 1.1 * max(np.percentile(np.abs(np.r_[f[2], f[3]]), 99.9)
+                         for f in fields.values())
     print(f"{run_id}: {len(its)} histogram dumps -> movie "
           f"(v_sh = {vsh / C:.4f} c from {src}; norm {args.norm}"
           f"{', fixed scale' if args.fixed_scale else ', per-frame scale'})")
@@ -114,7 +158,11 @@ def main():
             os.remove(os.path.join(framedir, f))
 
     for k, it in enumerate(its):
-        fig, axes = plt.subplots(2, 1, figsize=(8.0, 6.6), sharex=True)
+        if fields:
+            fig, axes = plt.subplots(3, 1, figsize=(8.0, 9.0), sharex=True,
+                                     gridspec_kw={"height_ratios": [1, 1, 0.8]})
+        else:
+            fig, axes = plt.subplots(2, 1, figsize=(8.0, 6.6), sharex=True)
         t = None
         for ax, (title, ylab, roles, vk) in zip(axes, PANELS):
             hists, ext = {}, None
@@ -129,6 +177,29 @@ def main():
             ax.set_ylabel(ylab)
             ax.text(0.985, 0.965, title, transform=ax.transAxes, va="top", ha="right",
                     fontsize=9, color="w")
+        if fields:
+            zc, bx, ez, ey = fields[it]
+            axf = axes[2]
+            axe = axf.twinx()
+            axe.plot(zc, ez, color=P.C_AMBIENT, lw=0.6, alpha=0.8, label=r"$E_z$")
+            axe.plot(zc, ey, color=P.C_PISTON, lw=0.6, alpha=0.8, label=r"$E_y$")
+            axe.set_ylim(-elim, elim)
+            axe.set_ylabel(r"$E / v_A B_0$")
+            axf.plot(zc, bx, color="k", lw=1.2, label=r"$B_x/B_0$")
+            axf.set_ylim(bfloor, blim)
+            axf.axhline(0.0, color="0.6", lw=0.6)
+            axf.set_ylabel(r"$B_x / B_0$")
+            axf.set_zorder(axe.get_zorder() + 1)       # B line drawn over the E traces
+            axf.patch.set_visible(False)
+            P.style_axes(axf)
+            h1, l1 = axf.get_legend_handles_labels()
+            h2, l2 = axe.get_legend_handles_labels()
+            axf.legend(h1 + h2, l1 + l2, loc="upper right", fontsize=8, ncol=3,
+                       frameon=False)
+            if args.field_smooth_de > 0:
+                axf.text(0.01, 0.97, f"running mean {args.field_smooth_de:g} $d_e$",
+                         transform=axf.transAxes, va="top", ha="left", fontsize=7,
+                         color="0.35")
         axes[-1].set_xlabel(r"$z / d_{i0}$")
         axes[0].set_title(rf"{run_id}   $t\,\omega_{{ci0}} = {t * sc.wci0:.3f}$", fontsize=10)
         fig.tight_layout()
@@ -137,7 +208,8 @@ def main():
 
     out_dir = args.out or P.media_dir(run_id=run_id)
     os.makedirs(out_dir, exist_ok=True)
-    name = f"phase_hist_{args.norm}{'_fixed' if args.fixed_scale else ''}.mp4"
+    name = (f"phase_hist_{args.norm}{'_fixed' if args.fixed_scale else ''}"
+            f"{'_fields' if fields else ''}.mp4")
     return P.encode(framedir, os.path.join(out_dir, name), fps=args.fps)
 
 
