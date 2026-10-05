@@ -109,6 +109,7 @@ class Scales:
     # collisions block, because then there is no collision operator at all.
     nu_ii_amb: float = math.inf     # ambient ion-ion collision rate [s^-1]
     mfp_ii_amb: float = math.inf    # ambient ion mean free path v_ti/nu_ii [m]
+    charge_state: float = 1.0       # ion Z (reference.charge_state)
 
     # normalization helpers below use these; keep a copy of a few config bits
     _meta: dict = field(default_factory=dict)
@@ -203,6 +204,64 @@ def _b0_tesla(cfg: dict) -> float:
     raise KeyError("field: missing required primary 'B0_tesla' [T]")
 
 
+def field_profile(cfg: dict, scales: "Scales | None" = None) -> dict | None:
+    """The background field's spatial profile, or None for a uniform B0.
+
+    ``field.profile`` (optional)::
+
+        type: inverse_linear     # B_x(z) = max(B0 / (1 + |z|/L), floor)
+        decay_length_di0: 1.37   # L [d_i0]
+        floor_over_B0: 0.125     # optional; 0 / absent = no floor
+        apply: particle          # the only supported mode (see below)
+
+    Returns ``{"L": L [m], "floor": B_floor [T], "B0": B0 [T]}``.
+
+    ``apply: particle`` puts the profile in ``particles.B_ext_particle_*``: the particles
+    feel it, the grid starts at zero and carries only the plasma's response. That is the
+    1D stand-in for a coil's vacuum field. A decaying B_x(z) has curl B = dB_x/dz y-hat,
+    which in 1D cannot be curl-free, so loaded onto the GRID it needs a plasma current
+    J_y = -B_x'/mu0 that the initial ambient does not carry: E_y grows from t = 0, and the
+    J x B force that follows pushes the ambient down-gradient at ~v_A on a ~L/v_A ~ 1/w_ci0
+    timescale -- inside the run. As a particle field the current lives in the (implicit)
+    coils and the ambient starts in equilibrium. A grid-loaded profile would also switch on
+    WarpX's MLMG divergence cleaner (see deck.py's background-field block).
+
+    Consequence for analysis: grid Bx is the PERTURBATION only; :func:`background_bx`
+    gives the applied part, and ``io.load_frame`` adds it back so ``Frame.Bx`` stays the
+    total field every existing script assumes.
+    """
+    prof = (cfg.get("field") or {}).get("profile")
+    if not prof:
+        return None
+    kind = prof.get("type", "inverse_linear")
+    if kind != "inverse_linear":
+        raise ValueError(f"field.profile.type {kind!r}: only 'inverse_linear' is implemented")
+    apply = prof.get("apply", "particle")
+    if apply != "particle":
+        raise ValueError(f"field.profile.apply {apply!r}: only 'particle' is supported "
+                         "(a grid-loaded gradient has no supporting current; see docstring)")
+    sc = scales if scales is not None else derive(cfg)
+    floor = float(prof.get("floor_over_B0", 0.0) or 0.0)
+    if not 0.0 <= floor < 1.0:
+        raise ValueError(f"field.profile.floor_over_B0 = {floor}: must be in [0, 1)")
+    return {"L": float(prof["decay_length_di0"]) * sc.di0, "floor": floor * sc.B0, "B0": sc.B0}
+
+
+def background_bx(cfg: dict, z, scales: "Scales | None" = None):
+    """Applied background B_x [T] at ``z`` [m] (scalar or array): B0 when uniform."""
+    p = field_profile(cfg, scales)
+    if p is None:
+        B0 = (scales if scales is not None else derive(cfg)).B0
+        try:
+            return [B0 for _ in z]
+        except TypeError:
+            return B0
+    try:
+        return [max(p["B0"] / (1.0 + abs(zi) / p["L"]), p["floor"]) for zi in z]
+    except TypeError:
+        return max(p["B0"] / (1.0 + abs(z) / p["L"]), p["floor"])
+
+
 def derive(cfg: dict) -> Scales:
     """Compute all derived scales from a loaded config dict (see runs/R1_phase/R1/config.yaml)."""
     ref = cfg["reference"]
@@ -222,25 +281,32 @@ def derive(cfg: dict) -> Scales:
     me = float(ref.get("electron_mass_factor", 1.0)) * ME
     me_c2_ev = me * C * C / QE
     mi = mass_ratio * me
+    # Ion charge state Z (one ion species, e.g. the effective CH ion Z = 3.5 of the FLASH
+    # OmegaShock runs). Densities stay ELECTRON densities (n0, nt, namb); the ions sit at
+    # n_e/Z, so every ion scale goes through m_i/Z: d_i = d_e sqrt(mass_ratio/Z),
+    # C_s = sqrt(Z kT_e/m_i), w_ci = Z e B/m_i, v_A = B/sqrt(mu0 (n_e/Z) m_i).
+    # Z = 1 leaves every expression bit-identical (x/1.0 and 1.0*x are exact).
+    Z = float(ref.get("charge_state", 1))
 
     # ablation scales (built on n0 = n_e,ab)
     wpe = math.sqrt(n0 * QE * QE / (EPS0 * me))
     de = C / wpe
-    di = de * math.sqrt(mass_ratio)
+    di = de * math.sqrt(mass_ratio / Z)
 
     theta_e = float(pis["theta_e_heat"])
     theta_0 = float(amb["theta_0"])
-    Cs_ab = math.sqrt(theta_e / mass_ratio) * C           # sqrt(Z k_B T_e,ab / m_i), Z=1
-    Cs0 = math.sqrt(theta_0 / mass_ratio) * C
+    Cs_ab = math.sqrt(Z * theta_e / mass_ratio) * C       # sqrt(Z k_B T_e,ab / m_i)
+    Cs0 = math.sqrt(Z * theta_0 / mass_ratio) * C
     t_ab = di / Cs_ab
 
     nt = float(pis["density_over_n0"]) * n0
     namb = float(amb["density_over_n0"]) * n0
+    namb_i = namb / Z
 
     # upstream scales
     wpe0 = math.sqrt(namb * QE * QE / (EPS0 * me))
     de0 = C / wpe0
-    di0 = de0 * math.sqrt(mass_ratio)
+    di0 = de0 * math.sqrt(mass_ratio / Z)
 
     # B0 is the PRIMARY (tesla); v_A is derived from it and the ambient density.
     # The inverse (vA_over_c primary) was the original design and is a trap: it makes
@@ -249,9 +315,9 @@ def derive(cfg: dict) -> Scales:
     # put a 1.218x late bias into t*_1 (RESULTS 2026-07-31). With B0 primary,
     # wci0 = q_e*B0/m_i depends on nothing but B0 and the ion mass.
     B0 = _b0_tesla(cfg)
-    wci0 = QE * B0 / mi
+    wci0 = Z * QE * B0 / mi
     wci0_inv = 1.0 / wci0
-    vA = B0 / math.sqrt(MU0 * namb * mi) if B0 else 0.0
+    vA = B0 / math.sqrt(MU0 * namb_i * mi) if B0 else 0.0
 
     vp_model = float(mdl["vp_over_c"]) * C
     vsh_model = float(mdl["vsh_over_Csab"]) * Cs_ab
@@ -328,7 +394,7 @@ def derive(cfg: dict) -> Scales:
         Te_ab_eV=Te_ab_eV, vte_ab=vte_ab, wce_ab=wce_ab,
         coulomb_log_nrl=coulomb_log_nrl, coulomb_log=coulomb_log,
         nu_ei_ab=nu_ei_ab, mfp_ei_ab=mfp_ei_ab, lambda_ab=lambda_ab, nu_ei_dt=nu_ei_dt,
-        nu_ii_amb=nu_ii_amb, mfp_ii_amb=mfp_ii_amb,
+        nu_ii_amb=nu_ii_amb, mfp_ii_amb=mfp_ii_amb, charge_state=Z,
         _meta=dict(cfg.get("meta", {})),
     )
 

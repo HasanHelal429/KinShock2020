@@ -185,6 +185,35 @@ def _diag_intervals(cfg: dict):
     return plot, red, field
 
 
+def _check_ion_charge(cfg: dict, Z: float) -> None:
+    """Every ion species must carry the run's Z (reference.charge_state).
+
+    units.derive builds d_i, w_ci, v_A and C_s from ONE Z, and the species block loads
+    ions at n_e/Z for neutrality -- a species at a different Z would be neither neutral
+    nor described by the derived scales."""
+    for name, spec in cfg["species"].items():
+        if spec["kind"] == "ion" and float(spec.get("charge_state", 1)) != Z:
+            raise ValueError(
+                f"species {name}: charge_state {spec.get('charge_state', 1)} != "
+                f"reference.charge_state {Z:g}; one Z per run is supported")
+
+
+def _drive_stop_step(ops: dict, sc) -> int | None:
+    """Last step of the drive window from ``operators.stop_t_wci0``, or None (drive on
+    for the whole run, the legacy behaviour).
+
+    Given in t*w_ci0 so it survives dz / cfl changes. The heater and injector then get
+    ``intervals = 0:<stop>:<n>`` -- stock IntervalsParser syntax, no engine change."""
+    stop = ops.get("stop_t_wci0")
+    if stop is None:
+        return None
+    return int(round(float(stop) * sc.wci0_inv / sc.dt))
+
+
+def _op_intervals(n, drive_stop: int | None) -> str:
+    return str(int(n)) if drive_stop is None else f"0:{drive_stop}:{int(n)}"
+
+
 _U_AXES = ("ux", "uy", "uz")
 
 
@@ -256,6 +285,10 @@ def render(cfg: dict) -> str:
     # hence t_ab -- the time unit every normalization in this repo is drawn against.
     ops, meta = cfg.get("operators") or {}, cfg.get("meta", {})
     sc = units.derive(cfg)
+    Z = sc.charge_state
+    _check_ion_charge(cfg, Z)
+    bprof = units.field_profile(cfg, sc)
+    drive_stop = _drive_stop_step(ops, sc)
 
     one_sided = geo.get("layout", "symmetric") == "one_sided"
     n_cell = _n_cell(geo)
@@ -280,6 +313,17 @@ def render(cfg: dict) -> str:
                    if one_sided else f"+-{geo['domain_halfwidth_de']} d_e")
     a(f"#   M_A={sc.MA:.3g}  M_ms={sc.Mms:.3g}  n_cell={n_cell}  "
       f"dz={geo['dz_over_de']} d_e  domain={domain_desc}")
+    if Z != 1.0:
+        a(f"#   Z={Z:g}  d_i0/d_e={sc.di0/sc.de:.4g}  w_ci0={sc.wci0:.4g}/s  "
+          f"v_A/c={sc.vA/units.C:.4g}")
+    if bprof:
+        fl = (f", floor {bprof['floor']/sc.B0:g} B0 from z = "
+              f"{(sc.B0/bprof['floor'] - 1)*bprof['L']/sc.de:.5g} d_e") if bprof["floor"] else ""
+        a(f"#   B_x(z) = B0/(1+|z|/L), L = {bprof['L']/sc.di0:g} d_i0 = "
+          f"{bprof['L']/sc.de:.5g} d_e{fl}  [particle-applied]")
+    if drive_stop is not None:
+        a(f"#   drive (heater + injector) on for steps 0..{drive_stop} = "
+          f"t*w_ci0 {float(ops['stop_t_wci0']):g}")
     if meta.get("description"):
         a(f"# {' '.join(str(meta['description']).split())}")
     a("# " + "=" * 74)
@@ -300,7 +344,13 @@ def render(cfg: dict) -> str:
     a(f"my_constants.Mi           = mass_ratio*{me_sym}")
     a(f"my_constants.wpe          = sqrt(n0*q_e^2/(epsilon0*{me_sym}))")
     a("my_constants.de           = clight/wpe")
-    a("my_constants.di           = de*sqrt(mass_ratio)")
+    # Ion charge state: emitted only when != 1 so every Z = 1 deck stays byte-identical.
+    # Densities are electron densities; ions load at n_e/Z (see the species block).
+    if Z != 1.0:
+        a(f"my_constants.Z            = {_num(Z)}")
+        a("my_constants.di           = de*sqrt(mass_ratio/Z)")
+    else:
+        a("my_constants.di           = de*sqrt(mass_ratio)")
     a(f"my_constants.nt           = {_num(pis['density_over_n0'])}*n0")
     a(f"my_constants.namb         = {_num(amb['density_over_n0'])}*n0")
     # B0 is a primary: emitted as a literal so the deck cannot drift from the config
@@ -412,8 +462,22 @@ def render(cfg: dict) -> str:
     # periodic, PEC, PMC, or neumann..." (measured 2026-08-13). As `constant` the
     # cleaner never runs and Silver-Mueller is available with a background B present.
     # B_external_grid is read with getArrWithParser, so my_constants like B0 still work.
-    a("warpx.B_ext_grid_init_style       = constant")
-    a(f"warpx.B_external_grid             = {bx} 0. 0.")
+    if bprof is None:
+        a("warpx.B_ext_grid_init_style       = constant")
+        a(f"warpx.B_external_grid             = {bx} 0. 0.")
+    else:
+        # Non-uniform B0: applied to the PARTICLES, not loaded onto the grid (reasoning in
+        # units.field_profile). The grid starts at zero -- so the cleaner stays off, as
+        # above -- and its Bx is the plasma's response only; io.load_frame adds the applied
+        # part back. L and the floor are literals (metres / tesla) from units.field_profile.
+        a("# Applied (coil) field felt by particles only; the grid holds the plasma response.")
+        a(f"my_constants.LB             = {_num(bprof['L'])}")
+        a(f"my_constants.Bfloor         = {_num(bprof['floor'])}")
+        a("particles.B_ext_particle_init_style = parse_B_ext_particle_function")
+        bxf = "max(B0/(1+abs(z)/LB), Bfloor)" if bx == "B0" else "0."
+        a(f'particles.Bx_external_particle_function(x,y,z,t) = "{bxf}"')
+        a('particles.By_external_particle_function(x,y,z,t) = "0."')
+        a('particles.Bz_external_particle_function(x,y,z,t) = "0."')
     a("")
 
     # species -------------------------------------------------------------
@@ -424,6 +488,8 @@ def render(cfg: dict) -> str:
         kind, role = spec["kind"], spec["role"]
         ppc = ppc_piston if role == "piston" else ppc_ambient
         dens = "nt*(abs(z)<slab)" if role == "piston" else "namb*(abs(z)>=slab)"
+        if kind == "ion" and Z != 1.0:
+            dens = dens.replace("nt*", "nt/Z*").replace("namb*", "namb/Z*")  # n_i = n_e/Z
         theta = _init_theta(role, kind)
         a(f"# --- {role} {kind}s ---")
         if kind == "electron":
@@ -433,8 +499,7 @@ def render(cfg: dict) -> str:
                 a(f"{name}.charge = -q_e")
                 a(f"{name}.mass   = me_sim")
         else:
-            Z = int(spec.get("charge_state", 1))
-            a(f"{name}.charge = {'' if Z == 1 else f'{Z}*'}q_e")
+            a(f"{name}.charge = {'' if Z == 1.0 else 'Z*'}q_e")
             a(f"{name}.mass   = Mi")
         a(f'{name}.injection_style = "NUniformPerCell"')
         a(f"{name}.num_particles_per_cell_each_dim = {ppc}")
@@ -452,7 +517,7 @@ def render(cfg: dict) -> str:
     if h:
         a("# --- laser-ablation surrogate: heat the piston slab (ParticleHeater) ---")
         a(f"particle_heater.species   = {h['species']}")
-        a(f"particle_heater.intervals = {int(h['intervals'])}")
+        a(f"particle_heater.intervals = {_op_intervals(h['intervals'], drive_stop)}")
         a("particle_heater.profile   = foil")
         a("particle_heater.foil.normal      = z")
         # foil.lo/hi stay [-slab, +slab] even one-sided: the foil WIDTH sets the PSC
@@ -475,7 +540,7 @@ def render(cfg: dict) -> str:
         a("# --- replenish the ablated piston slab (TargetInjector) ---")
         a(f"target_injector.species              = {isp}")
         a(f"target_injector.neutralizing_species = {nsp}")
-        a(f"target_injector.intervals            = {int(inj['intervals'])}")
+        a(f"target_injector.intervals            = {_op_intervals(inj['intervals'], drive_stop)}")
         a(f"target_injector.tau                  = {_num(inj['tau_over_wpe_inv'])}/wpe")
         a("target_injector.lo                   = -slab")
         a("target_injector.hi                   =  slab")
@@ -680,10 +745,23 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
     # BOTH decks is a match; absent from only one shows up as a `missing from` warning
     # in verify(), which is the behaviour wanted -- an operator that silently vanished
     # between config and deck must not pass.
+    # A plain period stays an int (legacy decks); a drive window "0:<stop>:<n>" is compared
+    # as a whitespace-free string, so a moved cutoff step is a mismatch.
+    def _intervals(v):
+        v = v.replace(" ", "")
+        return int(float(v)) if ":" not in v else v
     if "particle_heater.intervals" in d:
-        out["heater.intervals"] = int(float(d["particle_heater.intervals"]))
+        out["heater.intervals"] = _intervals(d["particle_heater.intervals"])
     if "target_injector.intervals" in d:
-        out["injector.intervals"] = int(float(d["target_injector.intervals"]))
+        out["injector.intervals"] = _intervals(d["target_injector.intervals"])
+    # Particle-applied background field (units.field_profile): the expression itself is a
+    # string setting, the L / floor it references are my_constants (value-checked above).
+    if "particles.B_ext_particle_init_style" in d:
+        out["B_ext_particle_init_style"] = d["particles.B_ext_particle_init_style"].lower()
+        for comp in ("Bx", "By", "Bz"):
+            k = f"particles.{comp}_external_particle_function(x,y,z,t)"
+            if k in d:
+                out[f"B_ext_particle.{comp}"] = d[k].strip('"').replace(" ", "")
         out["injector.tau"] = _eval(d["target_injector.tau"], ns)
     for sp in d.get("particles.species_names", "").split():
         k = f"{sp}.num_particles_per_cell_each_dim"

@@ -458,6 +458,58 @@ def test_phase_space_histograms_default_on():
     assert ps[f"PS_{tag}_zuz.bin_number_ord"] == 64
 
 
+def test_charge_state_gradient_and_drive_window():
+    """Z != 1, a particle-applied B0(z) and a drive cutoff (runs/PoC_phase/poc1d_twin).
+
+    Checks the derived scales against the 2D PoC_2d_v2 deck they mirror, and that the deck
+    loads ions at n_e/Z with charge Z q_e, applies the floored profile to particles only,
+    and stops both operators at the cutoff step -- all round-tripping through verify().
+    """
+    import tempfile
+    from kinshock import deck, units
+    cfg = kinshock.load(os.path.join(ROOT, "runs", "PoC_phase", "poc1d_twin"))
+    sc = units.derive(cfg)
+    assert abs(sc.di0 / sc.de - math.sqrt(100 / 3.5 / 0.0125)) < 1e-9
+    assert abs(sc.vA / units.C - 0.0169826) < 1e-6          # the 2D deck's vA_over_c
+    assert abs(sc.MA - 6.404) < 1e-3 and abs(sc.Mms - 6.045) < 1e-3
+    assert abs(2 * sc.beta_0 - 0.2441) < 1e-4               # FLASH beta_e, 2 mu0 convention
+    p = units.field_profile(cfg, sc)
+    assert abs(p["L"] - 1.37 * sc.di0) < 1e-12 and p["floor"] == 0.125 * sc.B0
+    bx = units.background_bx(cfg, [0.0, 7 * p["L"], 30 * p["L"]], sc)
+    assert bx[0] == sc.B0 and abs(bx[1] - sc.B0 / 8) < 1e-15 and bx[2] == sc.B0 / 8
+    stop = deck._drive_stop_step(cfg["operators"], sc)
+    assert abs(stop * sc.dt * sc.wci0 - 0.8728) < sc.dt * sc.wci0
+
+    text = deck.render(cfg)
+    assert "warpx.B_ext_grid_init_style" not in text        # grid starts at zero
+    assert 'Bx_external_particle_function(x,y,z,t) = "max(B0/(1+abs(z)/LB), Bfloor)"' in text
+    assert "amb_ions.charge = Z*q_e" in text
+    assert 'amb_ions.density_function(x,y,z) = "namb/Z*(abs(z)>=slab)"' in text
+    assert 'amb_electrons.density_function(x,y,z) = "namb*(abs(z)>=slab)"' in text
+    assert f"particle_heater.intervals = 0:{stop}:20" in text
+    with tempfile.NamedTemporaryFile("w", suffix=".inputs", delete=False) as fh:
+        fh.write(text)
+    try:
+        assert deck.verify(cfg, fh.name) == []
+        moved = text.replace(f"0:{stop}:20", f"0:{stop + 1}:20")
+        with open(fh.name, "w") as g:
+            g.write(moved)
+        assert any(w.startswith("heater.intervals") for w in deck.verify(cfg, fh.name))
+    finally:
+        os.unlink(fh.name)
+
+    # one Z per run: a mismatched ion species is refused
+    import copy
+    bad = copy.deepcopy(cfg)
+    bad["species"]["amb_ions"]["charge_state"] = 1
+    try:
+        deck.render(bad)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("mismatched ion charge_state was not refused")
+
+
 if __name__ == "__main__":
     print("KinShock2020 structure tests\n" + "=" * 40)
     sys.exit(0 if _run_all() else 1)
