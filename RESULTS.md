@@ -4383,3 +4383,35 @@ pixel-identical for particle data. For im_47keV_t03 it renders all 301 dumps in 
 login node, giving a 20 s movie at
 `$PSCRATCH/kinshock_runs/IM_phase/im_47keV_t03/media/phase_hist_asinh.mp4`. v_sh is the
 model value (0.0326 c) because there is no shock_fit.yaml yet.
+
+## 2026-10-05 — PoC 1D twin of the collaborator's 2D `PoC_2d_v2` (`runs/PoC_phase`)
+
+**Why.** A 1D test of the 2D FLASH-OmegaShock surrogate `PoC_2d_v2` (CH ion Z = 3.5,
+m_i = 100 m_e, n_t:n_amb = 400, drive off at t·ω_ci0 = 0.8728 = 2.1 ns, to 7.05 ns), the way
+the 2D run is too expensive to iterate on. **Generator work** (commit c86a539): Z threads
+through `units` (d_i, C_s, ω_ci, v_A; ions at n_e/Z, charge Z q_e); `field.profile` gives
+B_x = max(B0/(1+|z|/L), floor) **applied to particles** (`B_ext_particle`; reasoning in
+`units.field_profile`), with `io.load_frame` adding it back so `Frame.Bx` stays the total
+field; `operators.stop_t_wci0` emits `intervals = 0:<stop>:20`. All 59 existing decks and
+their derived scales hash identical before and after. Field: **8 T → 1 T**, L = 1.37 d_i0 as
+FLASH, floored at B0/8 from z = 9.6 d_i0 (the user's choice). Derived scales match the 2D
+deck: M_A 6.404, M_ms 6.045, β_e 0.2441 (2µ0 convention), d_i0/d_e 47.81, dt·ω_pe 0.13004.
+
+**`poc1d_twin` ran** (debug, job 59394408, binary A, 63,000 steps in 15 min wall on one
+A100; 2D dz/dt/shape/filter, 1024 ppc). `--verify` OK. Slurm reports the batch step
+FAILED 1:0 while step `.0` COMPLETED — a `job_chain.sbatch` bug (grep -v under pipefail in
+one-segment chains), fixed in ab7dddf; the data is unaffected.
+  * **Drive cutoff works.** Total particle energy +0.97 J/step during the drive, −0.015 after
+    step 18,895; piston injection 40 macroparticles/step → 0.
+  * **Heater** holds piston-electron θ at 0.073–0.077 = **2.0× setpoint** (2D calib: ~2.4×).
+  * **Piston speed reproduces the 2D calibration:** the contact surface (first n_ai > n_pi)
+    moves at **0.1067 c vs 0.1088 c** (0.98) over the drive window, reaching 5.9 d_i0 at the
+    cutoff. The dilute leading edge (n_pi > n_amb,i) runs at 0.18 c — not the piston.
+  * **Pileup builds, it is not born:** coherent |B_⊥|/B0 (0.2 d_i0 smoothing, noise ratio
+    1.1–1.3) rises 1 → 10 by t·ω_ci0 0.5, plateaus through the drive, decays to 6.2 by 2.9.
+  * **Open: B_x inside the dense piston swings ±10 B0 with sign reversals** (e.g. −8 B0 at
+    0.03 d_i0, +4.4 B0 at 1 d_i0, t·ω_ci0 0.58). There the piston d_e is 1.22 cells and λ_D
+    ~0.3 cells, so it may be a numerical artifact the 2D run shares. `poc1d_resolved`
+    (dz = 0.1 d_e: 4.5 cells per piston d_e, 2.8 per ambient λ_D) is the discriminator;
+    submitted (shared, job 59394932). Movie: `$PSCRATCH/kinshock_runs/PoC_phase/poc1d_twin/
+    media/phase_hist_asinh.mp4`; pileup plot alongside.
