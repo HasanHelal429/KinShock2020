@@ -4415,3 +4415,23 @@ one-segment chains), fixed in ab7dddf; the data is unaffected.
     (dz = 0.1 d_e: 4.5 cells per piston d_e, 2.8 per ambient λ_D) is the discriminator;
     submitted (shared, job 59394932). Movie: `$PSCRATCH/kinshock_runs/PoC_phase/poc1d_twin/
     media/phase_hist_asinh.mp4`; pileup plot alongside.
+
+**`poc1d_resolved` ran** (shared, job 59394932, 164,000 steps in 1 h 30 min on one A100,
+38 M particles; `--verify` OK; same cosmetic batch FAILED as the twin, pre-fix script).
+**Twin vs resolved** (dz 0.368 → 0.1 d_e, everything else equal but cfl and box):
+  * Drive cutoff, heater (2.0× setpoint) and pileup agree: coherent |B_⊥|/B0 8.38/8.57,
+    10.27/10.44, 10.23/10.03, 7.91/7.83, 6.55/6.23 at t·ω_ci0 0.29/0.58/0.87/1.5/2.5.
+  * Compression front agrees to 1.3% while the twin still has room (24.32 vs 24.63 d_i0 at
+    t·ω_ci0 2.33). **The twin's front reaches its 25.85 d_i0 box end at ~2.6** — the 2D-sized
+    box is too short for a 1D piston at late time; the resolved 1.5× box holds it (30.5 d_i0
+    at 2.8).
+  * Piston contact at the cutoff 5.90 → 6.55 d_i0 (+11%); fitted contact speed 0.107 →
+    0.130 c (the n_ai > n_pi crossing is a noisy front definition; the 10%-density bulk
+    moves at 0.076 vs 0.072 c).
+  * **The in-piston ±B field is RESOLUTION-INDEPENDENT, so not a grid artifact.** Inside
+    n_pi > 50 n_amb,i: rms B_x/B0 2.8–4.4 (twin) vs 3.1–4.5 (resolved), 0.2 d_i0-smoothed
+    1.6–2.9 vs 1.8–2.9, half the cells reversed in both, dominant wavelength 9–30 d_e =
+    25–300 cells. It is coherent structure in the β ~ 10^3 heated piston that the model
+    produces at either resolution — instability or operator-driven is not yet separated
+    (a heater-off / injector-off control would). The 2D grid is therefore not its cause.
+    Movie: `$PSCRATCH/kinshock_runs/PoC_phase/poc1d_resolved/media/`.
