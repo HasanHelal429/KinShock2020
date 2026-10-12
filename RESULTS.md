@@ -5148,3 +5148,46 @@ converged** (1–5%, at the GPU run-to-run scatter). **The front kinematics are 
 contact runs 11–21% further/faster at dz = 0.1, so shock-front timing taken from the 2D
 grid (= the twin's) carries a ~10–20% resolution uncertainty. Threshold-based front speeds
 are noisy; read the movies before quoting them.
+
+## 2026-10-12 — False-shock (notch) verdicts by eye on 34 runs: dz/λ_D sets WHEN, not WHETHER
+
+The user judged every run with an existing phase-space movie, by eye, for the notch (RESULTS
+2026-09-03: plateau ~0.9 v_sh at the front of the C's lower branch, vertical cliff, never
+detaches). The verdicts were then joined to each run's numbers. Eight runs have no movie
+and were skipped: `es_1p5keV`, `es_4p7keV`, `es_15keV`, `es_47keV`, `mb_r100`, `mb_r56`,
+`vB_lowB0`, and `ss_dz16` (seen via `comparison/dz8_vs_dz16_phase.mp4`). ε₀ = v_te0/c
+upstream, N_D = ppc·λ_D/dz.
+
+| family | runs | dz/λ_D | N_D | verdict |
+|---|---|---|---|---|
+| 470 eV, μ=100, piston, to 0.30–0.60 | ss_dz1 ×7 (ppc 100/400/1600, int1, nocoll, sm, symwall), ss_dz2 ×2, ss_dz4 ×4 (ppc 25/100/400, s3f8) | 1.5–6.1 | 16–264 | **notch by t·ω_ci0 ≈ 0.3, all 13** |
+| same, μ = 1836 | um1836_470eV | 6.1 | 16.5 | notch by 0.3 |
+| 470 eV, μ=100, piston, to 0.30 | ss_dz8, ss_dz8_s3f8, ss_dz16 | 0.38–0.76 | 132–264 | **clean at 0.30** |
+| 470 eV, μ=100, long | R1_470eV_s3f8_t2 (to 2.0), ws_470eV_t14 (wall, to 1.4) | 0.76 | 132 | **notch, only after 0.3** |
+| 470 eV, coarse, long | R1_paper_470eV_ppc400 (to 5.6) | 6.1 | 66 | notch "after 0.3"; its frames are 0.11 apart, so this cannot be told from "by 0.3" |
+| 470 eV, heavy electron | im_470eV_t03 | 0.76 | 132 | notch by 0.3 (ε₀ = 0.0010) |
+| 470 eV, T_ab = 26 eV, M_A 3.3 | vA_lowTab | 0.76 | 132 | notch by 0.3 |
+| 47 keV class (ε₀ 0.010–0.045) | im_47keV_t03, ek_47keV_t2, um1836_47keV, mb_r100_t2, ws_47keV, mb_r20, mb_r32, R1_paper | 0.38–0.76 | 132–264 | **clean, all 8, including to t·ω_ci0 = 2.0–6.5** |
+| PoC (CH, Z = 3.5, B₀(z)) | poc1d_twin, poc1d_resolved | 1.3, 0.35 | 790, 2900 | notch in both |
+| too short | ws_470eV (0.70, wall), ws_smoke_470eV (0.15) | — | — | not judgeable |
+
+**Reading.** (1) At 470 eV, **dz/λ_D controls the onset time.** It is present by 0.3 whenever
+dz/λ_D ≥ 1.5, it is absent at 0.3 for dz/λ_D ≤ 0.76, and it still forms later at 0.76 in every
+run long enough to show it. (2) **Particle count does not matter.** At fixed dz, ppc 25→400
+(dz/λ_D 1.5) and 100→1600 (6.1) all notch by 0.3, as do s3f8, collisions off, int1, smoothing
+and the symmetric wall. This **revises 2026-09-05**, which had N_D setting the onset; that was
+measured with `notch_resolution_test.py`, and by eye N_D shows no effect at 0.3. (3) **No
+resolution tested removes it at 470 eV.** The finest grid (dz/λ_D 0.379) only ran to 0.30,
+so "delayed" vs "removed" there is open. (4) **Across families it is physics, not
+resolution.** Every 47 keV-class run is clean, but every one is also fine-grid (≤ 0.76), so
+it is not known whether a coarse grid would make a notch at large ε₀. The smaller ε₀ of the
+heavy-electron run notches by 0.3 at a grid that is clean at 0.3 for ε₀ = 0.0044, so smaller
+ε₀ means earlier onset. vA_lowTab and the PoC runs notch despite fine grids (PoC at
+ε₀ = 0.032), so ε₀ alone does not decide it either.
+
+**Two notes against earlier entries.** (a) 2026-09-11 recorded `ws_470eV_t14` with "NO
+notch"; by eye now it forms after 0.3. (b) 2026-09-05's N_D-onset ordering is not seen by eye.
+
+**Experiments that would close the gaps:** extend `ss_dz16_ppc100` (dz/λ_D 0.379) past
+t·ω_ci0 = 0.3, which separates delayed from removed. Run one coarse 47 keV point
+(dz/λ_D ≥ 1.5), which tests whether coarse grids alone create it at large ε₀.
