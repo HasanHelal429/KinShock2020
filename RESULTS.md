@@ -4413,8 +4413,8 @@ one-segment chains), fixed in ab7dddf; the data is unaffected.
     0.03 d_i0, +4.4 B0 at 1 d_i0, t·ω_ci0 0.58). There the piston d_e is 1.22 cells and λ_D
     ~0.3 cells, so it may be a numerical artifact the 2D run shares. `poc1d_resolved`
     (dz = 0.1 d_e: 4.5 cells per piston d_e, 2.8 per ambient λ_D) is the discriminator;
-    submitted (shared, job 59394932). Movie: `$PSCRATCH/kinshock_runs/PoC_phase/poc1d_twin/
-    media/phase_hist_asinh.mp4`; pileup plot alongside.
+    submitted (shared, job 59394932). Output moved 2026-10-12 to the main checkout:
+    `runs/PoC_phase/poc1d_twin/` (diags), `media/PoC_phase/poc1d_twin/` (movie, pileup).
 
 **`poc1d_resolved` ran** (shared, job 59394932, 164,000 steps in 1 h 30 min on one A100,
 38 M particles; `--verify` OK; same cosmetic batch FAILED as the twin, pre-fix script).
@@ -4435,3 +4435,32 @@ one-segment chains), fixed in ab7dddf; the data is unaffected.
     produces at either resolution — instability or operator-driven is not yet separated
     (a heater-off / injector-off control would). The 2D grid is therefore not its cause.
     Movie: `$PSCRATCH/kinshock_runs/PoC_phase/poc1d_resolved/media/`.
+
+## 2026-10-12 — `poc1d_resolved` ran: the piston-interior B structure is physical (converged)
+
+`poc1d_resolved` (dz = 0.1 d_e, CFL 0.5, 1.5x box, otherwise `poc1d_twin`) ran all 164,000
+steps in 1 h 30 m on one A100 (shared, job 59394932, 2026-10-05); `--verify` OK. Slurm shows
+the cosmetic batch-step FAILED 1:0 (submitted before the ab7dddf fix). Output:
+`runs/PoC_phase/poc1d_resolved/`, `media/PoC_phase/poc1d_resolved/` (phase-space movie, and
+`bperp_pileup_twin_vs_resolved.png`).
+
+| quantity | twin (dz 0.368) | resolved (dz 0.1) |
+|---|---|---|
+| drive cutoff | step 18,895, input → 0 | step 49,142, input → 0 |
+| heater piston-e θ / setpoint | 1.98–2.07 | 2.01–2.05 |
+| contact (n_ai > n_pi) speed, drive window | 0.1067 c | 0.1295 c (+21%) |
+| contact position at cutoff | 5.90 d_i0 | 6.55 d_i0 (+11%) |
+| piston bulk (10% n_pi,max) at cutoff | 3.56 d_i0 | 3.73 d_i0 (+5%) |
+| coherent pileup max at t·ω_ci0 0.29/0.58/0.87/1.5/2.5 | 8.38/10.27/10.23/7.91/6.55 B0 | 8.57/10.44/10.03/7.83/6.23 B0 |
+| rms δB_x inside piston at 0.58 / 0.84 | 4.35 / 4.13 B0 | 4.40 / 4.18 B0 |
+| dominant δB_x wavelength in piston at 0.58 / 0.84 | 18.9 / 27 d_e | 18.9 / 29 d_e |
+
+**The ±10 B0 piston-interior field is converged, so not grid noise:** same rms, same
+dominant wavelength (10–40 d_e = 50–150 twin cells, 200–400 resolved cells), same sign-
+reversal count, and smoothing over 1 d_e removes almost nothing. It is a resolution-
+independent feature of the 1D hot (θ ≈ 0.075), dense (5 n0, β ~ 10³) piston *as modelled*;
+whether the heater/injector surrogate drives it is not separable here. **The pileup is
+converged** (1–5%, at the GPU run-to-run scatter). **The front kinematics are not:** the
+contact runs 11–21% further/faster at dz = 0.1, so shock-front timing taken from the 2D
+grid (= the twin's) carries a ~10–20% resolution uncertainty. Threshold-based front speeds
+are noisy; read the movies before quoting them.
