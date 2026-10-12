@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+"""M_phase summary figure: does the ambient wedge depend on w_pe0/w_ce at FIXED eps?
+
+The E_phase analogue (`plot_eps_ladder.py`) with the scan axis swapped. Rows are the B0
+scan ordered by `w_pe0/w_ce`; rung 1 IS `runs/E_phase/es_47keV`, which is why it is read
+from E_phase rather than duplicated. Columns are matched `t*w_ci0`.
+
+WHY THIS FIGURE CARRIES TWO EXTRA DIAGNOSTICS. As submitted, M_phase rungs 2-3 produced an
+INVALID measurement and this plot has to show that rather than hide it (RESULTS /
+runs/M_phase/README.md, 2026-08-24). `w_ci0 ~ B0`, so holding `t*w_ci0` fixed stretches
+ABSOLUTE time as `1/B0` while `v_p` and `d_i0` stay frozen -- the piston sweeps `1/B0`
+further through a box left at a fixed 12.02 d_i0. So each panel also draws
+
+  * the DOMAIN EDGE, and the far-upstream control window (5-11 d_i0) the wedge comparison
+    depends on staying cold, and
+  * `T_e,upstream` in that window, in the run's own `C_s,ab^2`.
+
+A panel whose control window is hot is stamped INVALID and its wedge number is drawn
+struck-through, because with a contaminated upstream the `v_z` spread threshold is crossed
+far downstream of the real wedge tip -- the number is an artifact, not a weak signal.
+
+Frame matching keeps E_phase's tolerance: a panel whose nearest frame is further than TOL
+from the request is left blank and reported rather than quietly mislabelled.
+
+TWO WAYS TO MATCH THE PANELS, AND THEY DISAGREE.  `--match clock` (default) matches
+`t*w_ci0`, the gyro clock shock formation runs on; that is the designed comparison and it
+is the one the box failure breaks.  `--match piston` instead picks, per run, the frame
+whose piston front sits nearest the anchor's -- same geometry, same box occupancy, both
+upstreams cold -- at the cost of a `t*` that differs by the same `1/B0`, so the higher
+rungs have had proportionally fewer gyroperiods to form a shock.
+
+RESOLVED 2026-08-24: rho_i0 IS THE NORMALIZATION, AND THE BOXES NOW SCALE WITH IT.
+The clock/piston dilemma above was an artifact of a box that did not move: with
+`domain_halfwidth_de ~ 1/B0`, holding `t*w_ci0` ALSO holds the piston at a fixed fraction
+of the box (0.323 rho_i0 of 1.156), so `--match clock` and `--match piston` coincide and
+the salvage's second defect -- fewer gyroperiods at the higher rungs -- is gone.
+
+What does NOT dissolve is the unit choice, because `rho_i0/d_i0 = v_p/v_A` still moves a
+decade. It is settled deliberately in favour of **rho_i0**: it is the piston's own sweep
+scale, so the geometry stays comparable between rungs, and it is what the box is now held
+to. Lengths, the axis and the headline number are all rho_i0; d_i0 is kept as a second
+column, because on the small-box salvage the two disagreed IN SIGN (+23% in d_i0, -38% in
+rho_i0 from rung 1 to rung 2) and printing both is what stops a reader picking the
+flattering one. E_phase never had to choose: it pinned `rho_i0/d_i0` = 10.40.
+
+    python scripts/plot_mag_ladder.py [--match clock|piston] [--times ...] [--out PATH]
+"""
+import argparse
+import math
+import os
+import sys
+
+import numpy as np
+
+ROOT = "/pscratch/sd/h/hhelal/KinShock2020"
+sys.path.insert(0, os.path.join(ROOT, "src"))
+os.chdir(ROOT)
+import matplotlib  # noqa: E402
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.colors import AsinhNorm, LogNorm, Normalize  # noqa: E402
+import kinshock  # noqa: E402
+from kinshock import io as kio  # noqa: E402
+from kinshock.units import C, ME  # noqa: E402
+from kinshock.units import EPS0 as U_EPS0, ME as U_ME, QE as U_QE  # noqa: E402
+
+SURFACE, INK, INK2, MUTED, BASE = "#0d0c10", "#f2f0f6", "#c9c5d4", "#8b8798", "#3a3745"
+GOOD, WARN, ACC = "#5ad2ff", "#ff6b57", "#ffd166"
+# LENGTHS ARE IN rho_i0 (see the header). Every constant is E_phase's d_i0 value divided
+# by the anchor's rho_i0/d_i0 = 10.40, so the analysis is unchanged where the two agree.
+ZMAX, VMAX = 1.30, 2.6     # box is 1.156 rho_i0 at every rung, by construction
+TOL = 0.030
+UPSTREAM = (0.78, 0.98)    # far-upstream control, as a FRACTION of each run's box
+                           # (= 5-11 d_i0 at the anchor, whose box is 1.156 rho_i0)
+T_UP_COLD = 5.0            # T_e,upstream above this => the comparison is void
+SPREAD = 0.06              # v_z std / v_sh below which the layer counts as undisturbed
+STEP, WIN = 0.002, 0.024   # rho_i0: scan step and window width (E_phase's 0.02/0.25 d_i0
+                           # over the anchor's rho_i0/d_i0 = 10.40)
+SCAN_MAX = 0.6             # rho_i0: FALLBACK cap only. The scan actually runs to the end of
+                           # the available upstream -- a fixed 0.6 was right for the 1.156
+                           # rho_i0 early-formation boxes but silently returns nan on the
+                           # t* = 2.0 runs, whose disturbed layer is deeper than the cap.
+
+# Run dirs only. Every number in the row label is DERIVED from the config below rather
+# than kept in a table here, so it cannot drift from the deck it describes.
+LADDER = ["runs/E_phase/es_47keV", "runs/M_phase/mb_r20", "runs/M_phase/mb_r32",
+          "runs/M_phase/mb_r56", "runs/M_phase/mb_r100"]
+# The formed-shock pair: the two ends of the decade at t* = 2.0, numerics-matched.
+PAIR = ["runs/E_phase/ek_47keV_t2", "runs/M_phase/mb_r100_t2"]
+
+
+def row_meta(d):
+    """(label, B0, w_pe0/w_ce, M_A, beta_0, rho_i0/d_i0, box) straight from config.yaml."""
+    cfg = kinshock.load(d)
+    sc = kinshock.units.derive(cfg)
+    wpe0 = math.sqrt(sc.namb * U_QE ** 2 / (U_EPS0 * U_ME))
+    return (os.path.basename(d.rstrip("/")), sc.B0, wpe0 / (U_QE * sc.B0 / U_ME),
+            sc.MA, sc.beta_0, sc.rho_i0 / sc.di0, sc.domain_halfwidth / sc.rho_i0)
+
+
+def wedge_depth(z, v, zp, scan=None):
+    """E_phase's continuous depth, in rho_i0: first STEP offset ahead of the piston where
+    the local v_z spread falls below SPREAD, linearly interpolated between the bracketing
+    samples. STEP/WIN are E_phase's 0.02/0.25 d_i0 over the anchor's rho_i0/d_i0."""
+    offs = np.arange(0, max(scan or SCAN_MAX, 4 * WIN), STEP)
+    sig = np.full(offs.size, np.nan)
+    for k, lo in enumerate(offs):
+        m = (z - zp >= lo) & (z - zp < lo + WIN)
+        if m.sum() > 100:
+            sig[k] = v[m].std()
+    ok = np.isfinite(sig)
+    for k in range(1, offs.size):
+        if ok[k] and ok[k - 1] and sig[k] < SPREAD <= sig[k - 1]:
+            f = (sig[k - 1] - SPREAD) / (sig[k - 1] - sig[k])
+            return offs[k - 1] + f * STEP
+    return float("nan")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--times", type=float, nargs="+", default=[0.130, 0.260])
+    ap.add_argument("--match", choices=("clock", "piston"), default="clock",
+                    help="clock: matched t*w_ci0. piston: matched piston front position "
+                         "(taken from the anchor at the LAST requested time).")
+    ap.add_argument("--norm", choices=("log", "linear", "asinh"), default="log",
+                    help="colour stretch. log (default) is what the committed figures "
+                         "use. linear is the honest view of where the BULK sits, at the "
+                         "cost of the faint reflected-ion beam. asinh is the middle.")
+    ap.add_argument("--scale", choices=("panel", "shared"), default="panel",
+                    help="panel (default) autoscales each panel independently, so "
+                         "brightness carries no cross-rung information. shared puts every "
+                         "panel on one vmax, so a denser structure actually looks denser "
+                         "-- which is the point of a comparison figure, and is what makes "
+                         "a linear stretch worth having. Same reasoning as "
+                         "make_phase_movie_norm.py's fixed cross-frame scale.")
+    ap.add_argument("--runs", nargs="+", default=None,
+                    help="run dirs to plot as rows (default: the five M_phase rungs). "
+                         "`pair` is shorthand for the two formed-shock t*=2.0 runs.")
+    ap.add_argument("--zmax", type=float, default=None,
+                    help="z axis limit in rho_i0 (default: the widest box plotted).")
+    ap.add_argument("--out", default=None)
+    args = ap.parse_args()
+    if args.out is None:
+        tag = ("_matchpiston" if args.match == "piston" else "")
+        if args.norm != "log":
+            tag += f"_{args.norm}"
+        if args.scale != "panel":
+            tag += "_shared"
+        args.out = f"media/M_phase/wedge_vs_B0{tag}.png"
+
+    want = args.runs or LADDER
+    if want == ["pair"]:
+        want = PAIR
+    have = [d for d in want if os.path.isdir(os.path.join(d, "diags"))]
+    missing = [os.path.basename(d.rstrip("/")) for d in want if d not in have]
+    rows = [(m[0], d) + m[1:] for d, m in ((d, row_meta(d)) for d in have)]
+    if missing:
+        print(f"  not run yet, omitted: {', '.join(missing)}")
+    if not rows:
+        print("  nothing to plot"); return 1
+
+    z_anchor = None
+    if args.match == "piston":
+        d0 = rows[0][1]
+        sc0 = kinshock.units.derive(kinshock.load(d0))
+        pfs0 = kio.plotfiles(d0)
+        t0 = np.array([kio.load_frame(p).time * sc0.wci0 for p in pfs0])
+        j = int(np.argmin(np.abs(t0 - args.times[-1])))
+        ad0 = kio.load_frame(pfs0[j]).ds.all_data()
+        z_anchor = np.percentile(
+            np.asarray(ad0[("piston_ions", "particle_position_x")]), 99.5) / sc0.rho_i0
+        print(f"  matching on piston front z = {z_anchor:.4f} rho_i0 "
+              f"({rows[0][0]} at t*={t0[j]:.3f})")
+
+    panels = []
+    zmax = args.zmax if args.zmax else (min(r[7] for r in rows) * 1.02 if rows else ZMAX)
+    zb = np.linspace(0, zmax, 340)
+    vb = np.linspace(-VMAX * 0.4, VMAX, 260)
+    cols = [args.times[-1]] if args.match == "piston" else args.times
+    fig, axes = plt.subplots(len(rows), len(cols),
+                             figsize=(6.8 if len(cols) == 1 else 11.5,
+                                      3.6 * len(rows) + 1.2), dpi=200,
+                             facecolor=SURFACE, sharex=True, sharey=True, squeeze=False)
+    table = []
+    for r, (label, d, B0, wpwc, MA, b0, rho, _box) in enumerate(rows):
+        cfg = kinshock.load(d)
+        sc = kinshock.units.derive(cfg)
+        mi = cfg["reference"]["mass_ratio"] * ME
+        box = sc.domain_halfwidth / sc.rho_i0      # 1.156 at every rung
+        pfs = kio.plotfiles(d)
+        times = np.array([kio.load_frame(p).time * sc.wci0 for p in pfs])
+        fronts = None
+        if args.match == "piston":
+            fronts = np.array([
+                np.percentile(np.asarray(kio.load_frame(p).ds.all_data()[
+                    ("piston_ions", "particle_position_x")]), 99.5) / sc.rho_i0
+                for p in pfs])
+        for c, T in enumerate(cols):
+            ax = axes[r][c]
+            ax.set_facecolor("#111014")
+            for s in ("top", "right"):
+                ax.spines[s].set_visible(False)
+            for s in ("left", "bottom"):
+                ax.spines[s].set_color(BASE)
+            ax.tick_params(colors=MUTED, labelsize=8.5, length=3)
+            for t in ax.get_xticklabels() + ax.get_yticklabels():
+                t.set_color(INK2)
+            ax.set_xlim(0, zmax); ax.set_ylim(vb[0], vb[-1])
+            if r == len(rows) - 1 or len(cols) == 1 and r == len(rows) - 1:
+                ax.set_xlabel(r"$z / \rho_{i0}$", color=INK2, fontsize=11)
+
+            if args.match == "piston":
+                i = int(np.argmin(np.abs(fronts - z_anchor)))
+            else:
+                i = int(np.argmin(np.abs(times - T)))
+            if args.match == "clock" and abs(times[i] - T) > TOL:
+                ax.annotate(f"no frame within {TOL:.3f}\nof $t^*$={T:.3f}\n"
+                            f"(nearest {times[i]:.3f})", xy=(0.5, 0.5),
+                            xycoords="axes fraction", ha="center", va="center",
+                            color=MUTED, fontsize=9)
+                print(f"  {label} @ t*={T}: REFUSED, nearest {times[i]:.4f}")
+                continue
+
+            ad = kio.load_frame(pfs[i]).ds.all_data()
+            z = np.asarray(ad[("amb_ions", "particle_position_x")]) / sc.rho_i0
+            p = np.asarray(ad[("amb_ions", "particle_momentum_z")])
+            w = np.asarray(ad[("amb_ions", "particle_weight")])
+            g = np.sqrt(1.0 + (p / (mi * C)) ** 2)
+            v = p / (mi * g) / sc.vsh_model
+            zp = np.percentile(
+                np.asarray(ad[("piston_ions", "particle_position_x")]), 99.5) / sc.rho_i0
+            # scan the whole upstream that exists ahead of the piston in THIS box,
+            # less the window width so the last sample is fully populated
+            depth = wedge_depth(z, v, zp, scan=_box - zp - WIN)
+
+            # far-upstream control, in the run's own C_s,ab^2 -- the validity gate
+            ze = np.asarray(ad[("amb_electrons", "particle_position_x")]) / sc.rho_i0
+            pe = np.stack([np.asarray(ad[("amb_electrons", f"particle_momentum_{a}")])
+                           for a in "xyz"])
+            # SAME window that is drawn below -- a fraction of THIS run's box, so a
+            # pair with unequal boxes is still measured in the same place relative
+            # to each domain. A fixed rho_i0 pair would sit mid-box in one run and
+            # against the wall in the other.
+            mu_ = (ze > UPSTREAM[0] * _box) & (ze < UPSTREAM[1] * _box)
+            if mu_.sum() > 100:
+                p2 = (pe[:, mu_] ** 2).sum(0)
+                gu = np.sqrt(1.0 + p2 / (ME * C) ** 2)
+                T_up = float(np.var(np.sqrt(p2) / (ME * gu)) / sc.Cs_ab ** 2)
+            else:
+                T_up = float("nan")
+            valid = np.isfinite(T_up) and T_up < T_UP_COLD
+
+            H, _, _ = np.histogram2d(z, v, bins=[zb, vb], weights=w)
+            panels.append((ax, H))
+            ax.axhline(0, color="#fff", lw=.5, alpha=.25)
+            ax.axhline(1, color=GOOD, lw=.9, ls=(0, (5, 4)), alpha=.9)
+            ax.axvline(zp, color=ACC, lw=1.2)
+            # the two diagnostics this figure exists to show
+            ax.axvspan(UPSTREAM[0] * _box, UPSTREAM[1] * _box,
+                       color=GOOD if valid else WARN, alpha=0.05)
+            ax.axvline(box, color=WARN, lw=1.4, ls=(0, (2, 2)))
+            ax.annotate("domain edge", xy=(box - 0.12, vb[-1] * 0.93), ha="right",
+                        color=WARN, fontsize=7.5, rotation=90, va="top")
+            if np.isfinite(depth):
+                ax.axvspan(zp, zp + depth, color=GOOD, alpha=0.07)
+            txt = (rf"wedge {depth:.4f} $\rho_{{i0}}$ = {depth * rho:.2f} $d_{{i0}}$"
+                   if np.isfinite(depth) else "wedge: no crossing")
+            ax.annotate(txt, xy=(0.975, 0.06), xycoords="axes fraction", ha="right",
+                        fontsize=9, color=GOOD if valid else MUTED,
+                        bbox=None if valid else dict(boxstyle="round,pad=0.15", fc="none",
+                                                     ec=WARN, lw=0.8))
+            ax.annotate(rf"$z_{{piston}}$={zp:.4f}$\rho_{{i0}}$   $T_{{e,up}}$={T_up:.1f}",
+                        xy=(0.02, 0.06), xycoords="axes fraction", fontsize=8.5,
+                        color=INK2 if valid else WARN,
+                        bbox=dict(boxstyle="round,pad=0.2", fc=SURFACE, ec="none",
+                                  alpha=0.75))
+            if not valid:
+                ax.annotate("INVALID — upstream contaminated", xy=(0.5, 0.955),
+                            xycoords="axes fraction", ha="center", fontsize=9.5,
+                            color=WARN, weight="bold")
+            if r == 0:
+                ax.set_title(rf"$t\,\omega_{{ci0}}$ = {times[i]:.3f}"
+                             + ("   (matched piston front)" if args.match == "piston"
+                                else ""), color=INK, fontsize=12)
+            elif args.match == "piston":
+                ax.set_title(rf"$t\,\omega_{{ci0}}$ = {times[i]:.3f}", color=MUTED,
+                             fontsize=10)
+            if c == 0:
+                ax.set_ylabel(f"{label}\n" + rf"$\omega_{{pe0}}/\omega_{{ce}}$ = {wpwc:.0f}"
+                              "\n" rf"$B_0$={B0:.1f} T   $M_A$={MA:.0f}" "\n"
+                              rf"$\beta_0$={b0:.2f}   $\rho_{{i0}}/d_{{i0}}$={rho:.1f}"
+                              "\n" r"$v_z/v_{sh}$", color=INK2, fontsize=9)
+            # t[7] is rho_i0 (primary), t[8] the d_i0 cross-check
+            table.append((label, wpwc, MA, b0, T, times[i], zp, depth,
+                          depth * rho, T_up, valid))
+        print(f"  row done: {label}", flush=True)
+
+    held = (r"HELD: $\varepsilon$, $\gamma$=1.138, $T_{e,ab}$, $T_0$, $n_0$," "\n"
+            r"$\lambda_{D,0}/d_{i0}$=4.42e-3, $dz/\lambda_D$=0.379, $N_D$=264"
+            if len(cols) == 1 else
+            r"every row HELD: $\varepsilon$, $\gamma$=1.138, $T_{e,ab}$, $T_0$, $n_0$, "
+            r"$\lambda_{D,0}/d_{i0}$=4.42e-3, $dz/\lambda_D$=0.379, $N_D$=264")
+    # One pass over the collected histograms so `--scale shared` can put every panel on the
+    # same vmax. Drawn here rather than inline above for that reason only.
+    # A shared vmax on RAW weighted counts would be a lie here: bins are fixed in
+    # z/rho_i0 but n_cell runs 7168 -> 71680 down the ladder, so rung 5 holds ~10x more
+    # particles per bin and would simply look brighter for a numerical reason. Normalise
+    # each panel to a probability density first. That is meaningful precisely because the
+    # ambient density n_0 is IDENTICAL at every rung, so what differs is how the same
+    # material is distributed in phase space -- which is the question the figure asks.
+    if args.scale == "shared":
+        panels = [(ax, H / H.sum() if H.sum() > 0 else H) for ax, H in panels]
+    vmax = max((H.max() for _, H in panels), default=1.0) if args.scale == "shared" else None
+    for ax, H in panels:
+        if args.norm == "log":
+            nrm = LogNorm(vmax=vmax)
+        elif args.norm == "asinh":
+            nrm = AsinhNorm(linear_width=max(H.max(), 1e-30) * 1e-3, vmin=0, vmax=vmax)
+        else:
+            nrm = Normalize(vmin=0, vmax=vmax)
+        # zorder=0: the mesh is drawn AFTER the guide lines and annotations (it has to be,
+        # so a shared vmax can be known first), so it must be pushed beneath them or it
+        # hides the piston line, the control window and every label.
+        ax.pcolormesh(zb, vb, np.ma.masked_where(H <= 0, H).T, norm=nrm,
+                      cmap="magma", shading="auto", zorder=0)
+
+    fig.suptitle(r"Ambient-ion phase space vs $\omega_{pe0}/\omega_{ce}$" "\n"
+                 r"at FIXED $\varepsilon$ = 0.3033" "\n" + held,
+                 color=INK, fontsize=11 if len(cols) == 1 else 12.5)
+    fig.tight_layout(rect=[0, 0, 1, 1 - (0.075 if len(cols) == 1 else 0.045)
+                           * (5.0 / len(rows))])
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
+    fig.savefig(args.out, facecolor=SURFACE)
+    print(f"\n  wrote {args.out}")
+
+    print("\n" + "=" * 96)
+    print(f"{'run':20}{'wpe/wce':>9}{'M_A':>7}{'beta_0':>8}{'t* got':>8}"
+          f"{'z_pist':>9}{'wedge rho_i0':>14}{'wedge d_i0':>12}{'T_e,up':>9}{'valid':>7}")
+    print(f"{'':20}{'':>9}{'':>7}{'':>8}{'':>8}{'[rho_i0]':>9}{'PRIMARY':>14}"
+          f"{'x-check':>12}")
+    print("=" * 96)
+    for t in table:
+        print(f"{t[0]:20}{t[1]:>9.1f}{t[2]:>7.0f}{t[3]:>8.2f}{t[5]:>8.3f}"
+              f"{t[6]:>9.4f}{t[7]:>14.4f}{t[8]:>12.3f}{t[9]:>9.1f}"
+              f"{'yes' if t[10] else 'NO':>7}")
+    print("=" * 96)
+    # Compare WITHIN one requested time. Taking ok[0] and ok[-1] spanned different t*
+    # when more than one column was rendered, which silently compared a rung at t* = 0.13
+    # against another at 0.26 and reported the time difference as a B0 effect.
+    ok = [t for t in table if t[10] and t[4] == args.times[-1]]
+    if len(ok) >= 2:
+        a, b = ok[0], ok[-1]
+        print(f"\n  (comparison at t* = {args.times[-1]:.3f} only)")
+        print(f"\n  valid points only, {a[0].strip()} -> {b[0].strip()} "
+              f"(w_pe0/w_ce {a[1]:.0f} -> {b[1]:.0f}):")
+        print(f"    in rho_i0 (PRIMARY) : {a[7]:.4f} -> {b[7]:.4f}"
+              f"   ({b[7]/a[7]-1:+.0%} change)")
+        print(f"    in d_i0   (x-check) : {a[8]:.3f} -> {b[8]:.3f}"
+              f"   ({b[8]/a[8]-1:+.0%} change)")
+        if (b[7] - a[7]) * (b[8] - a[8]) < 0:
+            print("    -> the two normalizations DISAGREE IN SIGN. rho_i0/d_i0 moves with B0,")
+            print("       so this is expected whenever the wedge is flat in absolute terms;")
+            print("       rho_i0 is the settled unit (see the header) and is the answer to")
+            print("       quote, but the disagreement is printed so it cannot be hidden.")
+    bad = [t for t in table if not t[10]]
+    if bad:
+        print(f"\n  {len(bad)} of {len(table)} panels INVALID: the far-upstream control "
+              f"(the outer {UPSTREAM[0]:g}-{UPSTREAM[1]:g} of each box) is above {T_UP_COLD:g}, so the wedge")
+        print("  numbers there are artifacts of a piston that has swept the box, not "
+              "measurements.\n  See runs/M_phase/README.md for the cause and the fix.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

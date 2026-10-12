@@ -31,8 +31,8 @@
 #SBATCH -c 32
 #SBATCH -G 4
 #SBATCH -J kinshockmg
-#SBATCH -o slurm-%j.out
-#SBATCH -e slurm-%j.err
+#SBATCH -o slurm/slurm-%j.out
+#SBATCH -e slurm/slurm-%j.err
 
 set -euo pipefail
 

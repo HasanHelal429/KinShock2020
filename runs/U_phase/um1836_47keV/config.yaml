@@ -1,0 +1,152 @@
+# um1836_47keV -- the SAME run at the PHYSICAL mass ratio. Single variable: mu.
+#
+# WHY. Umeda, Kidani, Matsukiyo & Yamazaki (2014, arXiv:1401.5903), on perpendicular
+# shocks: "with a fixed Alfven Mach number and plasma beta, the ratio of the upstream bulk
+# velocity to the electron thermal velocity is given as a function of the ion-to-electron
+# mass ratio", and "the modified two-stream instability is dominant with higher
+# ion-to-electron mass ratios". The identity is v_te/v_A = sqrt(beta_e * mu), so at pinned
+# M_A and beta the foot-instability selector is
+#
+#     v_u/v_te = M_A / sqrt(beta_e * mu)
+#
+# Table I as we simulate it:  14/sqrt(0.196*100)  = 3.15   Buneman  (v_u > v_te)
+# the SAME plasma at mu_phys: 14/sqrt(0.196*1836) = 0.74   MTSI     (v_u < v_te)
+#
+# mu = 100 puts every run in this project on the WRONG SIDE of v_u = v_te -- including the
+# ones that look healthy. This run crosses it. The paper's own mass-ratio check (Fig. 14,
+# mu = 100 vs 400) could not have caught this: mu = 400 gives 1.58, still above threshold.
+#
+# WHAT CHANGES, AND WHY NOTHING ELSE DOES. B0 = sqrt(mu0 n T_0/beta_0) contains no mu, so
+# holding M_A, beta_0, beta_ab, T_0, n_0 and T_e,ab fixed leaves B0 UNCHANGED at 70.2734 T and
+# leaves every `targets:` value unchanged. What follows from mu alone:
+#     v_sh, v_p, C_s,ab  ~ 1/sqrt(mu)      -> vp_over_c 0.104 -> 0.024270555
+#     d_i0 = sqrt(mu) d_e0                 -> box fixed in d_i0 means halfwidth_de x4.2850
+#     w_ci0 ~ 1/mu                         -> t*w_ci0 fixed means max_step x18.3615
+#     rho_i0/d_i0 = v_p/v_A                UNCHANGED, and so is the 24.73 d_i0 per t*
+#                                          precursor rate, so the box needs no resizing in d_i0
+# dz, lambda_D,0, d_e,ab and ppc are all mu-INDEPENDENT, so dz/lambda_D = 0.758 and
+# N_D = 132 carry over untouched. Cost therefore goes as mu^1.5 = 78.7x.
+#
+# THE PAIR IS THE POINT. This is a byte-for-byte twin of `ek_47keV_t2` except for
+# reference.mass_ratio and the four quantities that mu forces. Grid heating, particle noise,
+# box-filling and the collision operator are all COMMON MODE and cannot be confounders --
+# which is what makes a dz/lambda_D = 6.07 run scientifically usable here even though that
+# is deep in the grid-heating regime.
+#
+# READ IT AS. `ek_47keV_t2` shows the notch at plateau no notch (it is the healthy control). If this twin still shows it, the
+# mass ratio is exonerated and the cause is in the eps family (gamma, c/v_ti,
+# lambda_D,0/d_i0). If the notch is gone, mu = 100 was putting the whole campaign in the
+# Buneman regime when the real plasma is in the MTSI regime, and every 470 eV result needs
+# re-reading.
+#
+# CAVEAT, stated up front: if the notch VANISHES here, check before celebrating that it is
+# the regime change and not grid heating scaling differently at higher mu. Refining the pair
+# costs 16x per 4x in dz (70 GPU-h at dz/lambda_D = 1.52), so the coarse A/B is the
+# only affordable version and that check has to be made by argument, not by a finer run.
+#
+#     cells 70,272   steps 1,460,015   t* = 2.0000   ~4.4 GPU-h predicted
+#
+# See RESULTS 2026-09-03 for the notch definition and the resolution ladder.
+
+meta:
+  run_id: um1836_47keV
+  tier: Sweep
+  description: >
+    ek_47keV_t2 at the PHYSICAL mass ratio mu = 1836.15, single variable. Crosses the
+    foot-instability threshold v_u/v_te = M_A/sqrt(beta_e mu) from 3.15 (Buneman) to
+    0.74 (MTSI), per Umeda+2014. B0, T_0, T_e,ab, n_0, dz/lambda_D, ppc and every
+    targets: value are unchanged; only the box in d_e, max_step and v_p follow mu.
+    See runs/U_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_um1836_47keV
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 1836.15           # [-] m_i/m_e -- THE PHYSICAL VALUE. The only choice here.
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.200018904e-02   # 470 eV
+    theta_e_init: 1.957450828e-03   # 10 eV
+    theta_i_init: 1.957450828e-05   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.957450828e-03    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 70.273437465    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 26348.5   # = the partner's box in d_i0; d_i0 ~ sqrt(mu)
+  dz_over_de: 0.374950423        # [d_e,ab] -> dz/lambda_D,amb = 0.758  (RESOLVED)
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8             # [passes] UNDER TEST with dz8
+  cfl: 0.75
+  particle_shape: 3           # [-] UNDER TEST with dz8 (was 2)
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 1460015          # same t*w_ci0 as the partner; w_ci0 ~ 1/mu
+  max_grid_size: 70272      # = n_cell, ONE box: correct for a single GPU
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  plotfile_intervals: 29195
+                              # acceleration signature)
+  field_intervals: 734
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 2424
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.024270555     # [c] ~ 1/sqrt(mu); v_p/C_s,ab = 3.4288 held
+                              #          R1_paper_470eV.

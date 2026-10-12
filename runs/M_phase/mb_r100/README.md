@@ -1,0 +1,111 @@
+# Run `mb_r100`
+
+> B0 scan at fixed eps = 0.3033, rung 5/5: B0 = 7.0273 T, w_pe0/w_ce = 100.00 (anchor es_47keV is 10.0). Separates the magnetization family -- v_A/c, w_pe0/w_ce, M_A, beta_0 -- from the eps family (gamma, lambda_D,0/d_i0), which E_phase holds locked together. M_A = 139.5 and beta_0 = 19.6 are deliberate departures from Table I. See runs/M_phase/README.md.
+
+**tier** Sweep · **deck** `inputs_kinshock_mb_r100` · **paper** Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II
+
+## Notes
+
+<!-- prose:begin -->
+_No hand-written notes yet. Anything written between the
+`prose:begin` / `prose:end` markers survives regeneration — put the run's story here
+(why it exists, what it showed, what to distrust)._
+<!-- prose:end -->
+
+## Primaries — `config.yaml` is the only source of truth
+
+Edit these; never the deck. Regenerate with `python scripts/make_inputs.py runs/mb_r100`.
+
+| Quantity | Value | config key |
+|---|---|---|
+| reference density n0 [m^-3] | 6.0e26 | `reference.n0` |
+| mass ratio m_i/m_e | 100 | `reference.mass_ratio` |
+| charge state Z | 1 | `reference.charge_state` |
+| target density / n0 | 2 | `plasma.piston.density_over_n0` |
+| heater theta_e,ab | 0.0920002 | `plasma.piston.theta_e_heat` |
+| piston init theta_e | 0.00195745 | `plasma.piston.theta_e_init` |
+| piston init theta_i | 1.95745e-05 | `plasma.piston.theta_i_init` |
+| ambient density / n0 | 0.008 | `plasma.ambient.density_over_n0` |
+| ambient theta_0 | 0.00195745 | `plasma.ambient.theta_0` |
+| field orientation | perpendicular | `field.orientation` |
+| **B0 [T]** | 7.02734 | `field.B0_tesla` |
+| dims | 1 | `geometry.dims` |
+| layout | one_sided | `geometry.layout` |
+| slab halfwidth [d_i] | 2 | `geometry.slab_halfwidth_di` |
+| domain halfwidth [d_e] | 13440 | `geometry.domain_halfwidth_de` |
+| dz [d_e] | 0.1875 | `geometry.dz_over_de` |
+| boundary lo / hi | lo symmetry, hi open | `geometry.boundary` |
+| CFL | 0.75 | `numerics.cfl` |
+| particle shape | 2 | `numerics.particle_shape` |
+| max_step | 239970 | `numerics.max_step` |
+| ppc | piston 100, ambient 100 | `numerics.ppc` |
+| heater intervals | 20 | `operators.heater.intervals` |
+| injector intervals | 20 | `operators.injector.intervals` |
+| injector tau [1/wpe] | 400 | `operators.injector.tau_over_wpe_inv` |
+| collisions target | quantity lambda_ab, value 20 | `collisions.target` |
+
+## Derived — computed by `units.derive`, not stored
+
+| Quantity | Value | From |
+|---|---|---|
+| omega_pe [rad/s] | 1.38187e+15 | sqrt(n0 q^2/(eps0 m_e)) |
+| d_e [m] | 2.16947e-07 | c/omega_pe |
+| d_i,ab [m] | 2.16947e-06 | d_e*sqrt(m_i/m_e) |
+| C_s,ab / c | 0.0303315 | sqrt(theta_e,ab/mass_ratio) |
+| t_ab [s] | 2.38582e-13 | d_i,ab / C_s,ab |
+| n_amb [m^-3] | 4.8e+24 | density_over_n0 * n0 |
+| d_i0 [m] | 2.42554e-05 | c/omega_pi(n_amb) |
+| d_i0 / d_e | 111.803 | derived |
+| **omega_ci0 [rad/s]** | 1.23598e+10 | **q_e*B0/m_i — B0 only, no n_amb** |
+| 1/omega_ci0 [s] | 8.09072e-11 | 1/omega_ci0 |
+| **v_A / c** | 0.001 | **B0/sqrt(mu0*n_amb*m_i) — DERIVED** |
+| rho_i0 / d_e | 11627.6 | v_p/omega_ci0 / d_e |
+| v_p / c (model) | 0.104 | config model.vp_over_c |
+| v_sh / c (model) | 0.139525 | model.vsh_over_Csab * C_s,ab |
+| M_A | 139.525 | v_sh/v_A |
+| M_ms | 30.7601 | v_sh/sqrt(v_A^2+C_s0^2) |
+| beta_ab | 115000 | mu0*n0*T_e,ab/B0^2 |
+| beta_0 | 19.5745 | mu0*n_amb*T_0/B0^2 |
+| dz [m] | 4.06776e-08 | dz_over_de * d_e |
+| dt [s] | 1.01764e-16 | CFL-limited |
+| dt*omega_pe | 0.140625 | dt * omega_pe |
+| n_cell | 71680 | domain / dz (halved when one_sided) |
+| steps per 1/omega_ci0 | 795046 | 1/(omega_ci0*dt) |
+| run length [1/omega_ci0] | 0.301832 | max_step * dt * omega_ci0 |
+| T_e,ab [eV] | 47012 | theta_e,ab * m_e c^2 |
+| lnLambda (used) | 122349 | units.coulomb_log_for(collisions.target) |
+| lnLambda (physical) | 10.8364 | NRL at (n0, T_e,ab) |
+| nu_ei,ab [1/s] | 2.09571e+13 | NRL electron-ion |
+| nu_ei*dt | 0.00213269 | must be << 1 |
+| mfp_ei,ab / d_e | 20 | v_te/nu_ei / d_e |
+| lambda_ab | 20 | omega_ce,ab/nu_ei,ab = mfp/d_e,ab |
+| mfp_ii,amb / d_i0 | 0.0143214 | upstream ion-ion — what criterion 2 tests |
+
+## vs Schaeffer 2020 Table I
+
+| Quantity | This run | Table I | ratio | known cause if off |
+|---|---|---|---|---|
+| mass ratio m_i/m_e | 100 | 100 | 1.000x (+0.0%) ok |  |
+| C_s,ab / c | 0.0303315 | 0.03 | 1.011x (+1.1%) ok |  |
+| piston speed v_p / c | 0.104 | 0.104 | 1.000x (+0.0%) ok |  |
+| Alfven Mach v_sh/v_A | 139.525 | 14 | 9.966x (+896.6%) **OFF** | model M_A from model.vsh_over_Csab; the by-eye settled value is in shock_fit.yaml |
+| magnetosonic Mach | 30.7601 | 13 | 2.366x (+136.6%) **OFF** |  |
+| ablation beta, mu0*n*T/B^2 (Table I 1150) | 115000 | 1150 | 100.000x (+9900.0%) **OFF** | n_amb 0.01 vs Table I's 0.008, and/or theta_e off 0.092 |
+| upstream beta, mu0*n*T/B^2 (Table I 0.2) | 19.5745 | 0.2 | 97.872x (+9687.2%) **OFF** |  |
+| d_i0 / d_i,ab | 11.1803 | 11.18 | 1.000x (+0.0%) ok |  |
+| gyroperiod in ablation times | 339.116 | 33.9 | 10.003x (+900.3%) **OFF** | n_amb 25% high (1.118x) and/or theta_e recal (1.086x) |
+| collisionality mfp/d_e,ab | 20 | 20 | 1.000x (-0.0%) ok |  |
+
+## Files
+
+| Path | What |
+|---|---|
+| `config.yaml` | the primaries (tracked) |
+| `inputs_kinshock_mb_r100` | generated deck (tracked, **never hand-edit**) |
+| `warpx_used_inputs` | what WarpX actually ran (tracked) |
+| `shock_fit.yaml` | by-eye v_sh + front, from `tune_shock.py` |
+| `diags/`, `*.log` | output (gitignored, regenerable) |
+
+---
+
+_Tables generated by `scripts/make_run_readme.py` — edit `config.yaml`, not the tables. Prose between the `prose:` markers is preserved._

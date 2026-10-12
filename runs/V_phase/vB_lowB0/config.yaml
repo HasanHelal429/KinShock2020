@@ -1,0 +1,142 @@
+# vB_lowB0 -- V_phase: is the notch caused by an UNPHYSICALLY FAST SHOCK?
+#
+# THE HYPOTHESIS. At mu = 100 the ablation sound speed is sqrt(1836/100) = 4.2849x too high,
+# so the shock runs at 4182 km/s against Table I's physical 980. Every dimensionless number
+# is still right (M_A 14, M_ms 13, beta_0 0.2) -- absolute speed is the intended casualty of
+# a reduced mass ratio -- but if something in the notch depends on the ABSOLUTE speed, or on
+# a ratio the Table I set does not pin, the mu = 100 runs are in the wrong place.
+#
+# WHY THE ABLATION TEMPERATURE CANNOT SIMPLY FIX IT. v_sh = 4.6*sqrt(T_ab/m_i) and
+# v_te,ab = sqrt(T_ab/m_e), so v_sh/v_te,ab = 4.6/sqrt(mu) EXACTLY -- T_ab cancels. The shock
+# is 4.28x too fast relative to the ablation electrons at any ablation temperature, and only
+# mu can change that. What T_ab CAN do is restore the absolute speed, and that is what this
+# phase tests. T_ab = 470 x 100/1836 = 25.599 eV gives v_sh = 976 km/s at mu = 100, against
+# Table I's 980.
+#
+# THE TRILEMMA. At mu = 100 you cannot have physical v_sh AND M_A = 14 AND beta_0 = 0.2 AND
+# the paper's T_0 = 10 eV. Lowering T_ab alone drops M_A to 3.3; restoring M_A by lowering B0
+# raises beta_0 to 3.6; restoring beta_0 by lowering T_0 demands 0.545 eV. This phase runs
+# all three corners, so which constraint is load-bearing is measured rather than argued:
+#
+#   vA_lowTab   T_ab 25.6            -> v_sh physical, M_A 3.26, beta_0 0.196, eps_0 0.00442
+#   vB_lowB0    T_ab 25.6, B0/4.28   -> v_sh physical, M_A 13.95, beta_0 3.59, eps_0 0.00442
+#   vC_scaled   + T_0/18.36          -> v_sh physical, M_A 13.95, beta_0 0.196, eps_0 0.00103
+#
+# WHAT THE EXISTING DISCRIMINATOR PREDICTS. eps_0 = sqrt(theta_0) separated notching from
+# clean across six runs at two mass ratios (RESULTS 2026-09-05). vA and vB hold eps_0 at
+# 0.00442, the NOTCHING value, so eps_0 predicts they still notch despite a physical v_sh.
+# vC drops eps_0 4.28x BELOW the notching value, so eps_0 predicts it notches harder. If
+# instead vA and vB come back clean, eps_0 is not the cause and the absolute speed is --
+# which is the whole point of running them.
+#
+# WHAT vB ISOLATES. T_ab and B0 move together, so v_sh is physical AND M_A is back
+# at 13.95 -- the paper's shock strength at the paper's speed. The cost is
+# beta_0 = 3.59 instead of 0.2, a high-beta upstream. Note beta_0 was already
+# EXCLUDED as a notch discriminator by crossing pair (RESULTS 2026-09-04), which
+# is what makes vB the cleanest of the three: the one quantity it breaks is one
+# already shown not to matter.
+#
+# COST ~22 GPU-h (10,155,754 steps at 59,624 cells) -- identical to vA, because vA needs
+# 4.28x more t* while vB needs 4.28x more steps per t*, and the two exactly cancel. Grid, ppc, filter and shape are R1_470eV_s3f8_t2's unchanged
+# (dz/lambda_D = 0.758, ppc 100, filter_npass 8, particle_shape 3) so nothing in the
+# comparison turns on resolution or N_D. Box 20 d_i0 and the clock is set by PISTON TRAVEL,
+# not t*: 6.2 d_i0, where the reference notch has saturated. t* itself is not comparable
+# across these -- w_ci0 changes with B0 -- which is exactly why the clock is set that way.
+
+meta:
+  run_id: vB_lowB0
+  tier: Physics
+  description: >
+    Physical v_sh at mu = 100 with M_A = 14 restored by lowering B0 4.28x.
+    beta_0 rises to 3.59; eps_0 unchanged. The cleanest of the three, because
+    beta_0 is already excluded as a discriminator. See runs/V_phase/README.md.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_vB_lowB0
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_470eV_s3f8_t2.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    density_over_n0: 2.0
+    theta_e_heat: 5.00962449e-5   # 25.599 eV = 470 x 100/1836 -- THE PHASE PARAMETER
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.95695118e-5    # [kT/m_e c^2] = 10 eV
+
+field:
+  orientation: perpendicular
+  B0_tesla: 1.639832255    # [T] = 7.026446809478/4.284857, to restore M_A = 14
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 2236.0   # [d_e,ab] = 20.0 d_i0
+  dz_over_de: 0.037501677      # -> dz/lambda_D,amb = 0.758, as R1_470eV_s3f8_t2
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8             # as R1_470eV_s3f8_t2
+  cfl: 0.75
+  particle_shape: 3           # as R1_470eV_s3f8_t2
+  max_step: 10155754          # = 0.595/w_ci0 -> piston travels 6.2 d_i0
+  max_grid_size: 59624      # [cells] = n_cell, ONE box: correct for a single GPU
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_470eV_s3f8_t2: tau is a PHYSICAL time
+
+collisions: {}   # OFF, deliberately, and this is the one place V_phase departs from
+                 # R1_470eV_s3f8_t2. Neither collisional option was defensible at
+                 # T_ab = 25.6 eV. Holding Table I's lambda_ab = 20 inverts to
+                 # lnLambda = 0.036 -- far below the Coulomb logarithm's domain of
+                 # validity (lnLambda >~ 1), so the operator would be meaningless.
+                 # Using the PHYSICAL NRL value at 25.6 eV (3.321, against 6.231 at
+                 # 470 eV) instead makes nu_ei ~ n T^-3/2 lnLambda about 42x stronger
+                 # than the reference -- a large confound in a test that is about shock
+                 # SPEED. Off removes the nuisance parameter entirely and is consistent
+                 # across all three runs. Justified by measurement, not convenience:
+                 # R1_coll reproduces R1_warm's shock on six of seven criteria (peak
+                 # B_perp 12% lower), so collisions are not what makes this shock.
+                 # If V_phase does show a difference, a collisions-on control is the
+                 # follow-up -- see ss_dz1_ppc100_nocoll for the precedent.
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 3.6
+
+diagnostics:
+  plotfile_intervals: 169262
+  field_intervals: 33852
+  reduced_intervals: 16926
+
+model:
+  vsh_over_Csab: 4.6            # [C_s,ab] Table I, unchanged
+  vp_over_c: 0.0024268449       # [c] = 0.0103986833/4.284857: v_p ~ sqrt(T_ab) too

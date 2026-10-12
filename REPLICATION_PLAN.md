@@ -30,8 +30,32 @@ sound speed as c = √(µ_p/T_e,ab) C_s,ab." Pick θ_e,ab and µ_p and c/C_s,ab 
 √(100/0.092) = 33.0, i.e. Table I's C_s,ab = 0.030 c. **So setting θ_e,ab in real-c WarpX
 reproduces the reduced-c run exactly; there is nothing to port.** (R1_warm's θ_e = 0.078 gives
 c/C_s,ab = 35.8 vs the paper's 33.0 — an 8% gap that is entirely the M_A recalibration.) The
-`c_sim/c_phys = 0.02` row is a *reported consequence* of θ_e,ab, not a knob, and is anyway
-rounded: the velocity rows imply 0.0234.
+`c_sim/c_phys = 0.02` row is a *reported consequence* of θ_e,ab, not a knob.
+
+⚠ **CORRECTED 2026-08-24 — that row is not rounding, it is the mass-ratio convention.** This
+plan previously said 0.02 "is anyway rounded: the velocity rows imply 0.0234", against the
+0.100 `scripts/table1.py` computes. The gap is 0.100/0.0234 = 4.27 = **√(µ_phys/µ_sim) =
+√18.36**, and it is a real difference in how the two codes reduce the mass ratio. §II calls
+µ_p the "reduced **proton**-to-electron mass ratio" and the model one run "with reduced
+**electron** parameters … while simultaneously keeping the ion-scale parameters well-matched
+to experiments": **PSC keeps the proton real and raises m_e by 18.36×.** Our `units.derive`
+does `mi = mass_ratio * ME` — the opposite, a light ion at a real electron.
+
+Write α = m_e/m_e0 and γ = c_sim/c_phys. **Every quantity in Table I depends only on the
+product α·γ²**, which θ_e = 0.092 at 470 eV fixes at 0.01000 — that product alone returns
+B₀ = 0.01·√(αγ²)·7027 T = 7.03 T against Table I's 7 T. The *one* row that separates α from
+γ is `c_sim/c_phys`, and it settles the question: γ = 0.02341 from v_p (730 km/s / 0.104 c)
+and 0.02335 from C_s,ab (210 km/s / 0.030 c) give **α = 18.24 and 18.34**, against
+µ_phys/µ_sim = 18.36.
+
+**Consequences, and they are narrow.** Because both conventions hit α·γ² = 0.01 they run the
+*identical dimensionless simulation* — µ, θ_e, β_ab, β₀, M_A, M_ms, λ_ab and ω_pe/ω_ce all
+match as code values — so the strategy below is sound and nothing downstream of it moves.
+What differs is only the map back: **speeds and times by 4.285** (C_s,ab = 212 km/s with a
+real proton vs 909 km/s with a 100·m_e ion at the same 470 eV, and Table I's Phys column says
+210), while **lengths are unaffected**, since d_e ∝ γ√α ∝ √(αγ²). That, not the caption being
+"one possible set of physical values", is why `table1.py`'s ion rows cannot reproduce Table
+I's SI column.
 
 We therefore reproduce the **sim-value / dimensionless columns of Table I directly**, reading
 every "× c" as a fraction of the *real* c. This yields hot (≈ 47 keV) piston electrons and a
