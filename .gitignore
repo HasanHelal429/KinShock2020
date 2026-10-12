@@ -20,6 +20,7 @@ media/
 runs/**/config.generated.yaml
 # binned phase spaces memoised by make_thomson.py (~10 MB/run, re-read from diags/)
 runs/**/thomson_cache/
+runs/**/.chain/
 **/__pycache__/
 *.py[cod]
 *.egg-info/

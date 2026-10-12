@@ -4393,3 +4393,23 @@ noise-dominated upstream, ±300 v_A·B₀:** it is the E half of the light-wave 
 moves B_x, and v_A·B₀ units multiply it by c/v_A ≈ 4×10³. B_x reverses to ≈ −5 B₀ just behind
 the piston in im_47keV_t03, so the floor is taken from the data. Movies are
 `media/phase_hist_asinh_fields.mp4` in both IM work dirs (470 eV: 146 frames, to t·ω_ci0 = 0.145).
+
+## 2026-10-12 — im_470eV_t03 complete; IM_phase output moved into the project
+
+**im_470eV_t03 reached max_step on 2026-10-08 00:27.** It took three chain segments
+(jobs 59283505/06/07; spare 59283508 cancelled itself). Compute was 47 h 50 m +
+47 h 50 m + 5 h 47 m = **101.5 GPU-h**, against 104 predicted. Segments 1 and 2 each
+stopped on SIGUSR1 with a checkpoint (`chk10603261`, `chk20729674`) and rc=0, and the next
+segment restarted from it, so both production restarts worked. Queue waits were 3.3 h and
+0.4 h, for 4 d 9 h from first start to finish. The run wrote 301 field frames and 301
+phase-space histogram frames per species, with 26.6 M particles at the end and no NaNs in
+EP. `--verify` flags only `reflect_symmetry_axis` (binary A; known, measured immaterial).
+
+**Output moved from `$PSCRATCH/kinshock_runs/IM_phase/` into the checkout:**
+`runs/IM_phase/<id>/` (diags, `.chain`, logs) and `media/IM_phase/<id>/` (the four
+phase-space movies). Earlier entries' `kinshock_runs` paths are now these. The
+config/deck/README/`warpx_used_inputs` come from the branch merge; the work-dir copies were
+byte-identical and are deleted. `submit_chain.sh` now runs a chain in the run's own
+directory in `$KINSHOCK_ROOT`, refuses worktrees, never copies tracked files into the main
+checkout, and needs the run merged before it will submit from a worktree. `.chain/` is
+gitignored.

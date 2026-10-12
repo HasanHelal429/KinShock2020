@@ -85,6 +85,10 @@ is the production deck truncated to 12 d_i0 and t·ω_ci0 = 0.30 (early shock fo
 control runs, and the measured cost of every point and of the production rerun.
 **`xcheck_phase/`** — `xcheck_flatfoil_1d`, a PSC cross-check deck (no `config.yaml`, so it is
 absent from `--all` by design).
+**`IM_phase/`** — "WarpX Inflated ME": PSC's mass convention (m_i = m_p, m_e × 18.36 via
+`reference.electron_mass_factor`) at real c, Debye-resolved, t·ω_ci0 = 0.3 on 9 d_i0.
+`im_470eV_t03` (101.5 GPU-h, a 3-segment chain via `perlmutter/submit_chain.sh`) and
+`im_47keV_t03` (ε = 0.071, 15 min). Both complete; RESULTS 2026-10-03 → 10-12.
 **`opt_phase/`** — performance sweeps, not physics runs: no `config.yaml`, one dir per
 benchmark point (`run.log` + `meta.txt` + `result.txt`) plus `SUMMARY.md`. Harness lives in
 `studies/speedup/`.

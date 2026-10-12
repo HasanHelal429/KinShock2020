@@ -9,12 +9,19 @@
 #
 # Options: --segments N (3)  --time HH:MM:SS (48:00:00)  --qos Q (shared)
 #          --signal-lead S (600: seconds before walltime that SIGUSR1 is sent)
-#          --work DIR ($PSCRATCH/kinshock_runs/<phase>/<id>)  --binary A|B ($SWEEP_BUILD)
+#          --work DIR (scratch only; default: the run dir in $KINSHOCK_ROOT)  --binary A|B
 #
-# The run executes in WORK, not in the repo: a multi-day chain must not live inside a
-# checkout (or worktree) that can move under it. WORK gets the deck, config.yaml, the
-# run README and a snapshot of src/ scripts/ perlmutter/ in WORK/.chain/code, which is
-# what every segment runs -- and the provenance of the code that rendered the deck.
+# WHERE IT RUNS: in the run's own directory in the main checkout, $KINSHOCK_ROOT/<run_dir>
+# (site.conf), like launch.sh and run_warpx -- runs belong to the project, not beside it
+# (the first two IM_phase chains ran in $PSCRATCH/kinshock_runs and had to be moved back,
+# 2026-10-12). Never in a worktree, which can be deleted under a multi-day chain. Tracked
+# files are never copied into the main checkout (untracked copies make git refuse the
+# merge that brings them): submitting from a worktree requires the main checkout's run dir
+# to already carry the same config.yaml and deck, i.e. merge first. --work outside
+# $KINSHOCK_ROOT is for scratch tests and does get the deck + config copied in.
+#
+# Every segment runs a snapshot of src/ scripts/ perlmutter/ taken at submit time in
+# WORK/.chain/code -- also the provenance of the code that rendered the deck.
 set -euo pipefail
 KINSHOCK_PM="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export KINSHOCK_PM
@@ -49,8 +56,29 @@ pm_profile > /dev/null 2>&1 || true    # the system python3 is 3.6; the profile'
 python3 "$REPO/scripts/make_inputs.py" "$SRC" --check > /dev/null || {
     echo "submit_chain: $DECK is stale against config.yaml -- regenerate it first" >&2; exit 2; }
 
-PHASE="$(basename "$(dirname "$SRC")")"; ID="$(basename "$SRC")"
-WORK="${WORK:-${PSCRATCH:?}/kinshock_runs/$PHASE/$ID}"
+ID="$(basename "$SRC")"
+WORK="${WORK:-$KINSHOCK_ROOT/$RUN}"
+WORK="$(realpath -m "$WORK")"          # resolve without creating (--dry must not mkdir)
+SRC="$(realpath "$SRC")"
+ROOT_ABS="$(realpath "$KINSHOCK_ROOT")"
+case "$WORK" in
+    */.claude/worktrees/*)
+        echo "submit_chain: refusing to run in a worktree ($WORK) -- it can be deleted under" >&2
+        echo "              the chain. Merge the run and submit for $ROOT_ABS/$RUN." >&2; exit 2 ;;
+esac
+COPY=0
+if [[ "$WORK" == "$SRC" ]]; then
+    :                                   # submitting from the main checkout: run in place
+elif [[ "$WORK" == "$ROOT_ABS"/* ]]; then
+    for f in config.yaml "$(basename "$DECK")"; do
+        cmp -s "$SRC/$f" "$WORK/$f" || {
+            echo "submit_chain: $WORK/$f is missing or differs from $SRC/$f." >&2
+            echo "              Merge this run into the main checkout first; tracked files" >&2
+            echo "              are not copied there (they would block the merge)." >&2; exit 2; }
+    done
+else
+    COPY=1                              # scratch work dir outside the project
+fi
 if [[ $RESUME -eq 0 ]] && compgen -G "$WORK/diags/*" > /dev/null; then
     echo "submit_chain: $WORK/diags already has output. --resume to extend that chain," >&2
     echo "              or move it aside for a fresh start." >&2; exit 2
@@ -67,8 +95,10 @@ echo "chain $SEGS x $WALL on -q $QOS, SIGUSR1 ${LEAD}s before walltime, binary $
 if [[ $DRY -eq 0 ]]; then
     mkdir -p "$WORK/.chain"
     if [[ $RESUME -eq 0 ]]; then
-        cp "$DECK" "$SRC/config.yaml" "$WORK/"
-        [[ -f "$SRC/README.md" ]] && cp "$SRC/README.md" "$WORK/"
+        if [[ $COPY -eq 1 ]]; then
+            cp "$DECK" "$SRC/config.yaml" "$WORK/"
+            [[ -f "$SRC/README.md" ]] && cp "$SRC/README.md" "$WORK/"
+        fi
         rm -rf "$WORK/.chain/code"; mkdir -p "$WORK/.chain/code/perlmutter"
         rsync -a --exclude __pycache__ "$REPO/src" "$REPO/scripts" "$WORK/.chain/code/"
         cp "$KINSHOCK_PM"/{_common.sh,site.conf,job_chain.sbatch} "$WORK/.chain/code/perlmutter/"

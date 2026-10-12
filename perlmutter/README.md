@@ -146,9 +146,14 @@ perlmutter/submit_chain.sh runs/IM_phase/im_470eV_t03 --resume --segments 1   # 
   walltime WarpX flushes a checkpoint and exits cleanly. (A break flushes every diag with
   `dump_last_timestep`, which already includes the checkpoint; `checkpoint_signals` too
   would write it twice. The plotfile diags opt out, so no off-cadence frame appears.)
-- The run executes in **`$PSCRATCH/kinshock_runs/<phase>/<id>`**, not the repo, with a
-  code snapshot (`src/ scripts/ perlmutter/` + `COMMIT`) in `.chain/code` that every
-  segment runs. A multi-day chain must not depend on a checkout that can change under it.
+- The run executes **in its own run dir in the main checkout**, `$KINSHOCK_ROOT/runs/<phase>/<id>`
+  (like `launch.sh` / `run_warpx`), never in a worktree, which can be deleted under a
+  multi-day chain. Submitting from a worktree requires that run dir to already hold the
+  same `config.yaml` and deck, i.e. **merge first**; tracked files are never copied into
+  the main checkout, because untracked copies make git refuse the merge. `--work` outside
+  the project is for scratch tests only. Every segment runs a code snapshot
+  (`src/ scripts/ perlmutter/` + `COMMIT`) in `.chain/code` (gitignored).
+  (The first two chains ran in `$PSCRATCH/kinshock_runs` and were moved back 2026-10-12.)
 - Segments are linked `afterany`. Each restarts from the newest checkpoint; if that one
   will not load (killed mid-write) it is renamed `.bad` and the previous one is used.
   WarpX output goes to `run_segNN.log` (`run.log` links the latest). A segment that
