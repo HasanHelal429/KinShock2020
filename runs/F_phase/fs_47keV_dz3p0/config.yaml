@@ -1,0 +1,113 @@
+# fs_47keV_dz3p0 -- false-shock experiment 2 (RESULTS 2026-10-12): does a COARSE grid alone make
+# the notch at 47 keV?
+#
+# Twin of ek_47keV_t2 (dz/lambda_D 0.758, judged clean to t*wci0 = 2.0) with ONLY dz
+# coarsened ~4x, into the dz/lambda_D range where every 470 eV run notched by 0.3
+# (ss_dz4 = 1.52, ss_dz2 = 3.03). Physics, shape 3, filter 8, ppc 100, box 55 d_i0 and
+# clock 2.0/w_ci0 unchanged. n_cell is set to a multiple of 8 (blocking factor) and dz
+# derived from it.
+#
+# NOT a perfect match to the 470 eV runs: lambda_D/d_e = eps, so at 47 keV a grid this
+# coarse in lambda_D is ALSO coarse in d_e (dz = 1.50 d_e,ab vs 0.075-0.30 d_e,ab in
+# the 470 eV notch runs). dz x8 (dz/lambda_D 6) is omitted: w_pe,ab*dt = 2.25 > 2.
+
+meta:
+  run_id: fs_47keV_dz3p0
+  tier: Sweep
+  description: >
+    Experiment 2 of the false-shock resolution test: ek_47keV_t2 with only dz
+    coarsened ~4x (n_cell 4104), to t*wci0 = 2.0.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_fs_47keV_dz3p0
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.200018904e-02   # 470 eV
+    theta_e_init: 1.957450828e-03   # 10 eV
+    theta_i_init: 1.957450828e-05   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 1.957450828e-03    # [kT/m_e c^2] = 10 eV -> lambda_D,amb = 1.0730e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 70.273437465    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 6149.2  # [d_e,ab] = 55.00 d_i0
+  dz_over_de: 1.49834308  # [d_e,ab] -> dz/lambda_D,amb = 3.029 (THE variable)
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8             # [passes] UNDER TEST with dz8
+  cfl: 0.75
+  particle_shape: 3           # [-] UNDER TEST with dz8 (was 2)
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 19898  # = 2.000/w_ci0
+  max_grid_size: 4104  # [cells] = n_cell, ONE box on ONE GPU
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  checkpoint_intervals: 19898  # 1 checkpoints: restartable via perlmutter/submit_chain.sh
+  plotfile_intervals: 398  # 50 particle frames
+                              # acceleration signature)
+  field_intervals: 66  # 300 field frames
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 33  # 600 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.104000107     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.
