@@ -4413,3 +4413,20 @@ byte-identical and are deleted. `submit_chain.sh` now runs a chain in the run's 
 directory in `$KINSHOCK_ROOT`, refuses worktrees, never copies tracked files into the main
 checkout, and needs the run merged before it will submit from a worktree. `.chain/` is
 gitignored.
+
+**Full 470 eV movies + PoC_phase moved (2026-10-12).** The im_470eV_t03 phase-space
+movies now span all 301 dumps to t·ω_ci0 = 0.3 (plain and `_fields`), in
+`media/IM_phase/im_470eV_t03/`. `$PSCRATCH/kinshock_runs/PoC_phase` (`poc1d_twin`,
+`poc1d_resolved`) moved the same way: output to `runs/PoC_phase/<id>/` and existing media to
+`media/PoC_phase/<id>/`. Their config/deck/README are tracked on branch `poc-1d-gradient` and
+were verified identical first, so `$PSCRATCH/kinshock_runs` is now gone. Both PoC runs got
+three-panel movies (`phase_hist_asinh_fields.mp4`, 501 frames each), rendered with
+poc-1d-gradient's `kinshock` (its `io.load_frame` returns the TOTAL B_x, grid response plus
+the particle-applied B₀(z)) and this branch's renderer. `make_phase_hist_movie.py` gained
+three things for them. (1) When fields are sparser than histograms (PoC: 630 or 1640 vs
+126 or 328 steps), every phase-space frame is kept and its field panel shows the latest
+earlier field dump, labelled with that dump's time. (2) A dashed line shows the applied
+B₀(z) where the run has one. (3) An axis reads γv_z wherever the histogram window exceeds
+u = 0.1 (PoC electrons reach u = 1.54; the 47 keV movies were re-rendered for this). PoC
+fields use a 2 d_e running mean: the box is ~1,240 d_e, noise is moderate, and 10 d_e
+flattened the B_x peaks from ~5–6 to ~4 B₀.

@@ -25,8 +25,8 @@ two-colour tint as shock_phase.mp4 -- so the two movies read the same way. Defau
 asinh normalised per species per frame (make_movies' convention); --fixed-scale uses each
 species' peak over ALL frames instead, so brightness is comparable across time.
 
-The histogram ordinate is u = gamma*beta. Every species here is non-relativistic
-(gamma - 1 < 1e-2), so u*c is v to that accuracy.
+The histogram ordinate is u = gamma*beta. Where a panel's window stays below u = 0.1
+u*c is v to <0.5% and the axis says v_z; wider windows (relativistic electrons) say gamma*v_z.
 
 Reads openPMD (ADIOS2 .bp5) with openpmd_api -- use the WarpX venv. The shock speed
 follows make_movies: --vsh-c > shock_fit.yaml > the config's model value.
@@ -115,10 +115,16 @@ def main():
     fields = {}
     if args.fields:
         by_step = {kio._step_key(p)[0]: p for p in kio.field_plotfiles(args.run_dir)}
-        missing = [i for i in its if i not in by_step]
-        if missing:
-            print(f"  {len(missing)} dumps have no field plotfile at the same step -- dropped")
-        its = [i for i in its if i in by_step]
+        fsteps = np.array(sorted(by_step))
+        # Field dumps can be sparser than histogram dumps (PoC: every 630 vs 126 steps).
+        # Every phase-space frame is kept; its field panel shows the latest field dump at
+        # or before that step (the first one before any exist), labelled with its own time.
+        field_of = {i: int(fsteps[max(0, np.searchsorted(fsteps, i, side="right") - 1)])
+                    for i in its}
+        n_held = sum(1 for i in its if field_of[i] != i)
+        if n_held:
+            print(f"  {n_held}/{len(its)} frames show the latest earlier field dump "
+                  f"(field cadence sparser than histogram cadence)")
         EB = sc.vA * sc.B0
         # Running mean over field_smooth_de: at Debye-resolved dz (~0.01 d_e) the raw
         # cell-scale E noise is ~1e4 v_A B0 and buries the shock. 2 d_e (the histogram
@@ -130,12 +136,21 @@ def main():
         def sm(a):
             return np.convolve(a, ker, mode="same") if nk > 1 else a
 
-        for i in its:
-            fr = kio.load_frame(by_step[i], fields=("Ey", "Ez"))
+        # A particle-applied B0(z) is not on the grid. Branches whose io.load_frame knows
+        # about it (io._applied_bx) return the TOTAL B_x; the applied profile is also
+        # drawn dashed so background and response can be told apart.
+        applied = getattr(kio, "_applied_bx", lambda path: None)
+        bg_line = None
+        ftime = {}
+        for s in sorted(set(field_of.values())):
+            fr = kio.load_frame(by_step[s], fields=("Ey", "Ez"))
             zero = np.zeros_like(fr.Bx)
-            fields[i] = (fr.z_centers / sc.di0, sm(fr.Bx / sc.B0),
+            fields[s] = (fr.z_centers / sc.di0, sm(fr.Bx / sc.B0),
                          sm(fr.comps.get("Ez", zero) / EB),
                          sm(fr.comps.get("Ey", zero) / EB))
+            ftime[s] = fr.time
+            if bg_line is None and applied(by_step[s]) is not None:
+                bg_line = applied(by_step[s])(fr.z_centers) / sc.B0
         blim = 1.1 * max(np.percentile(f[1], 99.9) for f in fields.values())
         # B_x reverses sign behind the piston front, so the floor comes from the data too
         bfloor = min(-0.05 * blim, 1.1 * min(np.percentile(f[1], 0.1) for f in fields.values()))
@@ -174,11 +189,14 @@ def main():
             pk = ({role: peaks[h] for role, h in roles.items()} if peaks else None)
             P.phase_image(ax, hists, extent, vline=1.0 if vk == "vsh" else None,
                           legend=True, norm=args.norm, peaks=pk)
-            ax.set_ylabel(ylab)
+            # The ordinate is u = gamma*beta. Where the histogram window reaches u > 0.1
+            # (gamma - 1 > 0.5%, e.g. PoC electrons to u = 1.54) say gamma*v, not v.
+            ax.set_ylabel(ylab.replace("v_z", r"\gamma v_z")
+                          if max(abs(ext[2]), abs(ext[3])) > 0.1 else ylab)
             ax.text(0.985, 0.965, title, transform=ax.transAxes, va="top", ha="right",
                     fontsize=9, color="w")
         if fields:
-            zc, bx, ez, ey = fields[it]
+            zc, bx, ez, ey = fields[field_of[it]]
             axf = axes[2]
             axe = axf.twinx()
             axe.plot(zc, ez, color=P.C_AMBIENT, lw=0.6, alpha=0.8, label=r"$E_z$")
@@ -186,6 +204,9 @@ def main():
             axe.set_ylim(-elim, elim)
             axe.set_ylabel(r"$E / v_A B_0$")
             axf.plot(zc, bx, color="k", lw=1.2, label=r"$B_x/B_0$")
+            if bg_line is not None:
+                axf.plot(zc, bg_line, color="0.45", lw=1.0, ls="--",
+                         label=r"applied $B_0(z)/B_0$")
             axf.set_ylim(bfloor, blim)
             axf.axhline(0.0, color="0.6", lw=0.6)
             axf.set_ylabel(r"$B_x / B_0$")
@@ -196,10 +217,14 @@ def main():
             h2, l2 = axe.get_legend_handles_labels()
             axf.legend(h1 + h2, l1 + l2, loc="upper right", fontsize=8, ncol=3,
                        frameon=False)
+            note = []
             if args.field_smooth_de > 0:
-                axf.text(0.01, 0.97, f"running mean {args.field_smooth_de:g} $d_e$",
-                         transform=axf.transAxes, va="top", ha="left", fontsize=7,
-                         color="0.35")
+                note.append(f"running mean {args.field_smooth_de:g} $d_e$")
+            if field_of[it] != it:
+                note.append(rf"fields at $t\,\omega_{{ci0}} = {ftime[field_of[it]] * sc.wci0:.3f}$")
+            if note:
+                axf.text(0.01, 0.97, "   ".join(note), transform=axf.transAxes, va="top",
+                         ha="left", fontsize=7, color="0.35")
         axes[-1].set_xlabel(r"$z / d_{i0}$")
         axes[0].set_title(rf"{run_id}   $t\,\omega_{{ci0}} = {t * sc.wci0:.3f}$", fontsize=10)
         fig.tight_layout()
