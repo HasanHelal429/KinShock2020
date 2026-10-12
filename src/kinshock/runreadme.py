@@ -124,24 +124,31 @@ def _primaries(cfg: dict) -> list[tuple[str, str, str]]:
     add("heater intervals", ["operators", "heater", "intervals"])
     add("injector intervals", ["operators", "injector", "intervals"])
     add("injector tau [1/wpe]", ["operators", "injector", "tau_over_wpe_inv"])
+    add("drive stop [t*w_ci0]", ["operators", "stop_t_wci0"])
+    add("B profile", ["field", "profile"])
     add("collisions target", ["collisions", "target"])
     return rows
 
 
 def _derived(sc: units.Scales, rep: dict, max_step: float) -> list[tuple[str, str, str]]:
     """(label, value, formula) — the chain from primaries to everything else."""
+    # Z != 1 runs get the charge-state-general formulas; Z = 1 keeps the original labels so
+    # every existing README stays current under --check.
+    def zl(z1, zgen):
+        return z1 if sc.charge_state == 1.0 else zgen
+
     rows = [
         ("omega_pe [rad/s]", _fmt(sc.wpe), "sqrt(n0 q^2/(eps0 m_e))"),
         ("d_e [m]", _fmt(sc.de), "c/omega_pe"),
-        ("d_i,ab [m]", _fmt(sc.di), "d_e*sqrt(m_i/m_e)"),
-        ("C_s,ab / c", _fmt(rep["Cs_ab_over_c"]), "sqrt(theta_e,ab/mass_ratio)"),
+        ("d_i,ab [m]", _fmt(sc.di), zl("d_e*sqrt(m_i/m_e)", "d_e*sqrt(m_i/(Z m_e))")),
+        ("C_s,ab / c", _fmt(rep["Cs_ab_over_c"]), zl("sqrt(theta_e,ab/mass_ratio)", "sqrt(Z theta_e,ab/mass_ratio)")),
         ("t_ab [s]", _fmt(sc.t_ab), "d_i,ab / C_s,ab"),
         ("n_amb [m^-3]", _fmt(sc.namb), "density_over_n0 * n0"),
         ("d_i0 [m]", _fmt(sc.di0), "c/omega_pi(n_amb)"),
         ("d_i0 / d_e", _fmt(sc.di0 / sc.de), "derived"),
-        ("**omega_ci0 [rad/s]**", _fmt(sc.wci0), "**q_e*B0/m_i — B0 only, no n_amb**"),
+        ("**omega_ci0 [rad/s]**", _fmt(sc.wci0), zl("**q_e*B0/m_i — B0 only, no n_amb**", "**Z q_e*B0/m_i — B0 only, no n_amb**")),
         ("1/omega_ci0 [s]", _fmt(sc.wci0_inv), "1/omega_ci0"),
-        ("**v_A / c**", _fmt(rep["vA_over_c"]), "**B0/sqrt(mu0*n_amb*m_i) — DERIVED**"),
+        ("**v_A / c**", _fmt(rep["vA_over_c"]), zl("**B0/sqrt(mu0*n_amb*m_i) — DERIVED**", "**B0/sqrt(mu0*(n_amb/Z)*m_i) — DERIVED**")),
         ("rho_i0 / d_e", _fmt(rep["rho_i0_over_de"]), "v_p/omega_ci0 / d_e"),
         ("v_p / c (model)", _fmt(rep["vp_model_over_c"]), "config model.vp_over_c"),
         ("v_sh / c (model)", _fmt(rep["vsh_model_over_c"]), "model.vsh_over_Csab * C_s,ab"),

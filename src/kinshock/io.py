@@ -88,12 +88,40 @@ def field_plotfiles(run_dir):
     return plotfiles(run_dir)
 
 
-def load_frame(path, fields=()) -> Frame:
+_BG_CACHE: dict = {}
+
+
+def _applied_bx(path):
+    """The run's particle-applied background B_x(z) as a callable of z [m], or None.
+
+    Runs with a ``field.profile`` (units.field_profile) apply B0(z) to the PARTICLES and
+    leave the grid at zero, so the plotfile's Bx is the plasma's response alone. The run
+    dir is the plotfile's grandparent (``<run>/diags/<plotfile>``); a run without a
+    config there, or without a profile, gets None and its Bx is used as written.
+    """
+    run_dir = os.path.dirname(os.path.dirname(os.path.abspath(path)))
+    if run_dir not in _BG_CACHE:
+        fn = None
+        if os.path.isfile(os.path.join(run_dir, "config.yaml")):
+            from . import config, units
+            cfg = config.load(run_dir)
+            if units.field_profile(cfg) is not None:
+                sc = units.derive(cfg)
+                fn = lambda z: np.asarray(units.background_bx(cfg, list(z), sc))  # noqa: E731
+        _BG_CACHE[run_dir] = fn
+    return _BG_CACHE[run_dir]
+
+
+def load_frame(path, fields=(), add_applied_field=True) -> Frame:
     """Load one plotfile into a :class:`Frame` (1D covering grid along z).
 
     ``fields`` names extra grid components to read into ``Frame.comps`` (e.g.
     ``("rho_amb_electrons",)``). Components the plotfile does not carry are simply
     absent from the dict, so callers can probe availability and fall back.
+
+    For a run with a particle-applied field profile, ``Frame.Bx`` is the TOTAL field
+    (grid response + applied B0(z)) and the raw grid value is kept in
+    ``Frame.comps["Bx_grid"]``; ``add_applied_field=False`` returns the grid value as Bx.
     """
     yt = _yt()
     ds = yt.load(path)
@@ -134,9 +162,14 @@ def load_frame(path, fields=()) -> Frame:
         if a is not None:
             comps[name] = a
 
+    Bx = comp("Bx")
+    bg = _applied_bx(path) if add_applied_field else None
+    if bg is not None:
+        comps["Bx_grid"] = Bx
+        Bx = Bx + bg(centers)
     return Frame(path=path, time=float(ds.current_time),
                  z_edges=edges, z_centers=centers,
-                 Bx=comp("Bx"), By=comp("By"), Bz=comp("Bz"), ds=ds, comps=comps)
+                 Bx=Bx, By=comp("By"), Bz=comp("Bz"), ds=ds, comps=comps)
 
 
 def species_density(frame: Frame, species) -> np.ndarray:

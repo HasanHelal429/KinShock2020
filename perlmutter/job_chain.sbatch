@@ -37,7 +37,9 @@ last_step() {  # last completed step in a WarpX log (0 if none)
     grep -aoE "^STEP [0-9]+ ends" "$1" 2>/dev/null | tail -1 | awk '{print $2}' | grep . || echo 0
 }
 cancel_rest() {  # cancel the chain's later, still-queued segments
-    local ids; ids="$(grep -v "^$JOB\$" .chain/jobids 2>/dev/null | tr '\n' ' ')"
+    # `|| true`: a one-segment chain has no other ids, grep -v then exits 1, and under
+    # pipefail + set -e that killed the job with rc 1 AFTER a clean finish (poc1d_twin).
+    local ids; ids="$(grep -v "^$JOB\$" .chain/jobids 2>/dev/null | tr '\n' ' ' || true)"
     [[ -n "${ids// /}" ]] && scancel $ids 2>/dev/null || true
 }
 chks_by_step() {  # checkpoint dirs (not *.bad), oldest first

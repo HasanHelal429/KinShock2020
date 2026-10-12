@@ -1,0 +1,104 @@
+# poc1d_resolved -- poc1d_twin at Debye- and skin-depth-resolving resolution.
+#
+# IDENTICAL to poc1d_twin (read its header) except the three numerics lines marked
+# RESOLVED below, so twin-vs-resolved isolates what the 2D run's grid costs:
+#   dz 0.3678 -> 0.1 d_e : 2.8 cells per ambient lambda_D (twin 0.77), 4.5 per piston
+#                          d_e (twin 1.22). Shape 2 / filter 1 kept, as the twin.
+#   cfl 0.354 -> 0.5     : dt = 0.05/w_pe; dt itself is no longer the 2D value.
+#   box 1.5x             : 1854.4 d_e = 38.8 d_i0 (n_cell 18544). A planar 1D piston
+#                          loses nothing sideways and may outrun the 2D box.
+# max_step 164000 = t*w_ci0 2.913 (7.06 ns), rounded so the diag cadences divide it.
+# Cost: 38 M particles x 164 k steps ~ 1.2 GPU-h at the IM-run's measured 1.4e9 /s.
+
+meta:
+  run_id: poc1d_resolved
+  tier: Pilot
+  description: >
+    Resolved (dz = 0.1 d_e) 1D twin of PoC_2d_v2 (FLASH OmegaShock_07-10 surrogate): CH ion Z=3.5, m_i=100 m_e,
+    n_t:n_amb = 400, B decaying 8 T -> 1 T (floored), drive off at 2.1 ns, to 7.05 ns;
+    2.8 cells per lambda_D, 1.5x box, 1024 ppc.
+  reference: "Collaborator's PoC_2d_v2 config; FLASH cellar/data/OmegaShock_07-10"
+  deck: inputs_kinshock_poc1d_resolved
+
+reference:
+  n0: 1.0e18                  # [m^-3] n_e reference (free choice)
+  mass_ratio: 100.0           # [-] m_i/m_e for the WHOLE CH ion (A = 6.5)
+  charge_state: 3.5           # [-] effective CH ion Z (FLASH ms_chamZ)
+
+plasma:
+  piston:
+    density_over_n0: 5.0      # n_t = 5 n0 -> n_t:n_amb = 400
+    theta_e_heat: 0.037       # heater setpoint (2D: achieved ~2.4x)
+    theta_e_init: 0.001
+    theta_i_init: 1.0e-7      # 1e-5 m_e c^2 / mass_ratio (ion-normalized)
+  ambient:
+    density_over_n0: 0.0125   # d_i0/d_e = 47.8
+    theta_0: 0.00100559       # beta_e 0.2441 / beta_tot 0.3138 in the 2 mu0 convention
+
+field:
+  orientation: perpendicular
+  B0_tesla: 3.2553320750e-3   # = 8 T FLASH-equivalent (v_A/c = 0.0169826 at the foil)
+  profile:
+    type: inverse_linear      # B_x(z) = max(B0/(1+z/L), floor)
+    decay_length_di0: 1.37    # FLASH: B halves at 429 um = 1.37 d_i0
+    floor_over_B0: 0.125      # 1 T / 8 T
+    apply: particle
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0      # 2 d_i(n0) = 10.69 d_e, as the 2D piston
+  domain_halfwidth_de: 1854.4     # RESOLVED: 1.5x box = 38.8 d_i0
+  dz_over_de: 0.1             # RESOLVED -> n_cell 18544
+  layout: one_sided
+  boundary:
+    lo: reflecting            # as 2D (specular foil wall)
+    hi: open                  # pec fields + absorbing particles, as 2D
+
+numerics:
+  cfl: 0.5                    # RESOLVED: dt = 0.05/w_pe
+  particle_shape: 2
+  filter_npass: 1
+  max_step: 164000            # t*w_ci0 = 2.913 = 7.06 ns
+  max_grid_size: 18544        # one box, one GPU
+  ppc:
+    piston: 1024
+    ambient: 1024
+
+operators:
+  stop_t_wci0: 0.8728         # drive off at 2.1 ns (FLASH laser), as 2D
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 40.0
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 3.5}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 3.5}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 6.4                    # at B0 (the foil); local M_A rises 8x where B = 1 T
+  M_ms: 6.0
+  beta_0: 0.1220              # FLASH beta_e 0.2440 in this repo's (no-2) convention
+
+diagnostics:
+  plotfile_intervals: 16400   # 10 raw-particle frames
+  field_intervals: 1640       # 100 field frames
+  reduced_intervals: 800      # 205 rows
+  checkpoint_intervals: 41000 # needed by submit_chain; 4 checkpoints
+  phase_space:
+    intervals: 328            # 500 frames
+    z_bin_de: 1.0             # 1854 z bins
+    u_bins: 256
+
+model:
+  vsh_over_Csab: 3.02201      # v_sh := v_p, so M_A is the piston Alfven Mach (as 2D)
+  vp_over_c: 0.108756         # PoC_2d_calib measured piston speed
