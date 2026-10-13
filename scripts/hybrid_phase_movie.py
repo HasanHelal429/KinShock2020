@@ -67,6 +67,8 @@ def main():
     ap.add_argument("--vsh-kms", type=float, default=4182.0)
     ap.add_argument("--field-smooth-de", type=float, default=2.0)
     ap.add_argument("--max-frames", type=int, default=0)
+    ap.add_argument("--ion-vlim", type=float, nargs=2, default=(-0.5, 2.5),
+                    metavar=("LO", "HI"), help="ion panel v_z/v_sh axis (default -0.5 2.5)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -117,7 +119,7 @@ def main():
     Lz = max(v["z"][-1] for v in vals) + 0.5 * (loaded[next(iter(loaded))]["z"][1]
                                                  - loaded[next(iter(loaded))]["z"][0])
     z_edges = np.linspace(0.0, Lz, 1601)
-    v_edges = np.linspace(-2.5, 3.0, 241)
+    v_edges = np.linspace(args.ion_vlim[0], args.ion_vlim[1], 241)
     framedir = os.path.join(os.environ.get("MOVIE_SCRATCH", os.path.join(run_dir, ".frames")),
                             run_id, "hybrid_phase")
     os.makedirs(framedir, exist_ok=True)

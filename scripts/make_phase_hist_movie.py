@@ -89,6 +89,8 @@ def main():
     ap.add_argument("--vsh-c", type=float, default=None)
     ap.add_argument("--out", default=None, help="output dir (default media/<phase>/<id>)")
     ap.add_argument("--every", type=int, default=1, help="use every Nth dump")
+    ap.add_argument("--ion-vlim", type=float, nargs=2, default=(-0.5, 2.5),
+                    metavar=("LO", "HI"), help="ion panel v_z/v_sh axis (default -0.5 2.5)")
     ap.add_argument("--fields", action="store_true",
                     help="add a B_x / E_z / E_y panel from the diag_fields plotfiles")
     ap.add_argument("--field-smooth-de", type=float, default=10.0,
@@ -189,6 +191,10 @@ def main():
             pk = ({role: peaks[h] for role, h in roles.items()} if peaks else None)
             P.phase_image(ax, hists, extent, vline=1.0 if vk == "vsh" else None,
                           legend=True, norm=args.norm, peaks=pk)
+            if vk == "vsh" and args.ion_vlim:
+                # the ion histogram window is +-3 v_sh, but the ions live in about
+                # -0.5..2.5 v_sh; zoom so the structure fills the panel
+                ax.set_ylim(*args.ion_vlim)
             # The ordinate is u = gamma*beta. Where the histogram window reaches u > 0.1
             # (gamma - 1 > 0.5%, e.g. PoC electrons to u = 1.54) say gamma*v, not v.
             ax.set_ylabel(ylab.replace("v_z", r"\gamma v_z")

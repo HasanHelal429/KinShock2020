@@ -5208,3 +5208,32 @@ table. What remains is decided by experiment 1 (`fs_470eV_dz0379_t1`), which is 
 (job 59719963, started 2026-10-12 16:24, 0.0138 s/step, finish ~2026-10-13 23:00):
 - notch later than the parent's ~0.36: low-ε physics, and the grid only sets the onset time;
 - clean to 1.0: a fine grid suppresses a low-ε effect.
+
+## 2026-10-12 (later) — Hybrid 470 eV: NO false shock in `H3_470eV_dense`; piston-matched twins staged
+
+**`runs/hybrid_phase/H3_470eV_dense`** (H-PICShock deck: kinetic ions, fluid electrons with
+γ = 5/3 and advected energy; 470 eV; 80 d_i0; dz 0.025 d_i0; to t·ω_ci0 = 5.6; ran on the
+commit-A binary 2026-08-14). This run predates the notch identification and had never been
+checked for it. A new script, `scripts/hybrid_phase_movie.py`, renders it with the ion phase
+space, B_x/E_z and the fluid T_e and densities, taking its scales from `warpx_used_inputs`.
+The movie is `media/hybrid_phase/H3_470eV_dense/hybrid_phase_fields.mp4`. **The user judged
+it: no false shock.** A hybrid removes the electron-kinetic sector (no λ_D, no c, no
+relativistic capping, no electron-scale instabilities), so this agrees with the false shock
+being electron-kinetic. Two caveats: the closure's cross-shock potential is low (0.41 vs 0.72
+kinetic, H-PICShock RESULTS), and its piston is slow.
+
+**Piston speed, measured the same way in both runs** (weighted 99th percentile of piston-ion
+z): kinetic `R1_470eV_s3f8_t2` gives 13.7 d_i0/t* over t* 0.1–0.5 and 12.1 over 0.3–1.0;
+hybrid `H3_470eV_dense` gives a steady 6.2–6.4. The hybrid piston is therefore ~2× slow.
+
+**Staged:** `hy_470eV_t2` (θ_e_equiv = 6.3e-4), `hy_470eV_t2_lo` (5.0e-4) and `hy_470eV_t2_hi`
+(7.5e-4). They are hybrid twins of `R1_470eV_s3f8_t2` (34.2 d_i0, to t·ω_ci0 2.0, 1,368 cells,
+3,200 steps). Relative to H3_470eV_dense only box, clock, dump cadence and heater amplitude
+change; the deck diff confirms it. Heater sizing: T_ss ∝ θ^1.21 (460 eV at 1.993e-4, 2945 eV at
+9.198e-4) and v ∝ √T give v ∝ θ^0.6, so ~6.3e-4 doubles the front speed. Generated with
+H-PICShock `59139fe`, which reproduces H3_470eV_dense's deck key-for-key apart from diagnostics.
+Launched with the new `perlmutter/job_hybrid.sbatch`. The matched-speed run is the comparison;
+the other two show whether drive strength matters.
+
+Also: the ion panel in `make_phase_hist_movie.py` and `hybrid_phase_movie.py` now defaults to
+v_z/v_sh ∈ [−0.5, 2.5] (`--ion-vlim`), at the user's request.
