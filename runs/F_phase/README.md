@@ -29,3 +29,14 @@ held, so N_D moves with dz; the verdicts showed ppc does not matter at fixed dz.
 
 Launch with `perlmutter/submit_chain.sh` from the main checkout (all three carry checkpoints).
 Judge them by eye from the phase-space movies (`scripts/make_phase_hist_movie.py`).
+
+## Verdicts
+
+| run | status | verdict (by eye) |
+|---|---|---|
+| `fs_47keV_dz1p5` | done 2026-10-12, 4 min | **no false shock** |
+| `fs_47keV_dz3p0` | done 2026-10-12, 2.5 min | **no false shock** |
+| `fs_470eV_dz0379_t1` | running, job 59719963, finish ~2026-10-13 23:00 | — |
+
+Experiment 2 rules out "pure resolution artifact": coarseness alone does not make it at
+47 keV (RESULTS 2026-10-12, later).

@@ -5191,3 +5191,20 @@ notch"; by eye now it forms after 0.3. (b) 2026-09-05's N_D-onset ordering is no
 **Experiments that would close the gaps:** extend `ss_dz16_ppc100` (dz/λ_D 0.379) past
 t·ω_ci0 = 0.3, which separates delayed from removed. Run one coarse 47 keV point
 (dz/λ_D ≥ 1.5), which tests whether coarse grids alone create it at large ε₀.
+
+## 2026-10-12 (later) — F_phase experiment 2: a coarse grid alone does NOT make the notch at 47 keV
+
+`fs_47keV_dz1p5` (dz/λ_D 1.516, N_D 66, dz 0.75 d_e,ab) and `fs_47keV_dz3p0` (dz/λ_D 3.03,
+N_D 33, dz 1.50 d_e,ab) are twins of the clean `ek_47keV_t2`, coarsened ~2× and ~4×. Both
+ran to t·ω_ci0 = 2.0 on debug in 4 and 2.5 min (jobs 59719932, 59719958), exit 0 with no
+NaNs. `--verify` flags only `reflect_symmetry_axis`, which is known. Movies are in
+`media/F_phase/<id>/phase_hist_asinh_fields.mp4`. **The user judged both: no false shock.**
+
+These grids are as coarse in λ_D as `ss_dz4` (1.52) and `ss_dz2` (3.03), where every 470 eV
+run had the notch by t·ω_ci0 ≈ 0.3, whatever the ppc. They are also 10× coarser relative to
+d_e, and they run 7× longer. **So a coarse grid alone is not enough: the notch needs the
+low-ε physics.** That rules out the "pure resolution artifact" row of the F_phase outcome
+table. What remains is decided by experiment 1 (`fs_470eV_dz0379_t1`), which is running
+(job 59719963, started 2026-10-12 16:24, 0.0138 s/step, finish ~2026-10-13 23:00):
+- notch later than the parent's ~0.36: low-ε physics, and the grid only sets the onset time;
+- clean to 1.0: a fine grid suppresses a low-ε effect.
