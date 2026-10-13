@@ -5237,3 +5237,23 @@ the other two show whether drive strength matters.
 
 Also: the ion panel in `make_phase_hist_movie.py` and `hybrid_phase_movie.py` now defaults to
 v_z/v_sh ∈ [−0.5, 2.5] (`--ion-vlim`), at the user's request.
+
+**Hybrid twins ran (2026-10-12, debug jobs 59722611–13, ~4 min each; all to t·ω_ci0 2.0,
+exit 0, no NaNs).** Piston-front speed [d_i0/t*] uses the same definition as above:
+
+| run | θ | t* 0.1–0.5 | 0.3–1.0 | 0.5–2.0 | slab T_e at t* 2 |
+|---|---|---|---|---|---|
+| `H3_470eV_dense` | 1.99e-4 | 6.22 | 6.39 | 6.16 | ~460 eV |
+| `hy_470eV_t2_lo` | 5.0e-4 | 6.80 | 7.13 | 7.62 | 1,482 eV |
+| `hy_470eV_t2` | 6.3e-4 | 7.11 | 7.54 | 8.43 | 1,894 eV |
+| `hy_470eV_t2_hi` | 7.5e-4 | 7.26 | 8.02 | 9.23 | 2,279 eV |
+| kinetic `R1_470eV_s3f8_t2` | — | 13.71 | 12.10 | — | (470 eV) |
+
+**The sizing law was wrong.** T_e responds as predicted (∝ θ^1.2), but the front speed goes only
+as θ^0.15–0.3, not θ^0.6. The movies show why: the fluid T_e is ~2 keV in the slab but falls to
+~200 eV at the piston front. Advected energy with no electron heat flux cools adiabatically as it
+expands, so the front is driven by cold electrons however hot the slab gets. Kinetic electrons
+carry heat to the front, which is plausibly why the kinetic piston is ~1.5× faster. With this
+closure, matching the kinetic speed through the electron-fluid heater would need θ of order 3e-3
+(slab ~10 keV), if the trend holds at all. Movies:
+`media/hybrid_phase/<id>/hybrid_phase_fields.mp4`.
