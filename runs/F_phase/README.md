@@ -37,8 +37,8 @@ Judge them by eye from the phase-space movies (`scripts/make_phase_hist_movie.py
 |---|---|---|
 | `fs_47keV_dz1p5` | done 2026-10-12, 4 min | **no false shock** |
 | `fs_47keV_dz3p0` | done 2026-10-12, 2.5 min | **no false shock** |
-| `fs_470eV_dz0379_t1` | done 2026-10-14 (36 h); movies `media/F_phase/fs_470eV_dz0379_t1/` | awaiting the user's verdict |
-| `fs_470eV_T100_t1` | staged 2026-10-15 | — |
+| `fs_470eV_dz0379_t1` | done 2026-10-14 (36 h); movies `media/F_phase/fs_470eV_dz0379_t1/` | **false shock still forms**. Evolution is smooth until the accelerated upstream almost meets the kicked-up upstream ions (user, 2026-10-15) |
+| `fs_470eV_T100_t1` | running, job 59831119 (submitted 2026-10-15) | — |
 
 Experiment 2 rules out "pure resolution artifact": coarseness alone does not make it at
 47 keV (RESULTS 2026-10-12, later).
@@ -64,3 +64,13 @@ They differ only in v_te/c (×10). So this test probes temperature sensitivity; 
 reproduce the 47 keV condition, which would need T₀ ≈ 1 keV (β₀ ≈ 20). The hot upstream drains
 through the open hi boundary at C_s0 ≈ 0.0014 c, about 1.4 d_i0 inward by t·ω_ci0 = 1.0, while
 the front is near 14 d_i0. Watch the box end in the last frames.
+
+**Outcome of experiments 1 + 2.** The fine grid still forms the notch, and the coarse 47 keV
+grids stay clean. That is the "notch, later / clean" row: **low-ε physics, with the grid
+setting at most the onset time.** A pure resolution artifact is ruled out from both sides.
+Whether the fine run's onset is actually later than the parent's ~0.36 has not been read
+yet. The user's description points at an **interaction between two upstream ion
+populations**: nothing happens until the ions accelerated ahead of the piston nearly meet the
+upstream ions the shock kicks up. That is the setting of an ion–ion streaming instability. A
+cold upstream (v_ti0/v_sh = 0.032 at 10 eV) is the condition it needs, and the 100 eV twin
+(v_ti0/v_sh = 0.10, C_s0 ×√10) is the direct test.

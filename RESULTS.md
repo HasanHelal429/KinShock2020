@@ -5284,3 +5284,20 @@ Two caveats:
    scale with v_te/c, and this test moves v_te0/c only √10×.
 2. **A clean result conflates "warmer" with "less collisional".** The collisionless 10 eV
    twin was offered and declined.
+
+## 2026-10-15 (later) — `fs_470eV_dz0379_t1` verdict: the false shock SURVIVES a 2× finer grid
+
+User, by eye: the fine run (dz/λ_D,amb 0.379, the finest in the repo) **still forms the false
+shock**. It "progresses smoothly until the accelerated upstream almost meets with the kicked
+up upstream ions". So halving dz does not remove the notch, and together with experiment 2
+(coarse 47 keV grids stay clean) it is **not a resolution artifact**. In the F_phase reading
+table this is the "low-ε physics; the grid sets at most the onset time" row. The onset time
+has not been compared against the parent's ~0.36 yet.
+
+The description shows when it fires: when two upstream ion populations converge, the ions
+accelerated ahead of the piston and the ions kicked up by the forming shock. That fits an
+ion–ion streaming instability in a cold upstream, which is exactly what `fs_470eV_T100_t1`
+(job 59831119) tests. At 100 eV the upstream ion thermal spread is 3.2× wider relative to
+v_sh and C_s0 is √10× larger, both stabilizing for ion–ion modes. If the 100 eV twin is
+clean, the cold upstream is the cause. Its collisionality confound still applies (upstream
+λ_ii/d_i0 0.014 → 1.43).
