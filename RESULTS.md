@@ -5257,3 +5257,30 @@ carry heat to the front, which is plausibly why the kinetic piston is ~1.5× fas
 closure, matching the kinetic speed through the electron-fluid heater would need θ of order 3e-3
 (slab ~10 keV), if the trend holds at all. Movies:
 `media/hybrid_phase/<id>/hybrid_phase_fields.mp4`.
+
+## 2026-10-15 — False-shock HOT-UPSTREAM test staged: `fs_470eV_T100_t1`
+
+`fs_470eV_dz0379_t1` (the 470 eV run with dz halved, dz/λ_D 0.379, to t·ω_ci0 = 1.0) finished
+2026-10-14 after 36 h on one A100. Its phase-space movies, three-panel and with fields, are in
+`media/F_phase/fs_470eV_dz0379_t1/`; the verdict is the user's.
+
+The user's hypothesis: the notch comes from the **cold upstream**, either under-resolved or
+unstable. The test is `R1_470eV_s3f8_t2` with **only the upstream temperature raised, 10 →
+100 eV** (electrons and ions), on the 17.1 d_i0 box to t·ω_ci0 = 1.0: 50,992 cells × 3,975,736
+steps, estimated ~10–13 h. The user chose 100 eV over the 40 eV option. 40 eV would have matched
+the fine run's dz/λ_D exactly; 100 eV gives 0.240.
+
+T₀ moves more than the Debye length (full list in `runs/F_phase/README.md`):
+- β₀: 0.20 → 1.96
+- M_ms: 12.8 → 8.1 (M_A fixed at 13.95)
+- 2 v_sh/v_te0: 6.3 → 2.0, so electron streaming instabilities are near marginal
+- upstream λ_ii/d_i0: 0.014 → 1.43, so the upstream turns from collisional to roughly
+  collisionless
+
+Two caveats:
+1. **The clean 47 keV runs are exactly as cold as the 470 eV run in shock units.** They
+   share T₀/T_e,ab = 0.0213, β₀, the Machs and λ_ii/d_i0 = 0.014 (lnΛ is inflated there). The
+   only difference is v_te/c (×10). Any cold-upstream mechanism that separates them must
+   scale with v_te/c, and this test moves v_te0/c only √10×.
+2. **A clean result conflates "warmer" with "less collisional".** The collisionless 10 eV
+   twin was offered and declined.

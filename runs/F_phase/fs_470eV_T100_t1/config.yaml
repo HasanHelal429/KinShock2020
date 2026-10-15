@@ -1,0 +1,114 @@
+# fs_470eV_T100_t1 -- false-shock HOT-UPSTREAM test (user, 2026-10-15): is the notch caused by the
+# COLD upstream (an under-resolved or unstable 10 eV ambient)?
+#
+# Twin of R1_470eV_s3f8_t2 (dz/lambda_D,amb 0.758, notch after t*wci0 ~0.36) with ONLY the
+# ambient temperature raised, theta_0 10 -> 100 eV (electrons and ions). dz, dt, ppc, n, B0,
+# piston, heater, injector, collisions, shape 3 and filter 8 are the parent's. Box 17.1 d_i0 and
+# clock 1.0/w_ci0 as fs_470eV_dz0379_t1 (front reaches the box end near ~1.2).
+# What moves with T0 (units.derive): beta_0 0.20 -> 1.96, M_ms 12.8 -> 8.1, M_s 31.5 -> 10.0
+# (M_A unchanged), dz/lambda_D,amb 0.758 -> 0.240, 2 v_sh/v_te0 6.3 -> 2.0, upstream
+# lambda_ii/d_i0 0.014 -> 1.43 (so a clean result cannot separate "warmer" from "less
+# collisional"; the collisionless 10 eV twin was offered and declined).
+#
+#     cells 50,992 x steps 3,975,736; ~10-13 h on one A100 (estimate)
+
+meta:
+  run_id: fs_470eV_T100_t1
+  tier: Sweep
+  description: >
+    Hot-upstream test of the false shock: R1_470eV_s3f8_t2 with only the upstream
+    temperature raised, theta_0 10 -> 100 eV (T_e0 = T_i0), box 17.1 d_i0, to t*wci0 = 1.0.
+  reference: "Schaeffer et al., Phys. Plasmas 27, 042901 (2020), Table I + Sec. II"
+  deck: inputs_kinshock_fs_470eV_T100_t1
+
+reference:
+  n0: 6.0e26                  # [m^-3] n_e,ab. Identical to R1_paper_470eV.
+  mass_ratio: 100.0           # [-] m_i/m_e
+  charge_state: 1             # [-]
+
+plasma:
+  piston:
+    # The piston block is RETAINED even in the piston-free H_phase box, because
+    # theta_e_heat defines C_s,ab and hence t_ab -- the time unit this repo's
+    # normalizations are drawn against. In H_phase no species carries role
+    # `piston`, so none of these values reach a particle.
+    density_over_n0: 2.0
+    theta_e_heat: 9.19767056e-4   # 470 eV
+    theta_e_init: 1.95695118e-5   # 10 eV
+    theta_i_init: 1.95695118e-7   # 10 eV, ion-normalized
+  ambient:
+    density_over_n0: 0.008    # [n0] -> n_amb = 4.8e24 m^-3
+    theta_0: 0.000195695118    # [kT/m_e c^2] = 100 eV (THE variable; was 10 eV) -> lambda_D,amb = 3.393e-8 m
+
+field:
+  orientation: perpendicular
+  B0_tesla: 7.026446809478    # [T] from beta_ab = 1150, as R1_paper_470eV
+
+geometry:
+  dims: 1
+  normal_axis: z
+  slab_halfwidth_di: 2.0        # [d_i,ab] Sec. II, unchanged
+  domain_halfwidth_de: 1912.2  # [d_e,ab] = 17.10 d_i0
+  dz_over_de: 0.0375   # [d_e,ab] the parent's cell; dz/lambda_D,amb = 0.758 at 10 eV, 0.240 at 100 eV
+  layout: one_sided
+  boundary:
+    lo: symmetry
+    hi: open
+
+numerics:
+  filter_npass: 8             # [passes] UNDER TEST with dz8
+  cfl: 0.75
+  particle_shape: 3           # [-] UNDER TEST with dz8 (was 2)
+                              # grid-scale E_z noise by 1.7% (RESULTS 2026-08-05),
+                              # so shape is NOT the lever this sweep is testing.
+  max_step: 3975736  # = 1.000/w_ci0
+  max_grid_size: 50992  # [cells] = n_cell, ONE box on ONE GPU
+                              # GPU. launch.sh refuses GPU mode without this key.
+  ppc:
+    piston: 100
+    ambient: 100
+
+operators:
+  heater:
+    species: piston_electrons
+    intervals: 20
+  injector:
+    species: piston_electrons
+    neutralizing_species: piston_ions
+    intervals: 20
+    tau_over_wpe_inv: 400.0   # [1/wpe] as R1_paper_470eV: tau is a PHYSICAL time
+
+collisions:
+  model: pairwisecoulomb      # [-] byte-identical to R1_paper_470eV: the resolution
+  pairs: all                  # decision has to be made WITH the operator the
+  target:                     # production run carries, not against a cleaner
+    quantity: lambda_ab       # collisionless surrogate.
+    value: 20.0               # -> lnLambda = 12.23 (physical at 470 eV)
+  ndt_supercycle: 10
+
+species:
+  piston_electrons: {kind: electron, role: piston}
+  piston_ions:      {kind: ion, role: piston, charge_state: 1}
+  amb_electrons:    {kind: electron, role: ambient}
+  amb_ions:         {kind: ion, role: ambient, charge_state: 1}
+ion_species:     [piston_ions, amb_ions]
+ambient_ion_species: [amb_ions]
+
+targets:
+  M_A: 14
+  M_ms: 13
+  beta_ab: 1150
+  beta_0: 0.2
+
+diagnostics:
+  checkpoint_intervals: 99393  # 40 checkpoints: restartable via perlmutter/submit_chain.sh
+  plotfile_intervals: 159029  # 25 particle frames
+                              # acceleration signature)
+  field_intervals: 26504  # 150 field frames
+                              # E_z and B_perp from the first frames onward.
+  reduced_intervals: 13252  # 300 rows
+
+model:
+  vsh_over_Csab: 4.6          # [C_s,ab] Table I -- carried so t*wci0 / v_sh
+  vp_over_c: 0.0103986833     # [c]      normalizations resolve identically to
+                              #          R1_paper_470eV.
