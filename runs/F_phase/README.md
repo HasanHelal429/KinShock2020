@@ -38,7 +38,7 @@ Judge them by eye from the phase-space movies (`scripts/make_phase_hist_movie.py
 | `fs_47keV_dz1p5` | done 2026-10-12, 4 min | **no false shock** |
 | `fs_47keV_dz3p0` | done 2026-10-12, 2.5 min | **no false shock** |
 | `fs_470eV_dz0379_t1` | done 2026-10-14 (36 h); movies `media/F_phase/fs_470eV_dz0379_t1/` | **false shock still forms**. Evolution is smooth until the accelerated upstream almost meets the kicked-up upstream ions (user, 2026-10-15) |
-| `fs_470eV_T100_t1` | running, job 59831119 (submitted 2026-10-15) | — |
+| `fs_470eV_T100_t1` | done 2026-10-17 (10 h 37 m, job 59831119); movies `media/F_phase/fs_470eV_T100_t1/` | awaiting the user's verdict |
 
 Experiment 2 rules out "pure resolution artifact": coarseness alone does not make it at
 47 keV (RESULTS 2026-10-12, later).
