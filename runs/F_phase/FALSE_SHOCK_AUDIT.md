@@ -21,6 +21,7 @@ piston* (user, 2026-10-15).
 | T_e,ab 470 → 26 eV, M_A 3.3 | vA_lowTab | forms |
 | B₀ ×0.1 at 47 keV (M_A 139) | mb_r100_t2 | clean |
 | hybrid (fluid e⁻, quasineutral) | H3_470eV_dense, hy_470eV_t2 | no false shock (but the piston is ~1.5× slower, with no heat flux) |
+| hybrid WITH electron heat flux (Braginskii Spitzer, f 0.06), 470 eV and 47 keV | hc_470eV_t2, hc_47keV_t2 | **no false shock** (user, 2026-11-16). Piston at 86 % of kinetic speed; heat reaches the front (T_e there ×3.9) |
 | dz/λ_D,ab 0.33 (workbook) | fs_470eV_dz0202_t1 | running (chain 61436281–84) |
 
 ## 2. What it is not
@@ -34,6 +35,10 @@ piston* (user, 2026-10-15).
 - **The timestep:** ω_pe dt at 470 eV is 0.014–0.04, 10–80× finer than the clean runs.
 - **A cold or collisional upstream:** the 100 eV run still forms it.
 - **The mass convention:** heavy-electron and real-µ runs both form it.
+- **Electron heat transport or a slow piston:** the conducting hybrids (piston at 86 % of
+  kinetic, front T_e ×3.9) are clean at 470 eV. What the kinetic run adds is electron-kinetic:
+  finite λ_D and charge separation, non-Maxwellian electrons, electron-scale instabilities, and
+  the explicit-PIC numerics that come with them (M1 and M2 both survive; M3 is weakened).
 
 ## 3. The one variable that separates the runs: ε_ab = v_te,ab/c
 

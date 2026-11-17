@@ -5465,3 +5465,15 @@ Piston front (weighted 99th percentile of piston-ion z) in d_i0/t*, and T_e in u
   decorrelation of the foot fluctuations or a real numerical difference (dt and B₀ differ
   10× in SI) is not known. A seed or replicate pair of `hc_470eV_t2` would give the floor.
 - **False-shock verdicts: the user's, by eye, from the two movies.**
+
+**Verdict (user, by eye, 2026-11-16): neither conducting hybrid forms the false shock.** With
+electron heat flux, the hybrid piston runs at 86 % of the kinetic speed and the front is
+electron-heated (T_e ×3.9 over the advected hybrid), and still the 470 eV run is clean. Missing
+heat transport and the slow piston were the two caveats on the old hybrid verdict, and both are
+now largely closed. **The false shock therefore needs electron-kinetic physics that the
+quasineutral fluid lacks**: finite λ_D and charge separation, non-Maxwellian electrons, or
+electron-scale instabilities, or the explicit-PIC numerics that come with them. That matches
+the kinetic θ ladder (forms at ε_ab 0.030, clean at ≥ 0.17), since nothing in this hybrid
+depends on ε. M1 (electrostatic ion–ion) and M2 (numerical, per plasma period) both survive.
+The audit's analysis-only tests A (notch wavelength vs ion–ion dispersion) and B (heating
+ledger) are what separate them. The residual 14 % piston-speed gap is a remaining caveat.
