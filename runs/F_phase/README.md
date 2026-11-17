@@ -41,6 +41,32 @@ Judge them by eye from the phase-space movies (`scripts/make_phase_hist_movie.py
 | `fs_470eV_dz0379_t1` | done 2026-10-14 (36 h); movies `media/F_phase/fs_470eV_dz0379_t1/` | **false shock still forms**. Evolution is smooth until the accelerated upstream almost meets the kicked-up upstream ions (user, 2026-10-15) |
 | `fs_470eV_T100_t1` | done 2026-10-17 (10 h 37 m, job 59831119); movies `media/F_phase/fs_470eV_T100_t1/` | **false shock still forms** (user, 2026-11-16): not a cold/collisional upstream |
 | `fs_470eV_dz0202_t1` | running, chain 61436281–84 | — |
+| `ft_30keV_t2` | staged 2026-11-16 (θ ladder, below) | — |
+| `ft_15keV_t2` | staged 2026-11-16 (θ ladder, below) | — |
+
+## θ_e,ab ladder (`ft_30keV_t2`, `ft_15keV_t2`, 2026-11-16) — audit test C
+
+Twins of `ek_47keV_t2` (θ_e,ab 0.092, clean to t·ω_ci0 2.0) with **only T_e,ab moved**, every
+Table I group held the way the E_phase ladder holds them: T₀/T_e,ab, β_ab (B₀ ∝ √T), v_p/C_s,ab,
+dz/λ_D 0.758 (dz ∝ √T), the 55 d_i0 box and the 2.0/ω_ci0 clock. `units.derive` gives M_A 13.95,
+M_ms 12.76, β₀ 0.196 for both, identical to the parent. The parent's numerics are kept: shape 3,
+filter 8, ppc 100, λ_ab = 20. There is one box on one GPU and one checkpoint at the end.
+
+| run | T_e,ab | θ_e,ab | ε_ab | n_cell × steps | × parent |
+|---|---|---|---|---|---|
+| `ek_47keV_t2` (parent) | 47.0 keV | 0.092 | 0.303 | 16,400 × 79,515 | 1 |
+| `ft_30keV_t2` | 30.0 keV | 0.0587 | 0.242 | 20,528 × 124,593 | 2.0 |
+| `ft_15keV_t2` | 14.86 keV (= `es_15keV`) | 0.0291 | 0.171 | 29,168 × 251,540 | 5.7 |
+
+**Why.** Sorted by θ_e,ab, every judged run is in order: the false shock forms at θ ≤ 0.037
+(PoC included) and is clean only at 0.092. **Every run judged clean past t·ω_ci0 0.3 is at
+θ = 0.092 exactly.** The one clean run below that, `im_47keV_t03` (θ 0.005, ε_ab 0.071), stopped
+at 0.30, where the fine-grid 470 eV runs are also still clean, so it cannot place a threshold.
+These two rungs sit between PoC (0.037) and the parent (0.092) and just below PoC.
+**Reading:** if 15 keV forms it and 30 keV is clean, the threshold is a property of the
+electron temperature in rest-mass units (ε). That is the condition M1 needs (FALSE_SHOCK_AUDIT
+§4), and it gives a ~1 GPU-h model of the false shock. If both are clean, the PoC run's notch
+needs its own explanation. If both form it, the paper's θ = 0.092 is close to the edge.
 
 Experiment 2 rules out "pure resolution artifact": coarseness alone does not make it at
 47 keV (RESULTS 2026-10-12, later).

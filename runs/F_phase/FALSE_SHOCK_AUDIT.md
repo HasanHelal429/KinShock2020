@@ -50,6 +50,14 @@ piston* (user, 2026-10-15).
 - **c/v_A does not separate.** mb_r100_t2 (c/v_A = 1000) is clean.
 - **ε_ab does**, within the Schaeffer family: it forms at ≤ 0.030 and is clean at ≥ 0.071.
 - The grid changes *when* it forms, and only at low ε.
+- **Caveat on the threshold (sister session, 2026-11-16).** The "clean at 0.071" point is
+  `im_47keV_t03`, which stopped at t·ω_ci0 0.30, where the fine-grid 470 eV runs are also
+  still clean. It therefore cannot place a threshold, and nor does the T100 vs im_47keV
+  argument against ε₀. **Every run judged clean past 0.3 has ε_ab = 0.303 (θ_e,ab = 0.092)
+  exactly.** Without the short run, the PoC twins (ε_ab 0.19) are not an exception: the
+  ordering is monotone, with formation at ε_ab ≤ 0.19 and clean only at 0.30. The threshold
+  could be anywhere in 0.19–0.30. Test C now runs at 0.24 and 0.17 (`ft_30keV_t2`,
+  `ft_15keV_t2`; `runs/F_phase/README.md`).
 - **Context:** PSC's reduced c puts the paper at ε_ab = 0.30, which is the clean side. A
   real-c 470 eV plasma (the experiment) sits at 0.03.
 
@@ -94,6 +102,6 @@ electrons at λ_D = 0.68 nm. Unlikely: the same ratios hold in the clean runs.
 |---|---|---|---|
 | A | Measure the notch's wavelength and growth in `fs_470eV_dz0379_t1` against the linear ion–ion dispersion of the two measured beams | analysis only | M1 yes/no |
 | B | Heating ledger: upstream and slab T_e, T_i vs t·ω_ci0 from EP/PN, 470 eV vs 47 keV, before onset | analysis only | M2 |
-| C | ε threshold: rerun `es_1p5keV` (ε_ab 0.054), `es_4p7keV` (0.096), `es_15keV` (0.17) to t·ω_ci0 ≈ 1 with the phase-space histograms (they stopped at 0.3, where even 470 eV is still clean) | cheap; higher T means coarser cells | M1 predicts a threshold near 0.04–0.07, independent of dz |
+| C | ε threshold: rerun `es_1p5keV` (ε_ab 0.054), `es_4p7keV` (0.096), `es_15keV` (0.17) to t·ω_ci0 ≈ 1 with the phase-space histograms (they stopped at 0.3, where even 470 eV is still clean) | cheap; higher T means coarser cells | M1 predicts a threshold near 0.04–0.07, independent of dz. **Partly run as `ft_30keV_t2` / `ft_15keV_t2`** (ε_ab 0.24 / 0.17, to 2.0, `ek_47keV_t2`'s grid), 2026-11-16 |
 | D | 470 eV with B₀ → ~0 (no magnetic reflection) | ~production cost | whether the piston reflection is needed |
 | E | `fs_470eV_dz0202_t1` (running) | ~30 node-h | closes ablation-Debye resolution at the workbook's standard |

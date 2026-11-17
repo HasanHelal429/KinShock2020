@@ -5390,3 +5390,22 @@ In short:
   ~2π(v_rel/c) d_i scales ∝ ε, so the paper's reduced c (ε_ab 0.3) would suppress it.
 - Competing mechanism: numerical heating accumulated per plasma period (~10× more plasma
   periods per ion time at 470 eV).
+
+## 2026-11-16 (later) — θ_e,ab ladder staged: `ft_30keV_t2`, `ft_15keV_t2` (audit test C)
+
+Sorted by θ_e,ab = T_e,ab/m_e c², every judged run is in order. The false shock forms at
+θ ≤ 0.037 (ε_ab ≤ 0.19, the PoC twins included) and is clean only at θ = 0.092 (ε_ab 0.303).
+**Every run judged clean past t·ω_ci0 0.3 sits at exactly θ = 0.092.** The single clean run
+below that, `im_47keV_t03` (ε_ab 0.071), stopped at 0.30, where fine-grid 470 eV is also still
+clean, so it cannot place a threshold. The audit's "clean at ≥ 0.071" and "PoC is the exception"
+both rest on it (caveat added to FALSE_SHOCK_AUDIT §3). The threshold is somewhere in
+ε_ab 0.19–0.30, and no long run has ever been made at any θ other than 0.092.
+
+The test is two twins of `ek_47keV_t2` with only T_e,ab moved, every Table I group held as the
+E_phase ladder holds them (B₀ ∝ √T, dz ∝ √T, T₀/T_e,ab, v_p/C_s,ab). `units.derive` gives M_A
+13.95, M_ms 12.76, β_ab 1150, β₀ 0.196, dz/λ_D 0.758, 55 d_i0 and t·ω_ci0 2.000, all identical to
+the parent:
+- `ft_30keV_t2`: θ 0.0587, ε_ab 0.242, 20,528 cells × 124,593 steps (2.0× the parent)
+- `ft_15keV_t2`: θ 0.0291 (= `es_15keV`), ε_ab 0.171, 29,168 × 251,540 (5.7×)
+
+The parent took 8 min, so both are under ~1 GPU-h. Design and reading: `runs/F_phase/README.md`.
