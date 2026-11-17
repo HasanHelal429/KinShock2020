@@ -5373,3 +5373,20 @@ What it decides: if the false shock still forms at 0.33 λ_D,ab, ablation-Debye 
 excluded at the workbook's own standard. The full-workbook version (3 mm box, 1.38 M × 275 M at
 2.2 nm with heavy electrons) would be ~10–15k GPU-h, which is not feasible. The workbook's 47 keV
 column at the same resolution is ~2–3 GPU-h.
+
+## 2026-11-16 (later) — 100 eV upstream still forms the false shock; audit written
+
+User, by eye: `fs_470eV_T100_t1` **still forms the false shock**, so it is not a cold or
+collisional upstream. With every single-variable test so far negative, the full audit (what was
+varied, what is excluded, the one separating variable, the mechanism candidates and the
+discriminating tests) is in **`runs/F_phase/FALSE_SHOCK_AUDIT.md`**.
+
+In short:
+- Within the Schaeffer family the feature tracks **ε_ab = v_te,ab/c**: it forms at ≤ 0.030 and
+  is clean at ≥ 0.071, while ε₀ and c/v_A do not separate the runs.
+- The grid only changes the onset, and only at low ε.
+- Favoured mechanism: a physical electrostatic ion–ion streaming instability between the
+  ablation-accelerated and the piston-reflected upstream ions. Its wavelength
+  ~2π(v_rel/c) d_i scales ∝ ε, so the paper's reduced c (ε_ab 0.3) would suppress it.
+- Competing mechanism: numerical heating accumulated per plasma period (~10× more plasma
+  periods per ion time at 470 eV).
