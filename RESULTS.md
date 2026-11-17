@@ -5409,3 +5409,11 @@ the parent:
 - `ft_15keV_t2`: θ 0.0291 (= `es_15keV`), ε_ab 0.171, 29,168 × 251,540 (5.7×)
 
 The parent took 8 min, so both are under ~1 GPU-h. Design and reading: `runs/F_phase/README.md`.
+
+## 2026-11-16 (later) — `ft_30keV_t2` (ε_ab 0.24) is CLEAN to t·ω_ci0 2.0
+
+The run completed 124,593 steps in 13 m 35 s (debug job 61437037, exit 0). The movie is
+`media/F_phase/ft_30keV_t2/phase_hist_asinh_fields.mp4`. **User, by eye: clean.** This is the
+first run judged clean to late time at any θ_e,ab other than the paper's 0.092. The threshold
+now lies between ε_ab 0.19 (PoC forms it) and 0.24 (clean), provided the PoC run belongs on
+the same axis. `ft_15keV_t2` (ε_ab 0.17, identical setup otherwise) decides that.

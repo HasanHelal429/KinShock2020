@@ -58,6 +58,9 @@ piston* (user, 2026-10-15).
   ordering is monotone, with formation at ε_ab ≤ 0.19 and clean only at 0.30. The threshold
   could be anywhere in 0.19–0.30. Test C now runs at 0.24 and 0.17 (`ft_30keV_t2`,
   `ft_15keV_t2`; `runs/F_phase/README.md`).
+- **`ft_30keV_t2` (ε_ab 0.24, to t·ω_ci0 2.0) is clean** (user, 2026-11-16). It is the first long
+  clean run at any θ other than 0.092, and it narrows the threshold to ε_ab 0.19–0.24, if the
+  PoC run belongs on the same axis. `ft_15keV_t2` (0.17) is the test of that.
 - **Context:** PSC's reduced c puts the paper at ε_ab = 0.30, which is the clean side. A
   real-c 470 eV plasma (the experiment) sits at 0.03.
 
