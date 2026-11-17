@@ -5417,3 +5417,18 @@ The run completed 124,593 steps in 13 m 35 s (debug job 61437037, exit 0). The m
 first run judged clean to late time at any θ_e,ab other than the paper's 0.092. The threshold
 now lies between ε_ab 0.19 (PoC forms it) and 0.24 (clean), provided the PoC run belongs on
 the same axis. `ft_15keV_t2` (ε_ab 0.17, identical setup otherwise) decides that.
+
+## 2026-11-16 (later) — `ft_15keV_t2` (ε_ab 0.17) is CLEAN: PoC is off the axis, threshold in 0.030–0.17
+
+The run completed 251,540 steps in 30 m 46 s (shared job 61437039, exit 0). The movie is
+`media/F_phase/ft_15keV_t2/phase_hist_asinh_fields.mp4`. **User, by eye: clean.**
+
+The θ ladder now reads 470 eV (ε_ab 0.030) forms, 15 keV (0.17) clean, 30 keV (0.24) clean,
+47 keV (0.30) clean, with every other Table I group held. Consequences:
+- **Within the Schaeffer family the threshold lies between ε_ab 0.030 and 0.17.** The rungs
+  that would place it are 4.7 keV (0.096, ~3 GPU-h on this grid) and 1.5 keV (0.054,
+  ~16 GPU-h). `im_47keV_t03` (0.071) ran only to 0.3 and still does not pin it.
+- **The PoC twins (ε_ab 0.19, form it) are not on this axis.** A run 0.02 below them in ε_ab
+  is clean, so their false shock comes from something they do not share with the ladder:
+  Z = 3.5, the applied B₀(z) gradient, M_A 6.4 or n_target/n_e0 = 400. This revises the
+  earlier entry today, which read the ordering as monotone through PoC.

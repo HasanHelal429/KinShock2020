@@ -61,6 +61,12 @@ piston* (user, 2026-10-15).
 - **`ft_30keV_t2` (ε_ab 0.24, to t·ω_ci0 2.0) is clean** (user, 2026-11-16). It is the first long
   clean run at any θ other than 0.092, and it narrows the threshold to ε_ab 0.19–0.24, if the
   PoC run belongs on the same axis. `ft_15keV_t2` (0.17) is the test of that.
+- **`ft_15keV_t2` (ε_ab 0.17, to 2.0) is ALSO clean** (user, 2026-11-16). So the PoC twins (0.19,
+  form it) are **not** on the ε_ab axis: their false shock needs its own cause among Z = 3.5, the
+  applied B₀(z) gradient, M_A 6.4 and n_target/n_e0 400. **Within the Schaeffer family the
+  threshold lies in ε_ab 0.030 (forms) to 0.17 (clean)**, which is consistent with the original
+  "clean at ≥ 0.071" placement, though `im_47keV_t03` (0.071, to 0.3 only) still does not pin
+  it. Next rungs on the same grid: 4.7 keV (ε_ab 0.096, ~3 GPU-h) and 1.5 keV (0.054, ~16 GPU-h).
 - **Context:** PSC's reduced c puts the paper at ε_ab = 0.30, which is the clean side. A
   real-c 470 eV plasma (the experiment) sits at 0.03.
 
