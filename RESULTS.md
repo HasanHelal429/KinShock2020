@@ -5477,3 +5477,20 @@ the kinetic θ ladder (forms at ε_ab 0.030, clean at ≥ 0.17), since nothing i
 depends on ε. M1 (electrostatic ion–ion) and M2 (numerical, per plasma period) both survive.
 The audit's analysis-only tests A (notch wavelength vs ion–ion dispersion) and B (heating
 ledger) are what separate them. The residual 14 % piston-speed gap is a remaining caveat.
+
+## 2026-11-16 (later) — Conducting-hybrid replicate floor: the 470 eV / 47 keV B_x difference is not GPU noise
+
+This closes the caveat above. A same-deck replicate of `hc_470eV_t2` (debug job 61442004,
+6 m 10 s, exit 0; scratch `$PSCRATCH/kinshock_ab/hc_470eV_t2_rep2`, so it is not a second config)
+matches the original to round-off. The relative L2 is 3×10⁻¹⁵ (B_x) at t* 0.2 and grows to
+1.9×10⁻⁹ (B_x), 3×10⁻¹⁰ (n_i) and 4×10⁻¹¹ (T_e) by t* 2. Front speeds agree to 0.01 d_i0/t*. On
+build C this hybrid is effectively deterministic, unlike the explicit kinetic runs.
+
+So the 28 % B_x difference between `hc_470eV_t2` and `hc_47keV_t2` is a real difference between
+the decks, not run-to-run noise. The most likely reading is chaotic amplification of their small
+deliberate parameter offset. The 47 keV deck's lnΛ (122,349) and η sit 4×10⁻⁴ off an exact ×10⁴
+/ ×10 scaling, because they copy the kinetic decks' values. The replicate's B_x divergence
+e-folds about 7.4 times per t*, so a 4×10⁻⁴ seed reaches order one by t* ≈ 1–2, and that growth
+lives in the fluctuating foot field while n_i and T_e stay within 1 %. A 47 keV deck with
+exactly scaled lnΛ and η would test this reading (~6 min). It does not affect the verdict: both
+runs are clean, and n_i, T_e and the piston agree.

@@ -15,7 +15,7 @@ Render with `scripts/hybrid_phase_movie.py`, which reads scales from `warpx_used
 | `hy_470eV_t2` | hybrid twin of `R1_470eV_s3f8_t2` (34.2 d_i0, to t·ω_ci0 2.0), θ = 6.3e-4 (estimate for ~12.5 d_i0/t*) | — |
 | `hy_470eV_t2_lo` / `_hi` | same, θ = 5.0e-4 / 7.5e-4 (brackets) | — |
 | `hc_470eV_t2` | `hy_470eV_t2` with **only `advected → conducting`**: electron heat flux, flux-limited Spitzer (f 0.06), Braginskii-magnetized, lnΛ 12.23 (= the kinetic twin's). Ran 2026-11-16 (job 61440875, 5 m 48 s): front 8.83 / 10.37 / 10.83 d_i0/t* (advected 6.97 / 7.57 / 8.38, kinetic 12.1) | **no** (2026-11-16) |
-| `hc_47keV_t2` | `hc_470eV_t2` scaled to 47 keV (T ×100, v_A and v_p ×10, η and lnΛ held dimensionless; lnΛ = `ek_47keV_t2`'s 122,349). Ran 2026-11-16 (job 61440876, 6 m 08 s): front speeds within 0.3 % of `hc_470eV_t2`; n_i and T_e within 1 % (L2), B_x 28 % by t* 2 | **no** (2026-11-16) |
+| `hc_47keV_t2` | `hc_470eV_t2` scaled to 47 keV (T ×100, v_A and v_p ×10, η and lnΛ held dimensionless; lnΛ = `ek_47keV_t2`'s 122,349). Ran 2026-11-16 (job 61440876, 6 m 08 s): front speeds within 0.3 % of `hc_470eV_t2`; n_i and T_e within 1 % (L2), B_x 28 % by t* 2, a real deck difference (replicate floor 2e-9; RESULTS) | **no** (2026-11-16) |
 
 **Conducting twins (2026-11-16).** `conducting` = `advected` plus a heat-flux step, from the
 warpx-cda particle-splitter worktree (uncommitted; LaserProdShock `HYBRID_CONDUCTION.md`). They run
