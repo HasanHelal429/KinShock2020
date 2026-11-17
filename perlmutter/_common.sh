@@ -71,6 +71,10 @@ pm_binary() {
     case "$tag" in
         A) d="$WARPX_BUILD_A" ;;
         B) d="$WARPX_BUILD_B" ;;
+        # C: the hybrid electron heat-flux build (electron_energy_mode = conducting), a
+        # FROZEN copy of warpx-cda particle-splitter build_cond (42a099a9c + uncommitted
+        # conduction patch; md5 and source record in its PROVENANCE.txt). 2026-11-16.
+        C) d="${WARPX_BUILD_C:-/pscratch/sd/h/hhelal/warpx-cda/build_pm_cond_kinshock}" ;;
         *) echo "pm_binary: unknown build tag '$tag'" >&2; return 2 ;;
     esac
     local bin
