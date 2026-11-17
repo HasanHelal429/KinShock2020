@@ -5301,3 +5301,38 @@ ion–ion streaming instability in a cold upstream, which is exactly what `fs_47
 v_sh and C_s0 is √10× larger, both stabilizing for ion–ion modes. If the 100 eV twin is
 clean, the cold upstream is the cause. Its collisionality confound still applies (upstream
 λ_ii/d_i0 0.014 → 1.43).
+
+## 2026-11-16 — Ablation Debye length and timestep at 470 eV: checked; neither explains the false shock
+
+Claims checked: (1) the 470 eV runs under-resolve the ablation Debye length; (2) the timestep is
+under-resolved. Computed from every config with `units.derive`
+(`notch/ablation_res.py`). This repo's "dz/λ_D" labels have always meant the *upstream* λ_D
+(10 eV, 4.8e24 m⁻³). The ablation λ_D is 6.58 nm at (n0, 470 eV) and 4.65 nm at the target's
+2 n0.
+
+| run | verdict | dz [nm] | dz/λ_D,ab (n0) | dz/λ_D,ab (2n0) | ω_pe,ab dt (2n0) |
+|---|---|---|---|---|---|
+| `R1_470eV_s3f8_t2` | notch after 0.3 | 8.14 | 1.24 | 1.75 | 0.040 |
+| `fs_470eV_dz0379_t1` | **notch** | 4.07 | **0.62** | **0.87** | 0.020 |
+| `ek_47keV_t2` | **clean** | 81.3 | 1.24 | 1.75 | 0.40 |
+| `fs_47keV_dz3p0` | **clean** | 325 | **4.94** | **6.99** | **1.59** |
+
+- **(1) is true for the production grid, but mildly.** At 1.24–1.75 cells per λ_D,ab the
+  production grid is marginal.
+- **(1) is not the cause.** The fine run resolves λ_D,ab (0.62–0.87) and still forms the
+  notch. The 47 keV runs have *identical* ablation ratios (Debye ratios scale out) and are
+  clean, even 4× coarser (dz/λ_D,ab ≈ 5–7).
+- **(2) is false.** ω_pe dt at 470 eV is 0.014–0.04 at the target density, 10–80× finer than
+  the clean 47 keV runs (0.2–1.6). Particle CFL ≤ 0.75 (light-limited), ω_ce dt ~ 3e-5 and
+  ν_ei dt ~ 4e-5 (×10 supercycle) are all fine.
+- **What every run does under-resolve:** the cold injected target electrons (10 eV at 2 n0,
+  λ_D = 0.68 nm, 6–12 cells per λ_D) until the heater warms them. This is identical in the
+  clean 47 keV runs (1 keV / 47 keV), so it does not discriminate either.
+- **Where the claims likely came from:** the workbook's WarpX "BOX, GRID AND TIMESTEP" rows
+  (dz = 2 µm, CFL 0.999, giving dz/λ_D,ab = 304 and ω_pe dt = 9.2) are placeholders, not the
+  runs. They do not describe any run.
+
+Cost of a run resolving λ_D,ab at 2 n0 twice over (dz = 2.33 nm, dz/λ_D,ab = 0.5): 4× the fine
+run's cell-steps, ~110–145 GPU-h for 17.1 d_i0 to t·ω_ci0 = 1.0, which needs a 3–4 segment chain.
+Resolving the cold injected electrons (dz ≤ 0.68 nm) would be ~36× the fine run, ~1300 GPU-h,
+and the clean runs show it is not needed.
