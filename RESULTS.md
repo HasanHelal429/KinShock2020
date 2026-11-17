@@ -5336,3 +5336,21 @@ Cost of a run resolving λ_D,ab at 2 n0 twice over (dz = 2.33 nm, dz/λ_D,ab = 0
 run's cell-steps, ~110–145 GPU-h for 17.1 d_i0 to t·ω_ci0 = 1.0, which needs a 3–4 segment chain.
 Resolving the cold injected electrons (dz ≤ 0.68 nm) would be ~36× the fine run, ~1300 GPU-h,
 and the clean runs show it is not needed.
+
+## 2026-11-16 (later) — `fs_470eV_dz0202_t1` staged: the 470 eV run at the workbook's resolution
+
+The shock workbook's grid rows target dz = 0.33 λ_D,ab(n0). That is 3.7× finer than the
+production grid (1.24) and 1.9× finer than `fs_470eV_dz0379_t1` (0.62, which still forms the
+false shock). The new run is that fine run with only dz reduced to 0.01 d_e = 2.169 nm:
+- dz/λ_D,ab = 0.33 at n0, 0.47 at the target's 2 n0, 0.202 upstream
+- ω_pe dt = 0.0075
+- box, clock, physics and numerics otherwise unchanged
+
+That is 191,224 cells × 14,909,320 steps, 3.52× the fine run's cell-steps (36.3 h), so
+~100–130 h on one A100: a 4-segment chain of 48 h on shared. That is ~25–33 node-hours, against
+~9,000 left on m5032_g (`iris project m5032`, 5,161 of 14,144 charged).
+
+What it decides: if the false shock still forms at 0.33 λ_D,ab, ablation-Debye resolution is
+excluded at the workbook's own standard. The full-workbook version (3 mm box, 1.38 M × 275 M at
+2.2 nm with heavy electrons) would be ~10–15k GPU-h, which is not feasible. The workbook's 47 keV
+column at the same resolution is ~2–3 GPU-h.
