@@ -1,0 +1,80 @@
+From 07fa1be95aa99c6c9c399676c159683bd04bd123 Mon Sep 17 00:00:00 2001
+From: Hasan Helal <hhelal@login20.chn.perlmutter.nersc.gov>
+Date: Mon, 16 Nov 2026 17:49:55 -0800
+Subject: [PATCH] Allow solver.electron_energy.mode = conducting
+ (heat_flux.{Z,limiter,coulomb_log,magnetization})
+
+The warpx-cda particle-splitter fork now carries a flux-limited Spitzer heat
+flux (1D). Validate the heat_flux block and render the hybrid_pic_model.heat_flux_*
+keys; conducting shares advected's gamma = 5/3 rule and T_e seeding.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ src/hpicshock/config.py | 18 +++++++++++++-----
+ src/hpicshock/deck.py   | 14 +++++++++++++-
+ 2 files changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/src/hpicshock/config.py b/src/hpicshock/config.py
+index e037d11..e36badc 100644
+--- a/src/hpicshock/config.py
++++ b/src/hpicshock/config.py
+@@ -342,11 +342,19 @@ def validate(cfg: dict) -> list[str]:
+         raise ValueError(f"solver.electron_energy.mode must be none|source_only|"
+                          f"advected|conducting (got {mode!r})")
+     if mode == "conducting":
+-        raise ValueError(
+-            "solver.electron_energy.mode = 'conducting' needs the heat flux of "
+-            "HYBRID_PLAN.md §8 v2, which does not exist yet: the fork solves the energy "
+-            "equation without conduction. Use 'advected'.")
+-    if mode == "advected":
++        # `advected` plus a flux-limited Spitzer heat flux (warpx-cda particle-splitter,
++        # 1D only; LaserProdShock HYBRID_CONDUCTION.md). The fluid has no ionization state,
++        # so Z is required, as WarpX requires it.
++        hf = ((cfg.get("solver") or {}).get("electron_energy") or {}).get("heat_flux") or {}
++        if "Z" not in hf:
++            raise ValueError("solver.electron_energy.mode = 'conducting' needs "
++                             "solver.electron_energy.heat_flux.Z (kappa ~ 1/(Z + 3.3)).")
++        if str(hf.get("magnetization", "none")) not in ("none", "braginskii"):
++            raise ValueError("solver.electron_energy.heat_flux.magnetization must be "
++                             "none | braginskii")
++        if int((cfg.get("geometry") or {}).get("dims", 1)) != 1:
++            raise ValueError("electron_energy.mode = 'conducting' is 1D only in the fork.")
++    if mode in ("advected", "conducting"):
+         # The advected mode integrates eps = (3/2) n kB Te, which fixes the adiabatic index
+         # at 5/3; WarpX asserts this rather than quietly ignoring another gamma. Catch it
+         # here so the deck is never rendered into a run that aborts during init.
+diff --git a/src/hpicshock/deck.py b/src/hpicshock/deck.py
+index d5c7a64..bbe29e9 100644
+--- a/src/hpicshock/deck.py
++++ b/src/hpicshock/deck.py
+@@ -411,7 +411,7 @@ def render(cfg: dict) -> str:
+             a("# --- electron energy equation (HYBRID_PLAN.md §8) --")
+             a("# Needs the warpx-cda fork, branch feature/particle-heater.")
+             a(f"hybrid_pic_model.electron_energy_mode = {mode}")
+-            if mode == "advected":
++            if mode in ("advected", "conducting"):
+                 # The comment has to follow the VALUE. It used to describe the polytropic
+                 # seed unconditionally, so a `uniform` deck carried a line saying it did
+                 # the opposite of what it did.
+@@ -436,6 +436,18 @@ def render(cfg: dict) -> str:
+             if ee.get("joule_heating"):
+                 a("hybrid_pic_model.electron_joule_heating = 1"
+                   "   # eta J^2 currently leaves the system entirely")
++            if mode == "conducting":
++                hf = ee.get("heat_flux") or {}
++                a("# electron heat flux: flux-limited Spitzer, implicit on the 1D column")
++                a("# (warpx-cda particle-splitter; LaserProdShock HYBRID_CONDUCTION.md)")
++                a(f"hybrid_pic_model.heat_flux_Z             = {_num(float(hf['Z']))}")
++                a(f"hybrid_pic_model.heat_flux_limiter       = "
++                  f"{_num(float(hf.get('limiter', 0.06)))}")
++                a(f"hybrid_pic_model.heat_flux_coulomb_log   = "
++                  f"{_num(float(hf.get('coulomb_log', 0.0)))}"
++                  "   # 0 = per-node NRL; >0 fixes it")
++                a(f"hybrid_pic_model.heat_flux_magnetization = "
++                  f"{hf.get('magnetization', 'none')}")
+             cond = (ee.get("conduction") or {})
+             if str(cond.get("model", "none")) != "none":
+                 a(f"hybrid_pic_model.electron_conduction = {cond['model']}")
+-- 
+2.51.0
+
