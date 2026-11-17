@@ -5302,6 +5302,25 @@ v_sh and C_s0 is √10× larger, both stabilizing for ion–ion modes. If the 10
 clean, the cold upstream is the cause. Its collisionality confound still applies (upstream
 λ_ii/d_i0 0.014 → 1.43).
 
+## 2026-10-16 — Heating operator, ablation into vacuum (`R3_paper`): the plume converges on the isothermal C_s t, not the paper's 0.5 C_s t
+
+`runs/R3_phase/R3_paper` = R1_paper with ambient ppc 0 (single knob), 50 t_ab, dumps every t_ab
+(job 59872325, 1 h 16 m). Quasi-neutral (e/i e-fold lengths agree to 3 %). Fitted e-fold length
+L/(C_s,ab t) = **0.75, 0.83, 0.93, 0.99, 1.03** at 2, 5, 10, 20, 40 t_ab. Schaeffer 2020 Eq. 1's
+z0 ≈ 0.5 C_s,ab t (their 2.5 d_i,ab at 5 t_ab) is half what we measure at 5 t_ab. The TargetInjector
+holds the target at 1.9–2.0 n_e,ab, so the expansion is from a fixed-density source; the
+parameter-free n_t exp[−(z − z_s)/(C_s,ab t)] matches at late time (data/analytic 0.40 → **1.00**
+from 2 → 40 t_ab), and the free-rarefaction form misses by a factor e. Not yet resolved: whether
+the paper's 0.5 is a C_s convention or an early, unconverged measurement. Figure
+`media/poster/fig4_ablation_profile.pdf` (and `_paper` with Eq. 1 overlaid); details in the run README.
+
+## 2026-10-17 — `fs_470eV_T100_t1` (hot upstream, 100 eV) finished
+
+Job 59831119 completed all 3,975,736 steps (t·ω_ci0 = 1.0) in 10 h 37 m on one A100
+(0.0096 s/step), inside the 10–13 h estimate, with no errors. Phase-space movies (three-panel and
+with fields, 251 histogram dumps) are in `media/F_phase/fs_470eV_T100_t1/`. The false-shock
+verdict is the user's, by eye.
+
 ## 2026-11-16 — Ablation Debye length and timestep at 470 eV: checked; neither explains the false shock
 
 Claims checked: (1) the 470 eV runs under-resolve the ablation Debye length; (2) the timestep is
