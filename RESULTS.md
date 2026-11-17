@@ -5432,3 +5432,36 @@ The θ ladder now reads 470 eV (ε_ab 0.030) forms, 15 keV (0.17) clean, 30 keV 
   is clean, so their false shock comes from something they do not share with the ladder:
   Z = 3.5, the applied B₀(z) gradient, M_A 6.4 or n_target/n_e0 = 400. This revises the
   earlier entry today, which read the ordering as monotone through PoC.
+
+## 2026-11-16 (later) — Conducting hybrid twins ran: heat flux speeds the piston 1.37×; 470 eV and 47 keV are the same run
+
+`runs/hybrid_phase/hc_470eV_t2` is `hy_470eV_t2` with only the electron closure changed,
+`advected → conducting`. The heat flux is flux-limited Spitzer, f = 0.06, Braginskii-magnetized
+across B₀, with lnΛ 12.23 (the kinetic twin's). `hc_47keV_t2` is the same run scaled to 47 keV,
+with lnΛ 122,349 (= `ek_47keV_t2`'s) and η held dimensionless. Both ran on build C, the frozen
+warpx-cda conduction binary (`build_pm_cond_kinshock`, md5 c16d6ca0…): debug jobs 61440875/6,
+about 6 min each, exit 0. Decks came from H-PICShock 59139fe plus
+`runs/hybrid_phase/hpicshock_conducting.patch`. Movies:
+`media/hybrid_phase/hc_*/hybrid_phase_fields.mp4`. Numbers are from
+`scripts/hybrid_front_analysis.py`, which reproduces this file's earlier `hy_*` speeds to ≤ 2 %.
+
+Piston front (weighted 99th percentile of piston-ion z) in d_i0/t*, and T_e in units of T₀:
+
+| run | t* 0.1–0.5 | 0.3–1.0 | 0.5–2.0 | max T_e/T₀ at t* 2 | T_e(front)/T₀ at t* 2 |
+|---|---|---|---|---|---|
+| `hy_470eV_t2` (advected) | 6.97 | 7.57 | 8.38 | 189 | 13.8 |
+| `hc_470eV_t2` (conducting) | 8.83 | 10.37 | 10.83 | 113 | 53.4 |
+| `hc_47keV_t2` (conducting) | 8.82 | 10.35 | 10.80 | 113 | 53.6 |
+| kinetic `R1_470eV_s3f8_t2` | 13.71 | 12.10 | — | — | — |
+
+- **The heat flux closes most of the piston-speed gap.** It is 7.57 → 10.37 over 0.3–1.0,
+  which is 86 % of the kinetic 12.10 (was 63 %). Heat now leaves the slab: the peak T_e drops
+  189 → 113 T₀, and the front T_e rises 3.9× (13.8 → 53.4 T₀). That is the mechanism the
+  2026-10-12 entry proposed.
+- **The 470 eV and 47 keV twins are the same run.** Front speeds agree to 0.3 % and T_e
+  profiles to 0.3 %. At matched steps the relative L2 differences reach < 1 % in n_i and T_e
+  by t* 2. **B_x differs more**: 0.9 % at t* 0.2, 6 % at 1.0 and 28 % at 2.0, growing
+  steadily. There is no same-binary replicate, so whether that is GPU run-to-run
+  decorrelation of the foot fluctuations or a real numerical difference (dt and B₀ differ
+  10× in SI) is not known. A seed or replicate pair of `hc_470eV_t2` would give the floor.
+- **False-shock verdicts: the user's, by eye, from the two movies.**
