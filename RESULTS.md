@@ -5554,3 +5554,23 @@ clean runs (ft_15keV_t2 1.7–4.8, fs_47keV_dz1p5 3.3–8.9). That rules out the
 mechanism M1. Details are in `runs/F_phase/FALSE_SHOCK_AUDIT.md` (Test A result). Also:
 `fs_470eV_dz0202_t1` is at 30% (t·ω_ci0 ≈ 0.35), and its partial movies are in
 `media/F_phase/fs_470eV_dz0202_t1/`.
+
+## 2026-11-18 — False-shock test B (heating ledger): numerical heating ruled out; the fast-ion front is faster at low ε
+
+The particle-dump ledger covers 7 runs: 3 forming (470 eV prod, fine, T100) and 4 clean (15, 30
+and 47 keV, plus 47 keV coarse). Details and tables are in `runs/F_phase/FALSE_SHOCK_AUDIT.md`
+(Test B), and the figure is `media/F_phase/heating_ledger.png`.
+- **Upstream heating before the fast ions arrive does not track the verdict.** T100 forms the
+  notch with T_e,up/T₀ = 1.01 at t·ω_ci0 0.56, while 15 keV is clean at 1.99. Per plasma
+  period the 470 eV upstream heats far less than the clean runs. **So M2 (heating accumulated
+  per plasma period) is falsified.**
+- **The slab** (T_e/T_e,ab 2.2–2.4, T_i/T_e,ab 0.22–0.25) and **the beam-region T_e/T_i**
+  (15–18 at t·ω_ci0 0.56) are the same in forming and clean runs.
+- **The fast-ion front speed orders monotonically with ε_ab:** 1.6 v_sh at 0.030, then 1.35,
+  1.30 and 1.24 at 0.17, 0.24 and 0.30. The accelerated upstream is driven harder at low ε.
+  Together with test A (linear ES ion–ion instability present in every run), the
+  discriminator looks like the strength of the ion acceleration at the piston / ablation
+  front, not the onset of an instability or numerical heating.
+
+First pass had a dump-ordering bug (names below and above 10⁶ steps sorted wrongly), fixed
+before these numbers.

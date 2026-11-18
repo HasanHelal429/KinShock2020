@@ -125,7 +125,7 @@ electrons at λ_D = 0.68 nm. Unlikely: the same ratios hold in the clean runs.
 | test | owner | status |
 |---|---|---|
 | A — linear ion–ion (Penrose) test at the front, `scripts/penrose_ionion.py` | psc-schaeffer2020 session | **done 2026-11-18: does NOT discriminate** (see below) |
-| B — heating ledger (EP/PN: upstream and slab T_e, T_i vs t·ω_ci0, 470 eV vs 47 keV, before onset) | **theta-ladder (sister) session** | open |
+| B — heating ledger (particle dumps: upstream, slab and beam-region T_e, T_i) | psc-schaeffer2020 session | **done 2026-11-18: M2 falsified**; the fast-ion front speed orders with ε (see below) |
 | C — ε ladder: 30 and 15 keV clean (sister); remaining rungs 4.7 keV (ε_ab 0.096, ~3 GPU-h) and 1.5 keV (0.054, ~16 GPU-h) | **theta-ladder (sister) session** | in progress |
 
 Write results into §1/§3 and RESULTS.md; keep this table current.
@@ -154,3 +154,41 @@ v_sh t.
 - **The mode's scale tracks ε only weakly.** 2π/k_c is ~3× shorter at 470 eV, not 10×. It is
   ~120 cells at the fine run's dz but ~8 cells at the coarse ss_dz1 grids, which may be why a
   coarse grid only moves the onset.
+
+### Test B result (2026-11-18): no heating signature; the fast-ion front speed orders with ε
+
+The script is `notch/heat_ledger.py` (job tmp; to be moved into `scripts/`), run on the particle
+dumps of 7 runs. T is the 3-component variance of p/mc. The upstream window is
+z ∈ [L−4, L−2.5] d_i0, cut off once ions with v_z > 0.3 v_sh exceed 1% of it. The slab is
+[0, 2 d_i,ab]. Figure: `media/F_phase/heating_ledger.png`.
+
+| run | verdict | T_e,up/T₀ @ t·ω_ci0 0.56 | T_i,up/T₀ | slab T_e/T_e,ab | slab T_i/T_e,ab |
+|---|---|---|---|---|---|
+| fs_470eV_dz0379_t1 | forms | 1.54 | 1.34 | 2.23 | 0.25 |
+| fs_470eV_T100_t1 | forms | **1.01** | **0.99** | 2.24 | 0.25 |
+| ft_15keV_t2 | clean | **1.99** | 1.38 | 2.35 | 0.23 |
+| ft_30keV_t2 | clean | 1.56 | 1.17 | 2.38 | 0.22 |
+| ek_47keV_t2 / fs_47keV_dz1p5 | clean | 1.09 / 1.02 | 1.01 / 0.99 | 2.43 / 2.44 | 0.22 |
+
+- **M2 is falsified.** The upstream heating does not order with the verdict: T100 forms the
+  notch with no upstream heating, and 15 keV heats the most yet is clean. Per plasma period the
+  470 eV upstream heats far *less*: ~1.1 T₀ by ω_pe,ab t = 2×10⁴, where the 47 keV runs are at
+  ~6 T₀.
+- **The slab is the same within 10%.**
+- **Beam region:** slab edge to the fast-ion front, in 0.1 d_i0 bins about the local flow
+  (`notch/beam_te.py`). T_e/T_i,core runs from ~30–45 at t·ω_ci0 0.08 down to 15–18 at 0.56 in
+  every run, so it does not discriminate either.
+- **What does order with ε is the fast-ion front speed** (99.5th-percentile z of ambient ions
+  with v_z > 0.3 v_sh, slope over t·ω_ci0 0.24–0.56):
+
+  | ε_ab | front speed |
+  |---|---|
+  | 0.030 (470 eV fine / prod) | **1.58 / 1.61 v_sh** |
+  | 0.17 (15 keV) | 1.35 v_sh |
+  | 0.24 (30 keV) | 1.30 v_sh |
+  | 0.30 (47 keV) | 1.24 v_sh |
+
+  The "accelerated upstream" is driven harder at low ε, monotonically. That points at the
+  acceleration mechanism at the piston or ablation front (ambipolar or Debye-scale fields)
+  rather than at the instability, consistent with test A's "acts after linear onset". T100's
+  hot tail crosses the 0.3 v_sh cut, so it is excluded from this metric.
