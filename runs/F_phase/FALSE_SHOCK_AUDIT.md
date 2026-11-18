@@ -157,7 +157,7 @@ v_sh t.
 
 ### Test B result (2026-11-18): no heating signature; the fast-ion front speed orders with ε
 
-The script is `notch/heat_ledger.py` (job tmp; to be moved into `scripts/`), run on the particle
+The script is `scripts/heat_ledger.py` (plot: `scripts/plot_ledger.py`), run on the particle
 dumps of 7 runs. T is the 3-component variance of p/mc. The upstream window is
 z ∈ [L−4, L−2.5] d_i0, cut off once ions with v_z > 0.3 v_sh exceed 1% of it. The slab is
 [0, 2 d_i,ab]. Figure: `media/F_phase/heating_ledger.png`.
@@ -176,7 +176,7 @@ z ∈ [L−4, L−2.5] d_i0, cut off once ions with v_z > 0.3 v_sh exceed 1% of 
   ~6 T₀.
 - **The slab is the same within 10%.**
 - **Beam region:** slab edge to the fast-ion front, in 0.1 d_i0 bins about the local flow
-  (`notch/beam_te.py`). T_e/T_i,core runs from ~30–45 at t·ω_ci0 0.08 down to 15–18 at 0.56 in
+  (`scripts/beam_te.py`). T_e/T_i,core runs from ~30–45 at t·ω_ci0 0.08 down to 15–18 at 0.56 in
   every run, so it does not discriminate either.
 - **What does order with ε is the fast-ion front speed** (99.5th-percentile z of ambient ions
   with v_z > 0.3 v_sh, slope over t·ω_ci0 0.24–0.56):
