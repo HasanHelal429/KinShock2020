@@ -124,8 +124,33 @@ electrons at λ_D = 0.68 nm. Unlikely: the same ratios hold in the clean runs.
 
 | test | owner | status |
 |---|---|---|
-| A — notch wavelength and growth vs linear ion–ion dispersion (`fs_470eV_dz0379_t1`) | **psc-schaeffer2020 session** | started 2026-11-18 |
+| A — linear ion–ion (Penrose) test at the front, `scripts/penrose_ionion.py` | psc-schaeffer2020 session | **done 2026-11-18: does NOT discriminate** (see below) |
 | B — heating ledger (EP/PN: upstream and slab T_e, T_i vs t·ω_ci0, 470 eV vs 47 keV, before onset) | **theta-ladder (sister) session** | open |
 | C — ε ladder: 30 and 15 keV clean (sister); remaining rungs 4.7 keV (ε_ab 0.096, ~3 GPU-h) and 1.5 keV (0.054, ~16 GPU-h) | **theta-ladder (sister) session** | in progress |
 
 Write results into §1/§3 and RESULTS.md; keep this table current.
+
+### Test A result (2026-11-18): the linear ES ion–ion instability does not discriminate
+
+`scripts/penrose_ionion.py` applies the Penrose criterion with electron shielding to each z column
+of the binned phase space. F(v) is the normalized ion v_z distribution and T_e,loc is the
+electron u_z variance. S = P·T_e/m_i > 1 means unstable; the unstable band ends at k_c. The table
+takes the max over the dense columns, every 25th dump. The max always sits within ~±1 d_i0 of
+v_sh t.
+
+| run | ε_ab | verdict | S_max | 2π/k_c [d_i0] |
+|---|---|---|---|---|
+| fs_470eV_dz0379_t1 | 0.030 | forms | 1.6–6.4 | 0.009–0.025 |
+| ft_15keV_t2 | 0.17 | clean | 1.7–4.8 | 0.035–0.08 |
+| fs_47keV_dz1p5 | 0.30 | clean | 3.3–8.9 | 0.04–0.08 |
+
+- **Clean runs are at least as unstable.** T_e,loc counts counter-streaming electron drift as
+  temperature, most at 470 eV (1–3 keV against T_ab = 470 eV). With T_ab instead, 470 eV drops to
+  S ≈ 0.5–1.3 and the clean runs stay above 1.5.
+- **So M1 in its linear form is falsified.** The front ion distribution is electrostatically
+  unstable in every regime. Whatever selects the false shock at low ε acts after linear onset:
+  saturation, trapping, or electron kinetics, consistent with the conducting hybrids being
+  clean.
+- **The mode's scale tracks ε only weakly.** 2π/k_c is ~3× shorter at 470 eV, not 10×. It is
+  ~120 cells at the fine run's dz but ~8 cells at the coarse ss_dz1 grids, which may be why a
+  coarse grid only moves the onset.

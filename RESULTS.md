@@ -5494,3 +5494,12 @@ e-folds about 7.4 times per t*, so a 4×10⁻⁴ seed reaches order one by t* �
 lives in the fluctuating foot field while n_i and T_e stay within 1 %. A 47 keV deck with
 exactly scaled lnΛ and η would test this reading (~6 min). It does not affect the verdict: both
 runs are clean, and n_i, T_e and the piston agree.
+
+## 2026-11-18 — Audit test A: linear electrostatic ion–ion instability is NOT the discriminator
+
+The Penrose criterion (`scripts/penrose_ionion.py`) applied at the front shows the ion
+distribution is unstable in both the false-shock run (fs_470eV_dz0379_t1, S_max 1.6–6.4) and the
+clean runs (ft_15keV_t2 1.7–4.8, fs_47keV_dz1p5 3.3–8.9). That rules out the linear form of
+mechanism M1. Details are in `runs/F_phase/FALSE_SHOCK_AUDIT.md` (Test A result). Also:
+`fs_470eV_dz0202_t1` is at 30% (t·ω_ci0 ≈ 0.35), and its partial movies are in
+`media/F_phase/fs_470eV_dz0202_t1/`.
