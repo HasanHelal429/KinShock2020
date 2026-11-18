@@ -119,3 +119,13 @@ electrons at λ_D = 0.68 nm. Unlikely: the same ratios hold in the clean runs.
 | C | ε threshold: rerun `es_1p5keV` (ε_ab 0.054), `es_4p7keV` (0.096), `es_15keV` (0.17) to t·ω_ci0 ≈ 1 with the phase-space histograms (they stopped at 0.3, where even 470 eV is still clean) | cheap; higher T means coarser cells | M1 predicts a threshold near 0.04–0.07, independent of dz. **Partly run as `ft_30keV_t2` / `ft_15keV_t2`** (ε_ab 0.24 / 0.17, to 2.0, `ek_47keV_t2`'s grid), 2026-11-16 |
 | D | 470 eV with B₀ → ~0 (no magnetic reflection) | ~production cost | whether the piston reflection is needed |
 | E | `fs_470eV_dz0202_t1` (running) | ~30 node-h | closes ablation-Debye resolution at the workbook's standard |
+
+## 6. Assignments (user, 2026-11-18: "tackle A B and C across the 2 sessions")
+
+| test | owner | status |
+|---|---|---|
+| A — notch wavelength and growth vs linear ion–ion dispersion (`fs_470eV_dz0379_t1`) | **psc-schaeffer2020 session** | started 2026-11-18 |
+| B — heating ledger (EP/PN: upstream and slab T_e, T_i vs t·ω_ci0, 470 eV vs 47 keV, before onset) | **theta-ladder (sister) session** | open |
+| C — ε ladder: 30 and 15 keV clean (sister); remaining rungs 4.7 keV (ε_ab 0.096, ~3 GPU-h) and 1.5 keV (0.054, ~16 GPU-h) | **theta-ladder (sister) session** | in progress |
+
+Write results into §1/§3 and RESULTS.md; keep this table current.
