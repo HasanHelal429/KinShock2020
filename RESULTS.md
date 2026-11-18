@@ -5574,3 +5574,51 @@ and 47 keV, plus 47 keV coarse). Details and tables are in `runs/F_phase/FALSE_S
 
 First pass had a dump-ordering bug (names below and above 10⁶ steps sorted wrongly), fixed
 before these numbers.
+
+## 2026-11-18 (later) — False-shock test A (part 2): growth rates. The leading edge of the fast-ion beam is ion-acoustic unstable at 470 eV and Landau-stabilised at 15 keV; v_beam/v_te sets it
+
+Test B (KinShock session, RESULTS above) falsified M2 and found that the fast-ion front speed
+orders monotonically with ε_ab. Part 2 measures growth rates. `scripts/es_growth_rate.py`
+fits the measured particles in 0.25 d_i0 windows: ions as a 3-component weighted Gaussian
+mixture (core, foot, fast beam), and electrons as drifting Maxwellians from moments. Densities
+check to within 0.92 of n_amb far upstream. It then solves the unmagnetized 1D ES kinetic
+dispersion D(k, ω) = 0 for γ_max. Runs are `fs_470eV_dz0379_t1` (forms) and `ft_15keV_t2`
+(clean) at t* 0.32 / 0.40 / 0.48.
+
+- **Where the fast beam is about half the ions (just ahead of the piston), both runs are
+  stable.** The relative drift (~1.5 v_sh) is far above c_s, which stabilises counter-streaming
+  ions in 1D.
+- **At the beam's leading edge, where the beam is 1–2 % of the ions, 470 eV is unstable**: γ =
+  0.06–0.09 ω_pi0 = 60–90 ω_ci0, k λ_D0 ≈ 0.2, v_ph ≈ 1.72 v_sh, about one e-folding per 0.01 t*.
+  15 keV is stable in every window. (One later 470 eV window, z 0.38 at t* 0.48, gives 0.16 ω_pi0
+  inside the formed notch; that is after onset.)
+- **Swap test at t* 0.32** (`scripts/es_growth_swap.py`, fits pickled by `--dump`): the two
+  leading-edge windows differ in beam speed (1.79 vs 1.55 v_sh) and electron thermal speed
+  (0.36 vs 0.51 v_sh). Their beam densities (~1 % n_amb), beam widths and cores match.
+  - Giving the 470 eV window 15 keV's beam speed and v_te: γ 0.086 → **0**.
+  - Giving the 15 keV window 470 eV's beam speed and v_te: γ 0 → **0.094 ω_pi0**.
+  - Each factor alone at 470 eV: beam 1.55 v_sh → 0.011; v_te 0.51 v_sh → 0. At 15 keV neither
+    alone is enough: v_te 0.36 alone → 0.015; beam 1.78 alone → 0.
+
+**Reading.** The mode is an ion-beam-driven ion-acoustic instability at the front of the fast ions.
+It is controlled by v_beam/v_te at that front: **4.9 at 470 eV (unstable) against 3.0 at 15 keV
+(electron-Landau damped)**. The fluctuations are set by the same distributions in both runs; what
+differs is two velocities in shock units, and both move with ε:
+- the fast-ion front is faster at low ε (test B: 1.6 v_sh at ε_ab 0.03, then 1.35 / 1.30 / 1.24 at
+  0.17 / 0.24 / 0.30);
+- the electrons at the beam front are cooler relative to v_sh at low ε (v_te 0.36 vs 0.51 v_sh
+  here; test B's front-bin T_e is ~2 T₀ forming vs ~10 T₀ clean).
+
+At 470 eV the mode then grows at ~90 ω_ci0. That is fast enough to saturate within a few
+hundredths of t*, where the user sees the accelerated and the kicked-up populations meet. This is
+M1 refined: not ion–ion streaming in general, but beam-driven ion-acoustic growth that electron
+Landau damping switches off when v_beam/v_te ≲ 3–4.
+
+**Open:**
+1. Why both velocities move with ε. Faster acceleration and less electron preheating at the beam
+   front, at low ε, is the piston/ablation physics. Two candidates are electron heat penetration
+   ahead of the piston (relativistically capped at ε_ab 0.3?) and the ambipolar potential.
+2. Whether the instability's saturation actually builds the cliff. That is a user call from the
+   phase space, or a run with the fluctuations suppressed.
+3. Robustness: one window and one time for the swap; Maxwellian fits; unmagnetized 1D. ω_pi0/ω_ce0
+   is 10 at 470 eV and 1.8 at 15 keV, so electron magnetisation could add damping at 15 keV.
