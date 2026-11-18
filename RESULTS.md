@@ -5494,3 +5494,54 @@ e-folds about 7.4 times per t*, so a 4×10⁻⁴ seed reaches order one by t* �
 lives in the fluctuating foot field while n_i and T_e stay within 1 %. A 47 keV deck with
 exactly scaled lnΛ and η would test this reading (~6 min). It does not affect the verdict: both
 runs are clean, and n_i, T_e and the piston agree.
+
+## 2026-11-18 — False-shock test A (part 1): both the forming 470 eV run and the clean 15 keV run are 1D-electrostatically unstable at the fast-ion beam edge
+
+Split with the KinShock session: test A (this entry) is mine; test B (heating ledger) is theirs.
+Runs: `fs_470eV_dz0379_t1` (forms) against `ft_15keV_t2` (clean, the same Table I problem at
+ε_ab 0.17), at t·ω_ci0 0.24 / 0.32 / 0.40 / 0.48, with z measured from the piston front.
+Figures are in `media/F_phase/testA/`.
+
+**E_z k-spectrum** (`scripts/notch_ez_spectrum.py`, raw E_z, 0.5 d_i0 Hann windows):
+- In both runs, broadband E_z fills the region the fast ions (1.5–2 v_sh) occupy. It reaches
+  from k d_i0 ~ 10² (the ion–ion scale c/v_sh) up to about k λ_D0 ~ 1–3, and the region ends where
+  the fast ions end. The far upstream is quiet, so the fluctuations are beam-driven, not thermal.
+- In shock units, 470 eV is about 5× stronger (rms E_z/(v_sh B₀) ≈ 30 vs 6) and its fast population
+  is denser and faster (to 2 v_sh vs 1.5).
+- No single-k feature marks the false shock. Field dumps every 0.0067 t* do not resolve ω_pi
+  (ω_pi0⁻¹ ≈ 0.001 t* at 470 eV), so frequencies and growth cannot be read from them.
+
+**Penrose criterion from the particles** (`scripts/penrose_map.py`). It uses all four species and
+F(v) = Σ q²/m f_s in 0.1 d_i0 windows. Two guards were needed:
+1. Minima count only in the ion band (−0.5 to 3 v_sh) where F(v₀) ≥ 1 % of its band maximum.
+   Without this, sampling gaps in the tails make every window "unstable".
+2. Each species is smoothed on its own scale (ions 0.02 v_sh, electrons 0.2 × their local rms
+   velocity), and a window counts only if two random half-samples agree (P > 0, v₀ within
+   0.1 v_sh). Without this, electron counting noise, weighted by 1/m_e, dominates F in the ion
+   band and again fails the null test.
+
+With both guards, windows beyond the fast-ion front are stable in both runs, so the null test
+passes:
+
+| t·ω_ci0 | 470 eV unstable windows (z, v₀/v_sh) | 15 keV unstable windows (z, v₀/v_sh) |
+|---|---|---|
+| 0.24 | 8/45 (0.25–1.15, 0.18–1.48) | 7/45 (−0.15–1.15, 0.15–1.39) |
+| 0.32 | 5/45 (0.35–1.95, 0.17–1.55) | 11/45 (−0.25–1.55, 1.07–1.44) |
+| 0.40 | 17/45 (0.15–2.65, 0.16–1.72) | 12/45 (−0.35–1.95, 0.78–1.42) |
+| 0.48 | 15/45 (0.15–3.55, 0.15–1.71) | 16/45 (−0.35–2.25, 1.23–1.45) |
+
+Halving both smoothings (σ_i 0.01 v_sh, electrons 0.1 v_rms) keeps the **beam-edge** instability in
+both runs (v₀ 1.05–1.7 v_sh, over the whole fast-ion extent). The slow-phase-velocity windows at
+470 eV (v₀ 0.15–0.4) do not survive: at 0.40 there are none, and at 0.48 the lowest v₀ is 0.42.
+They are not claimed.
+
+**Reading.** The forming and the clean run have the same 1D electrostatic stability picture: a
+weakly unstable (P ≈ 0.07–0.4) ion-beam edge, with F(v) dominated by the electrons and the ion
+structure a 10–20 % modulation on it. **The existence of an ES ion-beam instability is not the
+discriminator.** If M1 is the mechanism, the difference has to be in its rate per ion time: γ is
+of order ω_pi, and ω_pi0/ω_ci0 = c/v_A is 1000 at 470 eV against 178 at 15 keV. It could also be in
+its scale, since the ion–ion wavelength is about 2π (v_rel/c) d_i, which is ∝ ε. Penrose gives
+neither. The next step is linear growth rates γ/ω_ci0 from Maxwellian fits to the measured
+populations (core, foot, fast beam, electrons) in the same windows. Caveats: 1D electrostatic only,
+B ignored. ω_pi0/ω_ce0 is 10 at 470 eV but only 1.8 at 15 keV, so the electrons are less able to
+respond freely along z at 15 keV. That is a second ε-dependent factor the Penrose test cannot see.
