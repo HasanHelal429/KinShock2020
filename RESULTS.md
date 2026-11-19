@@ -5622,3 +5622,40 @@ Landau damping switches off when v_beam/v_te ≲ 3–4.
    phase space, or a run with the fluctuations suppressed.
 3. Robustness: one window and one time for the swap; Maxwellian fits; unmagnetized 1D. ω_pi0/ω_ce0
    is 10 at 470 eV and 1.8 at 15 keV, so electron magnetisation could add damping at 15 keV.
+
+## 2026-11-18 — Synthetic Thomson mapped to a physical 470 eV hydrogen plasma (470 eV, 47 keV, conducting hybrids)
+
+The Schaeffer-Lab PlasmaPy fork (`feature/pic-thomson-pipeline` @ d580e0bb) is cloned to
+`~/Schaeffer_PlasmaPy` on Perlmutter. The WarpX venv has torch and yt, so one environment does
+read and model; the two-env split was chablis-only. It is verified on `R1_paper`: EPW α
+0.21–0.85, median 0.46, against the recorded 0.22–0.89 / 0.45.
+
+New script: `scripts/thomson_physical.py`. Each run is mapped onto physical 470 eV hydrogen by
+per-species velocity rescaling, with f scaled by the same factor so the density is unchanged:
+- electrons v/s_e, with s_e = √(T_e,ab/470 eV): 1 at 470 eV, 10 at 47 keV;
+- ions v/s_i, with s_i = s_e·√(1836/µ): 4.285 and 42.85, modelled as protons;
+- hybrid electrons are a Maxwellian from the fluid moments: n_e = ρ/e, T_e, and drift = ion
+  bulk v_z, which is exact in 1D since J_z = 0.
+
+The probe is 532 nm at 90°, at z = 10 d_i0. Each figure has three panels against t·ω_ci0
+(EPW, IAW and the ion f(v_z) streak at the probe), at `media/<phase>/<id>/thomson_phys470.png`
+for `R1_470eV_s3f8_t2`, `ek_47keV_t2`, `hc_470eV_t2` and `hc_47keV_t2`.
+
+Pipeline settings that matter:
+- 2048-bin bounded velocity grids. The default grid gave the 10 eV upstream ~2 bins per
+  thermal width, which the smoothing then destroyed.
+- 15-bin smoothing.
+- EPW window ±200 nm: the downstream satellites sit near ±120 nm at n_e ~ 1–2.5e26 and α ≈ 6.
+- IAW window ±5 nm, to cover the ~1.5 nm Doppler shift of the ~600 km/s downstream flow.
+- Each time column normalized to its own 99.5th percentile.
+
+Caveat: downstream the EPW resonance sits at ~9 electron thermal widths, beyond the sampled
+VDF (~2.3). The pipeline continues the tail with a fit, so satellite *positions* are reliable
+but their amplitudes are uncertain by up to ~11× (`epw_tail_uncertainty`).
+
+First read:
+- The upstream shows collective EPW satellites at ±20 nm in every run.
+- Downstream the kinetic runs give a broad, filled IAW, while the hybrids give a sharp
+  ion-acoustic doublet (fluid Maxwellian electrons, narrow ion beams).
+- The 470 eV kinetic EPW turns broadband after the shock, while 47 keV keeps one clean
+  satellite pair.
