@@ -5659,3 +5659,33 @@ First read:
   ion-acoustic doublet (fluid Maxwellian electrons, narrow ion beams).
 - The 470 eV kinetic EPW turns broadband after the shock, while 47 keV keeps one clean
   satellite pair.
+
+## 2026-11-19 — Thomson: parametric twins, and LaserProdShock runs at 3 mm
+
+**Parametric comparison** (`thomson_physical.py --parametric`, figures `thomson_phys470_param.png`)
+for the four 2026-11-18 runs. The bottom row re-models every species as a drifting Maxwellian
+with the same n, u and T at every (t, z), through an identical pipeline. So top-only structure
+is beams or particle noise.
+- 470 eV: the kinetic EPW/IAW speckle is noise; the parametric envelopes match.
+- The separate downstream EPW satellite line (460 → 420 nm) is kinetic. The parametric
+  downstream EPW is one smooth broadband feature with no separate line.
+- The parametric ion streak is broad (σ ~ several 100 km/s downstream) because one Maxwellian
+  per species must cover core plus beams. That is the intended reference, not a bug: the
+  moments were checked against the kinetic VDF (upstream σ 31.5 km/s, T 10.4 eV, identical).
+- Fixed on the way: the ion-streak panels now share a 4-decade floor.
+
+**LaserProdShock at z = 3 mm** (`scripts/thomson_lps.py`, worked out with the Laser Ablation
+session). The user asked for 3 cm, but every LaserProdShock domain ends at 5 mm, so this used
+3 mm, the paper's TCC. Figures are `LaserProdShock/media/<phase>/<run>/thomson_3mm[_param].png`;
+the run dirs are untouched.
+- `P8_prod_dz0p5_CpH` (hybrid, real C⁶⁺/H⁺) is the primary run. The front reaches 3 mm at
+  ~2.2–2.6 ns (overdriven vs the paper). Before it, the probe sees the conduction-preheated
+  ambient: a broad, near-non-collective EPW and a narrow IAW. Downstream it shows two-ion
+  acoustic lines. The kinetic and parametric rows are close (fluid electrons).
+- `P8_prod_dz0p5_CH`: the effective CH ion (Z 3, A 6.502) is modelled as "Li 3+" (6.94 u),
+  because the pipeline only takes real PlasmaPy particles. Approximate.
+- `P7_omega19_I1p2e13` (fully kinetic, heavy electrons rescaled to real-m_e velocities at the
+  same T): it ends at 1 ns with the front at 0.76 mm, so 3 mm is undisturbed ambient only.
+- Hybrid 2D: no run reaches 3 mm yet. When one does, use the PHc beam-centre strip and
+  u_e = u_i − J/(e n), since the 1D drift identity fails in 2D.
+- The hybrid electron drift is now charge-weighted, Σ Z n u / Σ Z n, which matters for C⁶⁺/H⁺.

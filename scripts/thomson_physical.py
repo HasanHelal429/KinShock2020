@@ -55,6 +55,21 @@ def at_position(ps, z):
     return ps.f[:, :, j]
 
 
+def maxwellianized(pt, ps, mass):
+    """Drifting Maxwellian with the same n, u, T as `ps` at every (t, x), on its own grid."""
+    import astropy.units as u
+
+    v = ps.v
+    n = np.trapezoid(ps.f, v, axis=1)
+    safe = np.where(n > 0, n, 1.0)
+    um = np.trapezoid(ps.f * v[None, :, None], v, axis=1) / safe
+    var = np.trapezoid(ps.f * (v[None, :, None] - um[:, None, :]) ** 2, v, axis=1) / safe
+    T = np.maximum(mass * var / QE, 1e-3)          # eV
+    return pt.from_moments(np.maximum(n, 1.0), T * u.eV, np.where(n > 0, um, 0.0),
+                           t=ps.t, x=ps.x, v=v, label=ps.label, is_electron=ps.is_electron,
+                           mass=mass, meta={"source": "parametric (moment-matched Maxwellian)"})
+
+
 def hybrid_electrons(pt, diags, ions, z_axis):
     """Maxwellian electrons from the hybrid fluid moments, on the ions' (t, x) grid."""
     import yt
@@ -78,9 +93,11 @@ def hybrid_electrons(pt, diags, ions, z_axis):
     tf, ne, te = np.array(tf), np.array(ne), np.array(te)
     idx = [int(np.argmin(np.abs(tf - t))) for t in t_ion]   # field frame matching each ion dump
     ne, te = ne[idx], te[idx]
-    # ion bulk velocity along z, charge-weighted over all ion species (Z = 1)
-    num = sum(np.trapezoid(s.f * s.v[None, :, None], s.v, axis=1) for s in ions)
-    den = sum(np.trapezoid(s.f, s.v, axis=1) for s in ions)
+    # electron drift = charge-weighted ion bulk velocity, sum(Z n u) / sum(Z n): J_z = 0 in 1D
+    from plasmapy.particles import Particle
+    Zs = [abs(Particle(s.label).charge_number) for s in ions]
+    num = sum(Z * np.trapezoid(s.f * s.v[None, :, None], s.v, axis=1) for Z, s in zip(Zs, ions))
+    den = sum(Z * np.trapezoid(s.f, s.v, axis=1) for Z, s in zip(Zs, ions))
     drift = np.where(den > 0, num / np.where(den > 0, den, 1), 0.0)
     import astropy.units as u
     return pt.from_moments(np.maximum(ne, 1.0), te * u.eV, drift, t=t_ion, x=z_axis,
@@ -109,6 +126,9 @@ def main():
     ap.add_argument("--iaw-half-min", type=float, default=5.0,
                     help="minimum IAW window half-width in nm (covers the bulk-flow shift)")
     ap.add_argument("--tag", default="phys470")
+    ap.add_argument("--parametric", action="store_true",
+                    help="also model moment-matched Maxwellians of every species and write a "
+                         "two-row figure (kinetic over parametric), tag <tag>_param")
     args = ap.parse_args()
 
     from plasmapy.diagnostics import pic_thomson as pt
@@ -168,21 +188,32 @@ def main():
     print(f"  EPW window +/-{epw_half:g} nm, IAW window +/-{iaw_half:.3g} nm (= EPW notch)")
     cond = {"smoothing_window": args.smoothing_window, "smoothing_iterations": 2,
             "max_taper_bins": 20}
-    spec = pt.spectra_from_phase_spaces(
-        electrons, ions, position=z_p, reference_density=1 * u.m**-3,
-        probe_wavelength=lam0 * u.nm,
-        epw_wavelengths=win(epw_half) * u.nm, iaw_wavelengths=win(iaw_half) * u.nm,
-        epw_notches=[[lam0 - iaw_half, lam0 + iaw_half]] * u.nm, iaw_notches=None,
-        probe_vec=(1.0, 0.0, 0.0), scatter_vec=(0.0, 1.0, 0.0),
-        electron_conditioning=cond, ion_conditioning=cond,
-        velocity_scale_factor=None, scattered_power=False, progress=True)
+    def spectra(els, ios):
+        return pt.spectra_from_phase_spaces(
+            els, ios, position=z_p, reference_density=1 * u.m**-3,
+            probe_wavelength=lam0 * u.nm,
+            epw_wavelengths=win(epw_half) * u.nm, iaw_wavelengths=win(iaw_half) * u.nm,
+            epw_notches=[[lam0 - iaw_half, lam0 + iaw_half]] * u.nm, iaw_notches=None,
+            probe_vec=(1.0, 0.0, 0.0), scatter_vec=(0.0, 1.0, 0.0),
+            electron_conditioning=cond, ion_conditioning=cond,
+            velocity_scale_factor=None, scattered_power=False, progress=True)
 
     # Ion streak f_i(v_z, t) at the probe, all ion species on one velocity grid.
     vgrid = np.linspace(min(i.v.min() for i in ions), max(i.v.max() for i in ions), 600)
-    streak = sum(np.stack([np.interp(vgrid, i.v, row) for row in at_position(i, z_p)])
-                 for i in ions)
+
+    def streak_of(ios):
+        return sum(np.stack([np.interp(vgrid, i.v, row) for row in at_position(i, z_p)])
+                   for i in ios)
+
     tw = ions[0].t * sc.wci0
-    plot(rid, run, spec, tw, vgrid, streak, lam0, args, s_e, s_i)
+    rows = [("kinetic VDFs", spectra(electrons, ions), streak_of(ions))]
+    if args.parametric:
+        # Hybrid electrons are already a Maxwellian; re-fitting them is the identity.
+        p_el = electrons if hybrid else [maxwellianized(pt, e, ME) for e in electrons]
+        p_io = [maxwellianized(pt, i, MP) for i in ions]
+        rows.append(("parametric: moment-matched Maxwellian per species",
+                     spectra(p_el, p_io), streak_of(p_io)))
+    plot(rid, run, rows, tw, vgrid, lam0, args, s_e, s_i)
 
 
 def _get(spec, *names):
@@ -192,20 +223,45 @@ def _get(spec, *names):
     raise AttributeError(f"spectrogram has none of {names}: {[a for a in dir(spec) if not a.startswith('_')]}")
 
 
-def plot(rid, run, spec, tw, vgrid, streak, lam0, args, s_e, s_i):
+def plot(rid, run, rows, tw, vgrid, lam0, args, s_e, s_i):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    fig, axs = plt.subplots(len(rows), 3, figsize=(16, 4.8 * len(rows)), constrained_layout=True,
+                            squeeze=False)
+    saved = {}
+    for r, (rlab, spec, streak) in enumerate(rows):
+        epw, iaw, lw_e, lw_i, tws = _row(fig, axs[r], spec, tw, vgrid, streak, lam0, args,
+                                         rlab if len(rows) > 1 else "")
+        key = "" if r == 0 else "_param"
+        saved.update({f"epw{key}": epw, f"iaw{key}": iaw, f"ion_f{key}": streak})
+    title = getattr(args, "title", None) or (
+        f"{rid} — Thomson mapped to physical 470 eV hydrogen "
+        f"(electrons v/{s_e:.3g}, ions v/{s_i:.3g}); {lam0:g} nm probe, {args.angle:g}°")
+    fig.suptitle(title, fontsize=11)
+    phase = os.path.basename(os.path.dirname(run))
+    out = getattr(args, "out_dir", None) or os.path.join(ROOT, "media", phase, rid)
+    out = out.replace(os.path.join(".claude", "worktrees", "psc-schaeffer2020") + os.sep, "")
+    os.makedirs(out, exist_ok=True)
+    tag = args.tag + ("_param" if len(rows) > 1 else "")
+    png = os.path.join(out, f"thomson_{tag}.png")
+    fig.savefig(png, dpi=130)
+    np.savez_compressed(png[:-4] + ".npz", t_wci0=tws, epw_nm=lw_e, iaw_nm=lw_i, ion_v=vgrid,
+                        ion_t_wci0=tw, s_e=s_e, s_i=s_i, **saved)
+    print("wrote", png)
+
+
+def _row(fig, ax, spec, tw, vgrid, streak, lam0, args, rlab):
     epw = np.asarray(_get(spec, "epw", "epw_spectrogram", "S_epw"))
     iaw = np.asarray(_get(spec, "iaw", "iaw_spectrogram", "S_iaw"))
     lw_e = np.asarray(_get(spec, "epw_wavelengths", "wavelengths_epw")) * 1e9
     lw_i = np.asarray(_get(spec, "iaw_wavelengths", "wavelengths_iaw")) * 1e9
     ts = np.asarray(_get(spec, "t", "times"))
     tws = tw if len(ts) == len(tw) else np.interp(ts, np.linspace(ts.min(), ts.max(), len(tw)), tw)
-    fig, ax = plt.subplots(1, 3, figsize=(16, 4.8), constrained_layout=True)
-    for a, S, lw, ttl in ((ax[0], epw, lw_e, "EPW (electron feature)"),
-                          (ax[1], iaw, lw_i, "IAW (ion feature)")):
+    pre = f"{rlab}\n" if rlab else ""
+    for a, S, lw, ttl in ((ax[0], epw, lw_e, pre + "EPW (electron feature)"),
+                          (ax[1], iaw, lw_i, pre + "IAW (ion feature)")):
         S2 = S if S.shape == (len(lw), len(tws)) else S.T
         # Each time column normalised to its own 99.5th percentile: the collective EPW
         # resonance throws single-pixel spikes (extrapolated tail), and the downstream is
@@ -216,26 +272,19 @@ def plot(rid, run, spec, tw, vgrid, streak, lam0, args, s_e, s_i):
         m = a.pcolormesh(tws, lw, S2, shading="nearest", cmap="inferno", vmin=-3, vmax=0)
         fig.colorbar(m, ax=a, label="log10 S (per-time normalised)")
         a.axhline(lam0, color="c", lw=0.6, ls="--")
-        a.set_xlabel("t·ω_ci0")
+        a.set_xlabel(getattr(args, "xlabel", "t·ω_ci0"))
         a.set_ylabel("wavelength (nm)")
         a.set_title(ttl)
-    fpos = np.where(streak > 0, streak, np.nan)
-    ax[2].pcolormesh(tw, vgrid / 1e3, np.log10(fpos).T, shading="nearest", cmap="viridis")
-    ax[2].set_xlabel("t·ω_ci0")
-    ax[2].set_ylabel("ion v_z (km/s, physical H⁺)")
-    ax[2].set_title(f"ion phase space at z = {args.position_di0:g} d_i0 (log f)")
-    fig.suptitle(f"{rid} — Thomson mapped to physical 470 eV hydrogen "
-                 f"(electrons v/{s_e:.3g}, ions v/{s_i:.3g}); {lam0:g} nm probe, {args.angle:g}°",
-                 fontsize=11)
-    phase = os.path.basename(os.path.dirname(run))
-    out = os.path.join(ROOT, "media", phase, rid)
-    out = out.replace(os.path.join(".claude", "worktrees", "psc-schaeffer2020") + os.sep, "")
-    os.makedirs(out, exist_ok=True)
-    png = os.path.join(out, f"thomson_{args.tag}.png")
-    fig.savefig(png, dpi=130)
-    np.savez_compressed(png[:-4] + ".npz", t_wci0=tws, epw=epw, iaw=iaw, epw_nm=lw_e,
-                        iaw_nm=lw_i, ion_v=vgrid, ion_f=streak, ion_t_wci0=tw, s_e=s_e, s_i=s_i)
-    print("wrote", png)
+    # Same 4-decade floor for kinetic and parametric: a Maxwellian is nonzero everywhere, so
+    # without a floor its 1e-300 tails colour the whole panel.
+    fmax = np.nanmax(streak) if np.any(streak > 0) else 1.0
+    flog = np.log10(np.clip(streak / fmax, 1e-4, None))
+    flog = np.where(flog <= -4, np.nan, flog)
+    ax[2].pcolormesh(tw, vgrid / 1e3, flog.T, shading="nearest", cmap="viridis", vmin=-4, vmax=0)
+    ax[2].set_xlabel(getattr(args, "xlabel", "t·ω_ci0"))
+    ax[2].set_ylabel(getattr(args, "streak_ylabel", "ion v_z (km/s, physical H⁺)"))
+    ax[2].set_title(pre + getattr(args, "streak_title", None) or f"ion phase space at z = {args.position_di0:g} d_i0 (log f)")
+    return epw, iaw, lw_e, lw_i, tws
 
 
 if __name__ == "__main__":
