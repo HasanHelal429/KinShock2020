@@ -344,6 +344,10 @@ def derive(cfg: dict) -> Scales:
 
     dz = float(geo["dz_over_de"]) * de
     dt = float(num["cfl"]) * dz / C                       # 1D CFL
+    if int(geo.get("dims", 1)) == 2:
+        # Quasi-1D x-z run with dx = dz: WarpX's 2D Yee CFL is dt = cfl/(c sqrt(1/dx^2 +
+        # 1/dz^2)), i.e. sqrt(2) shorter than the 1D step. steps_per_wci0 follows.
+        dt /= math.sqrt(2.0)
     dt_wpe = dt * wpe
     halfwidth_de = float(geo["domain_halfwidth_de"])
     domain_halfwidth = halfwidth_de * de

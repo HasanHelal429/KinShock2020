@@ -75,10 +75,14 @@ pm_binary() {
         # FROZEN copy of warpx-cda particle-splitter build_cond (42a099a9c + uncommitted
         # conduction patch; md5 and source record in its PROVENANCE.txt). 2026-11-16.
         C) d="${WARPX_BUILD_C:-/pscratch/sd/h/hhelal/warpx-cda/build_pm_cond_kinshock}" ;;
+        # A2D: the 2D twin of A (same acc2d6621 source and flags, WarpX_DIMS=2), for the
+        # quasi-1D x-z runs (Q_phase). 2026-11-18.
+        A2D) d="${WARPX_BUILD_A2D:-/pscratch/sd/h/hhelal/warpx-cda/build_pm_a2d}" ;;
         *) echo "pm_binary: unknown build tag '$tag'" >&2; return 2 ;;
     esac
-    local bin
-    bin="$(ls "$d"/bin/warpx.1d 2>/dev/null || ls "$d"/bin/warpx.1d.* 2>/dev/null | head -1)"
+    local bin dim=1d
+    [[ "$tag" == A2D ]] && dim=2d
+    bin="$(ls "$d"/bin/warpx.$dim 2>/dev/null || ls "$d"/bin/warpx.$dim.* 2>/dev/null | head -1)"
     [[ -x "$bin" ]] || { echo "pm_binary: no binary in $d/bin -- run perlmutter/build_warpx.sh $tag" >&2; return 1; }
     echo "$bin"
 }

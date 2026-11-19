@@ -373,7 +373,15 @@ def render(cfg: dict) -> str:
 
     # grid ----------------------------------------------------------------
     a(f"# --- grid (dz = {geo['dz_over_de']} d_e; z = ablation / propagation axis) ---")
-    a(f"amr.n_cell        = {n_cell}")
+    quasi2d = int(geo["dims"]) == 2
+    if quasi2d:
+        # Quasi-1D: a 2D x-z run, periodic in x (= along B0), dx = dz. Lets the beam-front
+        # ion-acoustic mode go oblique / k||B, which 1D forbids (FALSE_SHOCK_AUDIT).
+        nx = int(geo["transverse_cells"])
+        a(f"my_constants.hx = {_num(0.5 * nx * sc.dz)}   # transverse half-width [m]")
+        a(f"amr.n_cell        = {nx} {n_cell}")
+    else:
+        a(f"amr.n_cell        = {n_cell}")
     a("amr.max_level     = 0")
     # Optional box decomposition. Absent -> AMReX chooses, which gives ~235 grids of
     # 112-128 cells here: right for OpenMP over tiles, and 6.5x too fine for a GPU, where
@@ -381,16 +389,21 @@ def render(cfg: dict) -> str:
     # 1.21x on GPU with the default decomposition against 7.89x with one box, so on GPU
     # this wants max_grid_size = n_cell. Neutral-to-negative on CPU (RESULTS 2026-07-23,
     # and 64 measured worse at every thread count), so it is opt-in rather than defaulted.
-    if num.get("max_grid_size") is not None:
-        a(f"amr.max_grid_size = {int(num['max_grid_size'])}")
+    mgs = num.get("max_grid_size")
+    if mgs is not None:
+        # 2D: a per-dimension list [x, z] (e.g. full x, z split across GPUs).
+        a("amr.max_grid_size = " + (" ".join(str(int(v)) for v in mgs)
+                                    if isinstance(mgs, (list, tuple)) else f"{int(mgs)}"))
     a(f"geometry.dims     = {int(geo['dims'])}")
-    a("geometry.prob_lo  =  0." if one_sided else "geometry.prob_lo  = -half")
-    a("geometry.prob_hi  =  half")
+    px = "-hx " if quasi2d else ""
+    a(f"geometry.prob_lo  =  {px}0." if one_sided else f"geometry.prob_lo  = {px}-half")
+    a(f"geometry.prob_hi  =  {'hx ' if quasi2d else ''}half")
     a("")
-    a(f"boundary.field_lo    = {field_lo}")
-    a(f"boundary.field_hi    = {field_hi}")
-    a(f"boundary.particle_lo = {part_lo}")
-    a(f"boundary.particle_hi = {part_hi}")
+    per = "periodic " if quasi2d else ""
+    a(f"boundary.field_lo    = {per}{field_lo}")
+    a(f"boundary.field_hi    = {per}{field_hi}")
+    a(f"boundary.particle_lo = {per}{part_lo}")
+    a(f"boundary.particle_hi = {per}{part_hi}")
     if sym_axis:
         # Rotational reflection: reflecting bounces do a pi-rotation about the B0
         # axis (flip v_z + transverse v_perp, keep v_parallel) -- the exact one-sided
@@ -502,7 +515,8 @@ def render(cfg: dict) -> str:
             a(f"{name}.charge = {'' if Z == 1.0 else 'Z*'}q_e")
             a(f"{name}.mass   = Mi")
         a(f'{name}.injection_style = "NUniformPerCell"')
-        a(f"{name}.num_particles_per_cell_each_dim = {ppc}")
+        a(f"{name}.num_particles_per_cell_each_dim = "
+          + (f"{int(num.get('ppc_transverse', 1))} {ppc}" if quasi2d else f"{ppc}"))
         a(f"{name}.profile = parse_density_function")
         a(f'{name}.density_function(x,y,z) = "{dens}"')
         a(f"{name}.density_min = 1.")
@@ -566,7 +580,10 @@ def render(cfg: dict) -> str:
         a("target_injector.hi                   =  slab")
         a("target_injector.density              = nt")
         a("target_injector.reference_density    = n0")
-        a(f"target_injector.ppc_reference        = {ppc_piston}")
+        # 2D: the species load ppc_transverse x ppc particles per cell, so the injector's
+        # reference count is the product (same macroparticle weight as the initial load).
+        ppc_ref = ppc_piston * (int(num.get("ppc_transverse", 1)) if quasi2d else 1)
+        a(f"target_injector.ppc_reference        = {ppc_ref}")
         a(f"target_injector.{isp}.u_std = sqrt({_init_theta(ispec['role'], ispec['kind'])})")
         a(f"target_injector.{nsp}.u_std = sqrt({_init_theta(nspec['role'], nspec['kind'])})")
         a("")
@@ -634,6 +651,15 @@ def render(cfg: dict) -> str:
     a(f"diagnostics.diags_names = {' '.join(diags)}")
     a(f"diag1.intervals = {plot_int}")
     a("diag1.diag_type = Full")
+    dcfg = cfg.get("diagnostics", {}) or {}
+    if quasi2d:
+        # 2D output volume: full particle dumps of ~1e8 macroparticles x 25 frames would be
+        # ~240 GB, so dump a random fraction; coarsen the field output in x.
+        frac = float(dcfg.get("particle_fraction", 0.1))
+        for sp in species:
+            a(f"diag1.{sp}.random_fraction = {_num(frac)}")
+        crs = dcfg.get("field_coarsening", [2, 1])
+        a("diag1.coarsening_ratio = " + " ".join(str(int(v)) for v in crs))
     if field_int:
         # field-only (write_species = 0) at high cadence: streaks + field structure.
         # Particles are the expensive part; fields are ~1-2 MB/frame, so this is cheap.
@@ -646,6 +672,9 @@ def render(cfg: dict) -> str:
         a(f"diag_fields.intervals     = {field_int}")
         a("diag_fields.diag_type     = Full")
         a("diag_fields.write_species = 0")
+        if quasi2d:
+            a("diag_fields.coarsening_ratio = "
+              + " ".join(str(int(v)) for v in dcfg.get("field_coarsening", [2, 1])))
         a(f"diag_fields.fields_to_plot = {' '.join(field_vars)}")
     if chk_int:
         # Restartable run (chained batch jobs): periodic checkpoints, plus one on SIGUSR1.
@@ -740,12 +769,19 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
     ns = {**CONSTS, **c}
     out = {f"const:{k}": v for k, v in c.items()}
     out["max_step"] = int(float(d["max_step"]))
-    out["n_cell"] = int(float(d["amr.n_cell"].split()[0]))
+    # 2D decks carry "nx nz": the last token is always the z (ablation-axis) count.
+    nc = d["amr.n_cell"].split()
+    out["n_cell"] = int(float(nc[-1]))
+    if len(nc) > 1:
+        out["n_cell_x"] = int(float(nc[0]))
     out["cfl"] = float(d["warpx.cfl"])
     # Absent means "AMReX decides", which is a different run from an explicit box size on
     # GPU (6.5x). It has to round-trip or --verify would pass on a deck whose decomposition
     # silently changed. 0 is the sentinel for "not set" so the comparison stays numeric.
-    out["max_grid_size"] = int(float(d.get("amr.max_grid_size", 0)))
+    mg = str(d.get("amr.max_grid_size", 0)).split()
+    out["max_grid_size"] = int(float(mg[-1]))
+    if len(mg) > 1:
+        out["max_grid_size_x"] = int(float(mg[0]))
     out["particle_shape"] = int(float(d["algo.particle_shape"]))
     # Non-numeric settings that change the physics: compared as strings by verify().
     out["evolve_scheme"] = d.get("algo.evolve_scheme", "explicit")
@@ -755,8 +791,11 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
     # 1 is the WarpX default (filtering on, one pass), so absent == 1 rather than == off.
     out["filter_npass"] = int(float(d.get("warpx.filter_npass_each_dir", "1").split()[0]))
     out["dims"] = int(float(d.get("geometry.dims", "1")))
-    out["prob_hi"] = _eval(d["geometry.prob_hi"], ns)
-    out["prob_lo"] = _eval(d["geometry.prob_lo"], ns)
+    for key in ("prob_hi", "prob_lo"):
+        tok = d[f"geometry.{key}"].split()
+        out[key] = _eval(tok[-1], ns)
+        if len(tok) > 1:
+            out[f"{key}_x"] = _eval(tok[0], ns)
     for bkey in ("boundary.field_lo", "boundary.field_hi",
                  "boundary.particle_lo", "boundary.particle_hi"):
         if bkey in d:
@@ -786,7 +825,7 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
     for sp in d.get("particles.species_names", "").split():
         k = f"{sp}.num_particles_per_cell_each_dim"
         if k in d:
-            out[f"ppc:{sp}"] = int(float(d[k]))
+            out[f"ppc:{sp}"] = int(math.prod(int(float(v)) for v in d[k].split()))
     cnames = d.get("collisions.collision_names", "").split()
     out["collision_names"] = " ".join(sorted(cnames))
     for cn in cnames:

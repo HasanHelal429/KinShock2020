@@ -7,7 +7,7 @@
 #   perlmutter/submit_chain.sh <run_dir> --dry                 # print, submit nothing
 #   perlmutter/submit_chain.sh <run_dir> --resume --segments 1 # extend an existing chain
 #
-# Options: --segments N (3)  --time HH:MM:SS (48:00:00)  --qos Q (shared)
+# Options: --segments N (3)  --time HH:MM:SS (48:00:00)  --qos Q (shared)  --gpus N (1)
 #          --signal-lead S (600: seconds before walltime that SIGUSR1 is sent)
 #          --work DIR (scratch only; default: the run dir in $KINSHOCK_ROOT)  --binary A|B
 #
@@ -30,7 +30,7 @@ REPO="$(cd "$KINSHOCK_PM/.." && pwd)"
 source "$KINSHOCK_PM/_common.sh"
 
 RUN="${1:?usage: $0 <run_dir> [--segments N] [--time T] [--qos Q] [--work DIR] [--resume] [--dry]}"; shift
-SEGS=3; WALL=48:00:00; QOS=shared; LEAD=600; WORK=""; RESUME=0; DRY=0
+SEGS=3; WALL=48:00:00; QOS=shared; LEAD=600; WORK=""; RESUME=0; DRY=0; NGPU=1
 BIN="$SWEEP_BUILD"
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -40,6 +40,7 @@ while [[ $# -gt 0 ]]; do
         --signal-lead) LEAD="$2"; shift 2 ;;
         --work)        WORK="$2"; shift 2 ;;
         --binary)      BIN="$2"; shift 2 ;;
+        --gpus)        NGPU="$2"; shift 2 ;;
         --resume)      RESUME=1; shift ;;
         --dry)         DRY=1; shift ;;
         *) echo "unknown option '$1'" >&2; exit 2 ;;
@@ -111,7 +112,10 @@ fi
 prev="$(tail -1 "$WORK/.chain/jobids" 2>/dev/null || true)"
 for i in $(seq 1 "$SEGS"); do
     dep=(); [[ -n "$prev" ]] && dep=(--dependency="afterany:$prev")
-    cmd=(sbatch --parsable -A "$NERSC_ACCOUNT" -q "$QOS" -t "$WALL" -J "c_$ID"
+    # --gpus N: one rank per GPU (the deck must decompose into >= N boxes); N > 2 needs a
+    # whole node, i.e. --qos regular. srun in job_chain.sbatch inherits the task count.
+    gpu=(); [[ "$NGPU" -gt 1 ]] && gpu=(-n "$NGPU" -G "$NGPU")
+    cmd=(sbatch --parsable -A "$NERSC_ACCOUNT" -q "$QOS" -t "$WALL" -J "c_$ID" "${gpu[@]}"
          --signal="USR1@$LEAD" "${dep[@]}"
          -o "$WORK/.chain/slurm-%j.out" -e "$WORK/.chain/slurm-%j.out"
          --export="ALL,CHAIN_WORK=$WORK,BINARY=$BIN"
