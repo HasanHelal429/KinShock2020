@@ -192,3 +192,26 @@ z ∈ [L−4, L−2.5] d_i0, cut off once ions with v_z > 0.3 v_sh exceed 1% of 
   acceleration mechanism at the piston or ablation front (ambipolar or Debye-scale fields)
   rather than at the instability, consistent with test A's "acts after linear onset". T100's
   hot tail crosses the 0.3 v_sh cut, so it is excluded from this metric.
+
+### Correction (2026-11-19): hybrids DO show the feature above a heater threshold; it is a different cutoff
+
+User verdict, relayed by the "hybrid 470eV run diff" session:
+- The false-shock-like feature IS present in every higher-heater hybrid: hy_470eV_t2_lo / mid /
+  hi, hc_470eV_t2, hc_47keV_t2 and hc_470eV_dense_th63.
+- It is absent in the low-heater ones: H3_470eV_dense and hc_470eV_dense.
+- This **supersedes** the 2026-11-16 "conducting hybrids: no false shock" line in §1, and the
+  inference that the feature needs electron-kinetic physics.
+
+Per that session, heat conduction and box size do not set it; the heater does. The hybrid cutoff
+sits at peak slab T_e/(m_i v_A²) between 11.8 and 22. It is not in θ_heat: the 47 keV twin, at
+the same ratio, shows the same verdict.
+
+The kinetic runs do not follow that cutoff (`notch/kin_ratio.py`):
+- **Along the θ ladder, T_e,ab/(m_i v_A²) = β_ab·n_amb/n_ab = 9.2 is fixed.** The measured slab
+  T_e/(m_i v_A²) is 20.5–22.5 both for the forming 470 eV runs and for the clean 15/30/47 keV
+  runs: same point on the hybrid axis, opposite verdicts.
+- **Off the ladder it runs the wrong way:** vA_lowTab forms at 0.50, mb_r100_t2 is clean at 920.
+
+So the kinetic false shock (beam-front ion-acoustic, set by v_beam/v_te; tests A and B) and the
+hybrid feature (set by heater and B) are, on present evidence, **different mechanisms with a
+similar phase-space look.**
