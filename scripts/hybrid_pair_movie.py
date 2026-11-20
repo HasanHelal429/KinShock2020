@@ -32,6 +32,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, HERE)
 
+from kinshock import deck  # noqa: E402
 from kinshock import io as kio  # noqa: E402
 from kinshock import plotting as P  # noqa: E402
 from hybrid_phase_movie import QE, dumps, scales_from_used_inputs  # noqa: E402
@@ -73,6 +74,8 @@ def main():
     ap.add_argument("--ion-vlim", type=float, nargs=2, default=(-0.5, 2.5))
     ap.add_argument("--seconds", type=float, default=15.0, help="movie length; fps = frames/seconds")
     ap.add_argument("--max-frames", type=int, default=0)
+    ap.add_argument("--sync", choices=("gyro", "step"), default="gyro",
+                    help="pair frames at equal t*w_ci0 of each run (default) or at equal step")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -81,12 +84,39 @@ def main():
     labels = args.labels or ids
     sc = [scales_from_used_inputs(r) for r in runs]
     vsh = args.vsh_kms * 1e3
-    steps = sorted(set(dumps(runs[0], "diag_phase")) & set(dumps(runs[1], "diag_phase")))
+    phase = [dumps(r, "diag_phase") for r in runs]
+    dt = [float(deck.parse_inputs(os.path.join(r, "warpx_used_inputs"))["warpx.const_dt"].split()[0])
+          for r in runs]
+    tstar = lambda c, st: st * dt[c] * sc[c]["wci0"]
+    if args.sync == "step":
+        common = sorted(set(phase[0]) & set(phase[1]))
+        pairs = [(st, st) for st in common]
+    else:
+        # Gyro-synced: walk the run whose dumps are COARSER in t*w_ci0 and pair each with the
+        # other run's dump nearest in its OWN t*w_ci0, over the t* range both runs cover.
+        sa, sb = sorted(phase[0]), sorted(phase[1])
+        da = (sa[1] - sa[0]) * dt[0] * sc[0]["wci0"]; db = (sb[1] - sb[0]) * dt[1] * sc[1]["wci0"]
+        lead, other = (0, 1) if da >= db else (1, 0)
+        sl, so = (sa, sb) if lead == 0 else (sb, sa)
+        tmax = min(tstar(0, sa[-1]), tstar(1, sb[-1]))
+        to = np.array([tstar(other, st) for st in so])
+        pairs = []
+        for st in sl:
+            t = tstar(lead, st)
+            if t > tmax + 1e-9:
+                break
+            mo = so[int(np.argmin(np.abs(to - t)))]
+            pairs.append((st, mo) if lead == 0 else (mo, st))
+        worst = max(abs(tstar(0, a) - tstar(1, b)) for a, b in pairs)
+        print(f"gyro-synced: {len(pairs)} frames to t*w_ci0 = {tmax:.2f}, "
+              f"worst mismatch {worst:.3f} in t*w_ci0")
     if args.max_frames:
-        steps = steps[:args.max_frames]
-    if not steps:
-        raise SystemExit("the two runs share no diag_phase steps")
-    F = [load_fields(r, s, steps, args.field_smooth_de) for r, s in zip(runs, sc)]
+        pairs = pairs[:args.max_frames]
+    if not pairs:
+        raise SystemExit("no frames to pair")
+    steps = pairs   # kept for the progress line below
+    F = [load_fields(r, s, [p[c] for p in pairs], args.field_smooth_de)
+         for c, (r, s) in enumerate(zip(runs, sc))]
     allv = [v for _, d in F for v in d.values()]
     # Axis limits skip the outer 2 d_i0: late in a run the open hi boundary throws a B/E spike
     # ~10x the real ramp (CLAUDE.md, B_compression gotcha), which would flatten every panel.
@@ -100,8 +130,7 @@ def main():
     Lz = max(v["z"][-1] for v in allv)
     z_edges = np.linspace(0.0, Lz, 1601)
     v_edges = np.linspace(args.ion_vlim[0], args.ion_vlim[1], 241)
-    phase = [dumps(r, "diag_phase") for r in runs]
-    print(f"{len(steps)} shared frames; B0 = {sc[0]['B0']:.3g} / {sc[1]['B0']:.3g} T; "
+    print(f"{len(steps)} frames; B0 = {sc[0]['B0']:.3g} / {sc[1]['B0']:.3g} T; "
           f"limits B {bfloor:.3g}..{blim:.3g} T, |E| {elim:.3g} V/m, T_e {tlim:.0f} eV")
 
     tag = f"pair_{ids[0]}_vs_{ids[1]}"
@@ -111,10 +140,11 @@ def main():
         if f.startswith("frame_"):
             os.remove(os.path.join(framedir, f))
 
-    for k, st in enumerate(steps):
+    for k, pair in enumerate(steps):
         fig, axes = plt.subplots(3, 2, figsize=(15.0, 9.0), sharex=True,
                                  gridspec_kw={"height_ratios": [1.1, 0.8, 0.7]})
         for c in range(2):
+            st = pair[c]
             s, (fsteps, loaded) = sc[c], F[c]
             fr = kio.load_frame(phase[c][st], add_applied_field=False)
             sd = {}
@@ -127,8 +157,9 @@ def main():
             ax = axes[0, c]
             P.phase_distribution(ax, sd, z_edges, v_edges, vline=1.0, legend=(c == 0))
             ax.set_ylabel(rf"$v_z$ / {args.vsh_kms:.0f} km/s")
-            ax.set_title(f"{labels[c]}\n" rf"$t\,\omega_{{ci0}}$ = {fr.time * s['wci0']:.2f}"
-                         f"  (B0 = {s['B0']:.2f} T)", fontsize=10)
+            ax.set_title(f"{labels[c]}\n" rf"$t\,\omega_{{ci0}}$ = {fr.time * s['wci0']:.3f}"
+                         f"   t = {fr.time * 1e9:.3f} ns   (B0 = {s['B0']:.2f} T)", fontsize=10)
+            tw = fr.time * s["wci0"]
             axf, axe = axes[1, c], axes[1, c].twinx()
             axe.plot(D["z"], D["ez"] / 1e6, color=P.C_AMBIENT, lw=0.6, alpha=0.8, label=r"$E_z$")
             axe.set_ylim(-elim / 1e6, elim / 1e6)
@@ -153,8 +184,10 @@ def main():
             h1, l1 = axt.get_legend_handles_labels(); h2, l2 = axn.get_legend_handles_labels()
             axt.legend(h1 + h2, l1 + l2, loc="upper right", fontsize=8, ncol=3, frameon=False)
             axes[2, c].set_xlabel(r"$z / d_{i0}$")
-            t_ns = fr.time * 1e9
-        fig.suptitle(f"t = {t_ns:.3f} ns  (step {st})", fontsize=11)
+        if args.sync == "gyro":
+            fig.suptitle(rf"$t\,\omega_{{ci0}}$ = {tw:.2f}  (each run's own gyrofrequency)", fontsize=11)
+        else:
+            fig.suptitle(f"t = {fr.time * 1e9:.3f} ns  (step {pair[0]})", fontsize=11)
         fig.tight_layout()
         fig.savefig(os.path.join(framedir, f"frame_{k:03d}.png"), dpi=100)
         plt.close(fig)
