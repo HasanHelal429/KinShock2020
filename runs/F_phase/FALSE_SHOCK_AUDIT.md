@@ -215,3 +215,14 @@ The kinetic runs do not follow that cutoff (`notch/kin_ratio.py`):
 So the kinetic false shock (beam-front ion-acoustic, set by v_beam/v_te; tests A and B) and the
 hybrid feature (set by heater and B) are, on present evidence, **different mechanisms with a
 similar phase-space look.**
+
+### Hybrid discriminant (2026-11-20, user verdicts via the hybrid session; commit 62a6354)
+
+At a fixed heater, the upstream B decides the hybrid feature:
+- hc_470eV_dense_th63_B15 (B₀ ×1.5, slab T_e unchanged at 1140 eV): ratio 9.9, **clean**.
+- hc_470eV_dense_th40 (θ 4e-4, 746 eV): ratio 14.6, **clean**.
+- The parent hc_470eV_dense_th63: ratio 22.1, forms.
+
+So the hybrid cutoff is T_e/(m_i v_A²) = 14.6–22.1 (c_s/v_A 4.9–6.1). The kinetic θ ladder sits
+fixed at 9.2 (slab ≈ 21) while its verdict flips with ε, so "no common cutoff" stands.
+Details: runs/hybrid_phase/README.md.
