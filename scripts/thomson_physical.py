@@ -283,7 +283,8 @@ def _row(fig, ax, spec, tw, vgrid, streak, lam0, args, rlab):
     ax[2].pcolormesh(tw, vgrid / 1e3, flog.T, shading="nearest", cmap="viridis", vmin=-4, vmax=0)
     ax[2].set_xlabel(getattr(args, "xlabel", "t·ω_ci0"))
     ax[2].set_ylabel(getattr(args, "streak_ylabel", "ion v_z (km/s, physical H⁺)"))
-    ax[2].set_title(pre + getattr(args, "streak_title", None) or f"ion phase space at z = {args.position_di0:g} d_i0 (log f)")
+    ax[2].set_title(pre + (getattr(args, "streak_title", None)
+                           or f"ion phase space at z = {args.position_di0:g} d_i0 (log f)"))
     return epw, iaw, lw_e, lw_i, tws
 
 
