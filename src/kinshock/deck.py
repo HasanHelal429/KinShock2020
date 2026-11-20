@@ -392,8 +392,14 @@ def render(cfg: dict) -> str:
     mgs = num.get("max_grid_size")
     if mgs is not None:
         # 2D: a per-dimension list [x, z] (e.g. full x, z split across GPUs).
-        a("amr.max_grid_size = " + (" ".join(str(int(v)) for v in mgs)
-                                    if isinstance(mgs, (list, tuple)) else f"{int(mgs)}"))
+        if isinstance(mgs, (list, tuple)):
+            # AMReX reads only the FIRST value of a multi-valued amr.max_grid_size and applies it
+            # to every direction (q2_470eV_nx8, 2026-11-20: "8 35776" gave 4472 8x8 boxes on one
+            # GPU, 1.4 s/step). Per-direction sizes need the _x/_y keys; in 2D, y is z.
+            for ax, v in zip("xy", mgs):
+                a(f"amr.max_grid_size_{ax} = {int(v)}")
+        else:
+            a(f"amr.max_grid_size = {int(mgs)}")
     a(f"geometry.dims     = {int(geo['dims'])}")
     px = "-hx " if quasi2d else ""
     a(f"geometry.prob_lo  =  {px}0." if one_sided else f"geometry.prob_lo  = {px}-half")
@@ -780,7 +786,10 @@ def key_params(path: str, allow_unresolved: bool = False) -> dict:
     # Absent means "AMReX decides", which is a different run from an explicit box size on
     # GPU (6.5x). It has to round-trip or --verify would pass on a deck whose decomposition
     # silently changed. 0 is the sentinel for "not set" so the comparison stays numeric.
-    mg = str(d.get("amr.max_grid_size", 0)).split()
+    if "amr.max_grid_size_y" in d:     # 2D per-direction form
+        mg = [d.get("amr.max_grid_size_x", "0"), d["amr.max_grid_size_y"]]
+    else:
+        mg = str(d.get("amr.max_grid_size", 0)).split()
     out["max_grid_size"] = int(float(mg[-1]))
     if len(mg) > 1:
         out["max_grid_size_x"] = int(float(mg[0]))
