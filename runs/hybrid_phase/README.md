@@ -16,6 +16,10 @@ Render with `scripts/hybrid_phase_movie.py`, which reads scales from `warpx_used
 | `hy_470eV_t2_lo` / `_hi` | same, θ = 5.0e-4 / 7.5e-4 (brackets) | — |
 | `hc_470eV_t2` | `hy_470eV_t2` with **only `advected → conducting`**: electron heat flux, flux-limited Spitzer (f 0.06), Braginskii-magnetized, lnΛ 12.23 (= the kinetic twin's). Ran 2026-11-16 (job 61440875, 5 m 48 s): front 8.83 / 10.37 / 10.83 d_i0/t* (advected 6.97 / 7.57 / 8.38, kinetic 12.1) | **no** (2026-11-16) |
 | `hc_47keV_t2` | `hc_470eV_t2` scaled to 47 keV (T ×100, v_A and v_p ×10, η and lnΛ held dimensionless; lnΛ = `ek_47keV_t2`'s 122,349). Ran 2026-11-16 (job 61440876, 6 m 08 s): front speeds within 0.3 % of `hc_470eV_t2`; n_i and T_e within 1 % (L2), B_x 28 % by t* 2, a real deck difference (replicate floor 2e-9; RESULTS) | **no** (2026-11-16) |
+| `hc_470eV_dense` | `H3_470eV_dense` with **only `advected → conducting`** (same heat-flux keys as `hc_470eV_t2`) plus the `UE` diag; heater θ 1.993e-4, 80 d_i0, dz 0.025, 8960 steps and cadence unchanged. Deck hand-derived from `inputs_H3_470eV_dense` (diff = mode + heat_flux + UE). Ran 2026-11-18 (job 61541377, 27 m, exit 0; used-inputs diff = mode + heat_flux + UE only). vs `H3_470eV_dense` (quick profile check): T_e,max capped at ~425 eV from t* 0.5 on (advected 536→642 eV); n_i L2 0.07→0.27, T_e L2 0.33–0.40; outermost compression (1.5× upstream) 56.6 vs 48.4 d_i0 at t* 5.5, ≈9.7 vs 8.4 d_i0/t* over t* 1–5.5. Same pattern as the hy/hc t2 pair, smaller at this θ. Binary C vs A not separated | **no** (user, 2026-11-18: same as `H3_470eV_dense`) |
+| `hc_470eV_dense_th63` | `hc_470eV_dense` with **only `Hheat` → `hc_470eV_t2`'s** (θ 1.993e-4 → 6.3e-4). Heater-vs-box test: if it matches `hc_470eV_t2` through t* 2, the heater sets the difference; if it matches `hc_470eV_dense`, the 34.2 d_i0 box (PEC wall) does. Ran 2026-11-18 (job 61552510, 27.5 m, exit 0). **Heater, not box:** on z < 30 d_i0 through t* 2 it reproduces `hc_470eV_t2` (ambient n_i L2 0.004, B_x L2 0.002–0.005, T_e to 1.5e-4; only a local B_x blip at the t2 PEC wall), while `hc_470eV_dense` differs by n_amb L2 0.42–1.06. Movie `media/hybrid_phase/hc_470eV_dense_th63/` | **yes** (user, 2026-11-19: every strong-heater hybrid) |
+| `hc_470eV_dense_th63_B15` | `hc_470eV_dense_th63` with **only B0 ×1.5** (7.03 → 10.54 T). dt/steps fixed in SI, so it covers 8.4/ω_ci(B). Discriminant: ratio T_e/(m_i v_A²) 22 → ~10 at the same heater. If the ratio sets the feature, it should vanish. Ran 2026-11-19 (job 61614933, 27.8 m, exit 0). Measured at t = 160 ps: slab T_e 1140 eV (= parent's 1131), **ratio 9.9** (parent 22.1), c_s/v_A 4.07. Movie: time labels use ω_ci(10.5 T), 1.5× the 7 T runs'; E_z axis normalised with the stale vA constant (×1.5 off) | **no** (user, 2026-11-20) |
+| `hc_470eV_dense_th40` | `hc_470eV_dense_th63` with **only θ_heat 6.3e-4 → 4.0e-4** (Hheat 1.7774e24). Predicted slab ~770 eV, ratio ~15, mid of the 12–22 band. Places the hybrid cutoff. Ran 2026-11-19 (job 61614934, 27.5 m, exit 0). Measured at t = 160 ps: slab T_e 746 eV, **ratio 14.6**, c_s/v_A 4.93. Movie `media/hybrid_phase/hc_470eV_dense_th40/` | **no** (user, 2026-11-20) |
 
 **Conducting twins (2026-11-16).** `conducting` = `advected` plus a heat-flux step, from the
 warpx-cda particle-splitter worktree (uncommitted; LaserProdShock `HYBRID_CONDUCTION.md`). They run
@@ -32,3 +36,50 @@ The `hy_*` twins change only box, clock, diagnostic cadence and heater amplitude
 `H3_470eV_dense`. Heater sizing: T_ss ∝ θ^1.21 and v_front ∝ √T give v ∝ θ^0.6. Matching the
 kinetic piston speed puts the fluid slab near 1.5–2.5 keV rather than 470 eV; the closure
 cannot match both, and the drive speed sets the shock's M_A.
+
+**hy vs hc at θ 6.3e-4 (2026-11-18, quick profile check, `diag_fields` at t·ω_ci0 0.5/1/1.5/2).** By eye `hy_470eV_t2*`
+behave like `hc_470eV_t2`. Measured against `hc_470eV_t2`, all three advected runs (θ 5.0/6.3/7.5e-4) are about equally far:
+n_i L2 0.07–0.31 and T_e L2 0.38–0.53, both growing with time. The θ bracket does not contain the conducting run. Conduction caps
+the slab (T_e,max 1129 eV at t* 2 vs 1482–2279 advected) and pushes the first compression further out (z 29.2 vs 21.0–23.8 d_i0,
+crude 1.5×-upstream threshold). So the conducting run is not a heater rescale of the advected one. Both runs share θ, box and clock, so how
+either differs from `H3_470eV_dense` comes from heater/box first; `hc_470eV_dense` isolates the solver at the dense run's θ.
+
+**Hybrid vs kinetic false-shock cutoff (2026-11-19, joint with the KinShock session).** The user reports the feature in
+EVERY strong-heater hybrid and not in the θ 1.99e-4 pair. This supersedes the 2026-11-16 "no false shock" verdicts above.
+Variable: ratio = T/(m_i v_A²) (upstream B via v_A). Hybrid uses the peak fluid slab T_e at t* 2. Kinetic uses T_e,ab (ratio) and the
+measured slab T_e (slab·ratio, a 3-component variance over z < 2 d_i,ab, so it is not a peak value).
+
+| side | run | θ / ε_ab | B0 or v_A/c | ratio (drive) | slab T / (m_i v_A²) | feature |
+|---|---|---|---|---|---|---|
+| hybrid | hc_470eV_dense / H3_470eV_dense | θ_heat 1.99e-4 | 7.0 T | — | 8.3 / 11.8 | no |
+| hybrid | hc_470eV_t2, _dense_th63, hc_47keV_t2 | 6.3e-4 / 6.3e-4 / 0.063 | 7.0 / 7.0 / 70 T | — | 22.1 | yes |
+| hybrid | hy_470eV_t2_lo / mid / hi | 5.0 / 6.3 / 7.5e-4 | 7.0 T | — | 29 / 37 / 45 | yes |
+| kinetic | R1_470eV_s3f8_t2, fs_470eV_* | ε 0.030 | 1e-3 | 9.2 | 20.5–20.7 | forms |
+| kinetic | ft_15keV_t2, ft_30keV_t2, ek/fs_47keV | ε 0.17–0.30 | 5.6e-3–1e-2 | 9.2 | 21.6–22.5 | clean |
+| kinetic | vA_lowTab | ε 0.0071 | 1e-3 | 0.50 | — | forms |
+| kinetic | mb_r100_t2 (B0/10) | ε 0.30 | 1e-3 | 920 | — | clean |
+| kinetic | poc1d (CH, Z 3.5) | ε 0.19 | 1.7e-2 | 1.28 | — | forms |
+
+Verdict: **no common cutoff.** In the hybrid the feature sorts on slab T_e/(m_i v_A²) between 12 and 22, not on θ_heat (the 47 keV
+twin has 100× θ and the same ratio and verdict), and not on conduction or box. The kinetic θ ladder holds the ratio at 9.2,
+so its ε_ab 0.030–0.17 cutoff is invisible to this variable: forming and clean runs both sit at slab·ratio ≈ 21. Off the ladder the
+ordering runs the wrong way (vA_lowTab forms at 0.5; mb_r100 is clean at 920). So the two features are different physics with a shared phase-space look:
+kinetic = beam-front ion-acoustic, set by v_beam/v_te (tests A+B); hybrid = heater drive relative to B. Open: the hybrid B
+dependence has been tested only at B0 7 T and at 70 T, where it moved together with T, so it is untested at fixed heater.
+(Answered 2026-11-20 below.)
+
+**Discriminants (2026-11-20, user verdicts by eye): at fixed heater, the hybrid cutoff depends on the upstream B.**
+
+| run | θ_heat | B0 | slab T_e (160 ps) | T_e/(m_i v_A²) | c_s/v_A | feature |
+|---|---|---|---|---|---|---|
+| `hc_470eV_dense` | 1.99e-4 | 7.03 T | 426 eV | 8.3 | 3.7 | no |
+| `hc_470eV_dense_th63_B15` | 6.3e-4 | 10.54 T | 1140 eV | 9.9 | 4.1 | **no** |
+| `hc_470eV_dense_th40` | 4.0e-4 | 7.03 T | 746 eV | 14.6 | 4.9 | **no** |
+| `hc_470eV_dense_th63` | 6.3e-4 | 7.03 T | 1131 eV | 22.1 | 6.1 | yes |
+
+`_B15` keeps the heater and the slab temperature (1140 vs 1131 eV) and raises only B0 ×1.5, and the feature goes away.
+So the controlling variable is the slab T_e relative to the upstream field, not the heater amplitude. The hybrid
+cutoff narrows to **T_e/(m_i v_A²) 14.6–22.1 (c_s/v_A 4.9–6.1)**. The kinetic false shock still sits on a different
+axis (ε_ab, v_beam/v_te) at a fixed ratio of 9.2; see the joint table above. All four rows are `hc_*_dense*` conducting
+runs on the 80 d_i0 box with binary C. One B0 point (×1.5) shows the B dependence, but it does not yet show that
+the cutoff scales exactly as T/B² (a second B0, e.g. ×1.2 at θ 6.3e-4, ratio ~15, would test that).

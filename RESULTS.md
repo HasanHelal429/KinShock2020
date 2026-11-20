@@ -5689,3 +5689,39 @@ the run dirs are untouched.
 - Hybrid 2D: no run reaches 3 mm yet. When one does, use the PHc beam-centre strip and
   u_e = u_i − J/(e n), since the 1D drift identity fails in 2D.
 - The hybrid electron drift is now charge-weighted, Σ Z n u / Σ Z n, which matters for C⁶⁺/H⁺.
+
+## 2026-11-18 → 11-20 — Hybrid false-shock feature: set by slab T_e relative to the upstream B, not by conduction
+
+Five new 470 eV hybrid runs in `runs/hybrid_phase/`, all on binary C (frozen conduction build). Each changes one deck
+line from its parent. Per-run detail and the full tables are in `runs/hybrid_phase/README.md`. Verdicts are the user's, by eye.
+
+**Correction to 2026-11-16.** The strong-heater hybrids DO show the false-shock-like feature: `hy_470eV_t2_lo/mid/hi`,
+`hc_470eV_t2`, `hc_47keV_t2` and `hc_470eV_dense_th63` all have it. Only the θ_heat 1.99e-4 runs are clean. The
+"conducting hybrids: no false shock" verdicts recorded on 2026-11-16 are superseded.
+
+The chain of single-variable tests:
+1. **Conduction does not set it.** `hc_470eV_dense` = `H3_470eV_dense` with only advected → conducting: same look.
+   Conduction caps the slab at ~425 eV vs 642 eV advected and moves the front further out, but the verdict is
+   the same. `hy_470eV_t2` vs `hc_470eV_t2` gives the same picture at θ 6.3e-4.
+2. **Box does not set it.** `hc_470eV_dense_th63` (80 d_i0, θ 6.3e-4) reproduces `hc_470eV_t2` (34.2 d_i0) on
+   z < 30 d_i0 through t* 2: ambient n_i L2 0.004, T_e to 1.5e-4.
+3. **Hybrid variable = slab T_e/(m_i v_A²).** Over the 8 earlier hybrids, clean runs sit at 8.3/11.8 and feature
+   runs at 22–45. The 47 keV twin has 100× θ_heat and B0 ×10, lands at the same 22, and has the feature, so θ alone
+   does not sort the runs.
+4. **Discriminants (2026-11-20).** `hc_470eV_dense_th63_B15`: B0 ×1.5 at θ 6.3e-4, slab 1140 eV (unchanged),
+   ratio 22 → 9.9 → **clean**. `hc_470eV_dense_th40`: θ 4.0e-4, slab 746 eV, ratio 14.6 → **clean**.
+   So at fixed heater the upstream field decides the verdict, and **the hybrid cutoff is T_e/(m_i v_A²) 14.6–22.1
+   (c_s/v_A 4.9–6.1).**
+
+**Kinetic vs hybrid: no common cutoff** (joint with the KinShock session). The kinetic θ ladder holds
+T_e,ab/(m_i v_A²) = β_ab·n_amb/n_ab = 9.2 in every run. The forming 470 eV and the clean 15–47 keV runs both sit at
+slab·ratio ≈ 21. Off the ladder, `vA_lowTab` forms at 0.5 and `mb_r100_t2` is clean at 920. So the kinetic false
+shock (beam-front ion-acoustic, v_beam/v_te) and the hybrid feature (slab pressure vs B) are different physics that share
+a phase-space look.
+
+Open: one B0 point shows B matters but not that the cutoff scales exactly as T/B². A second B0 at θ 6.3e-4
+(e.g. ×1.2, ratio ~15) would test that.
+
+Also from this work: two `thomson_physical.py` fixes (cadb386 streak-title crash; 146457b vacuum cutoff relative to
+n_amb, not the run's peak n_e, which had blanked `H3_470eV_dense`'s whole upstream). Thomson figures for the three
+dense runs are at `media/hybrid_phase/<run>/thomson_phys470[_param].png`.
