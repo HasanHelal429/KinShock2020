@@ -125,6 +125,11 @@ def main():
     ap.add_argument("--velocity-bins", type=int, default=2048)
     ap.add_argument("--iaw-half-min", type=float, default=5.0,
                     help="minimum IAW window half-width in nm (covers the bulk-flow shift)")
+    ap.add_argument("--vacuum-fraction", type=float, default=1e-2,
+                    help="frames with n_e below this fraction of the AMBIENT density count as "
+                         "vacuum (NaN). The pipeline default is a fraction of the run's peak "
+                         "n_e at the probe, which blanks the whole upstream once the "
+                         "downstream exceeds 100 n_amb (H3_470eV_dense: 116 n_amb)")
     ap.add_argument("--tag", default="phys470")
     ap.add_argument("--parametric", action="store_true",
                     help="also model moment-matched Maxwellians of every species and write a "
@@ -191,6 +196,7 @@ def main():
     def spectra(els, ios):
         return pt.spectra_from_phase_spaces(
             els, ios, position=z_p, reference_density=1 * u.m**-3,
+            vacuum_density=args.vacuum_fraction * sc.namb * u.m**-3,
             probe_wavelength=lam0 * u.nm,
             epw_wavelengths=win(epw_half) * u.nm, iaw_wavelengths=win(iaw_half) * u.nm,
             epw_notches=[[lam0 - iaw_half, lam0 + iaw_half]] * u.nm, iaw_notches=None,
