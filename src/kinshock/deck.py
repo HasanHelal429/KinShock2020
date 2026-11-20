@@ -576,8 +576,10 @@ def render(cfg: dict) -> str:
         a(f"target_injector.neutralizing_species = {nsp}")
         a(f"target_injector.intervals            = {_op_intervals(inj['intervals'], drive_stop)}")
         a(f"target_injector.tau                  = {_num(inj['tau_over_wpe_inv'])}/wpe")
-        a("target_injector.lo                   = -slab")
-        a("target_injector.hi                   =  slab")
+        # The injector region is a box with one bound per simulated dimension (x z in 2D);
+        # the heater's foil bounds stay scalar along its normal.
+        a("target_injector.lo                   = " + ("-hx -slab" if quasi2d else "-slab"))
+        a("target_injector.hi                   =  " + ("hx slab" if quasi2d else "slab"))
         a("target_injector.density              = nt")
         a("target_injector.reference_density    = n0")
         # 2D: the species load ppc_transverse x ppc particles per cell, so the injector's
