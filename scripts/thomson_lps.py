@@ -56,6 +56,10 @@ def main():
     ap.add_argument("--v-ion-max-kms", type=float, default=4000.0)
     ap.add_argument("--v-e-max-c", type=float, default=0.3)
     ap.add_argument("--parametric", action="store_true")
+    ap.add_argument("--vacuum-density", type=float, default=9e21,
+                    help="m^-3; frames below it are vacuum (NaN). Default = 1%% of the OMEGA 2019 "
+                         "ambient (n_e0 = 9e23). The pipeline's own default is 1%% of the run's "
+                         "PEAK n_e at the probe, which blanks the upstream behind a dense front")
     ap.add_argument("--tag", default=None)
     ap.add_argument("--note", default="")
     args = ap.parse_args()
@@ -106,6 +110,7 @@ def main():
     def spectra(els, ios):
         return pt.spectra_from_phase_spaces(
             els, ios, position=z_p, reference_density=1 * u.m**-3,
+            vacuum_density=args.vacuum_density * u.m**-3,
             probe_wavelength=lam0 * u.nm,
             epw_wavelengths=win(args.epw_half) * u.nm, iaw_wavelengths=win(iaw_half) * u.nm,
             epw_notches=[[lam0 - iaw_half, lam0 + iaw_half]] * u.nm, iaw_notches=None,
