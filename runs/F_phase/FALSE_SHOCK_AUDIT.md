@@ -226,3 +226,20 @@ At a fixed heater, the upstream B decides the hybrid feature:
 So the hybrid cutoff is T_e/(m_i v_A²) = 14.6–22.1 (c_s/v_A 4.9–6.1). The kinetic θ ladder sits
 fixed at 9.2 (slab ≈ 21) while its verdict flips with ε, so "no common cutoff" stands.
 Details: runs/hybrid_phase/README.md.
+
+### Hybrid feature redefined, and mass-ratio independent (2026-11-20/21, user via the hybrid session)
+
+1. **What the hybrid "feature" is** (user, by eye). It is a *transient* common to all four
+   B-bracket runs (th63, B11, B12, B15). The ion C at the piston edge gets much harsher corners
+   for its reflecting ions, enclosing an empty hole in phase space. All four are identical at
+   t·ω_ci0 ≈ 1.2 and settle to identical states by ≈ 3. Only the transient's **size and
+   lifetime** differ, clearest at t* ≈ 2.14, shrinking with R = T_e/(m_i v_A²): th63 > B11 >
+   B12 > B15 (barely). So the hybrid feature is **not** the kinetic plateau-plus-cliff notch. It
+   is a graded transient of the piston-braking / ramp-separation phase, consistent with the
+   pressure-balance reading: minimum edge M_A 4.3 / 3.2 / 2.4 / 1.5.
+2. **Mass ratio does not matter.** hc_470eV_dense_th63_mp (m_i/m_e 1836, same n, B₀, T and R;
+   conduction ~4.3× faster relative to the ions) is identical to th63. So neither m_i/m_e nor
+   conduction strength sets it.
+3. **Why LaserProdShock P8 shows it unsettled.** Its laser runs accumulate only 0.8–1.7 local
+   ion gyro-times by 4.5 ns, because the coil field falls 7.5 → 2 T along the path. They stay in
+   this transient phase.
