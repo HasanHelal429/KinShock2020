@@ -243,3 +243,12 @@ Details: runs/hybrid_phase/README.md.
 3. **Why LaserProdShock P8 shows it unsettled.** Its laser runs accumulate only 0.8–1.7 local
    ion gyro-times by 4.5 ns, because the coil field falls 7.5 → 2 T along the path. They stay in
    this transient phase.
+
+**Bracket verdicts (user, 2026-11-22):** B11 (R 18.3) and B12 (R 15.3) lie in between: the same
+transient, dying down faster. So the hybrid transient's size and lifetime decrease monotonically
+with R = T_e/(m_i v_A²) over th63 > B11 > B12 > B15, with no sharp cutoff. That matches the
+graded piston-braking picture (minimum edge M_A 4.3 / 3.2 / 2.4 / 1.5).
+
+**Quasi-1D check (user, 2026-11-22):** q2_470eV_nx8 (2D x–z, 8 cells wide) forms the kinetic
+false shock equivalently to 1D. The 2D machinery is validated; q2_470eV_nx128 (128 cells,
+oblique and k‖B allowed) is the real test.

@@ -34,5 +34,11 @@ Launch (from the main checkout, after it has these files):
 
 | run | status | false shock (by eye) |
 |---|---|---|
-| `q2_470eV_nx8` | staged | — |
-| `q2_470eV_nx128` | staged | — |
+| `q2_470eV_nx8` | done 2026-11-21 (job 61674036, 16 h 44 m, 0.016 s/step) | **false shock forms, equivalent to 1D** (user, 2026-11-22). Validates the 2D deck: injected/initial macroparticle weight 0.500, as in 1D |
+| `q2_470eV_nx128` | queued, chain 61727835–37 (regular, 4 GPUs) | — |
+
+**Bugs found by the nx8 check (all fixed).**
+1. 2D `target_injector.lo/hi` need one value per dimension (4560961).
+2. AMReX applies only the FIRST value of a multi-valued `amr.max_grid_size`, which gave 4472 8×8
+   boxes at 1.4 s/step. The fix is per-direction `max_grid_size_x/_y` (a971e5a).
+3. The `kinshock.io` field reader assumed 1D. It now averages 2D fields over x (e7b1cb5).
