@@ -252,3 +252,8 @@ graded piston-braking picture (minimum edge M_A 4.3 / 3.2 / 2.4 / 1.5).
 **Quasi-1D check (user, 2026-11-22):** q2_470eV_nx8 (2D x–z, 8 cells wide) forms the kinetic
 false shock equivalently to 1D. The 2D machinery is validated; q2_470eV_nx128 (128 cells,
 oblique and k‖B allowed) is the real test.
+
+**Workbook resolution (user, 2026-11-22):** fs_470eV_dz0202_t1 (dz = 0.33 λ_D,ab(n0), 0.47 at
+2 n0, 0.202 upstream; the finest grid in the repo) **still forms the false shock** (seen to
+t·ω_ci0 ≈ 0.84). Together with dz0379 (0.62 λ_D,ab) and the clean 47 keV runs at identical λ_D
+ratios, ablation-Debye resolution is excluded at the workbook's own standard.

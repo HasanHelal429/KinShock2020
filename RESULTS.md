@@ -5725,3 +5725,12 @@ Open: one B0 point shows B matters but not that the cutoff scales exactly as T/B
 Also from this work: two `thomson_physical.py` fixes (cadb386 streak-title crash; 146457b vacuum cutoff relative to
 n_amb, not the run's peak n_e, which had blanked `H3_470eV_dense`'s whole upstream). Thomson figures for the three
 dense runs are at `media/hybrid_phase/<run>/thomson_phys470[_param].png`.
+
+## 2026-11-22 — `fs_470eV_dz0202_t1` (dz = 0.33 λ_D,ab): the false shock still forms
+
+User, by eye, from the movies to t·ω_ci0 ≈ 0.84, with the run at 83.7%. This is the finest grid
+in the repo (dz 2.17 nm: 0.33 λ_D,ab at n0, 0.47 at 2 n0, 0.202 upstream; ω_pe dt 0.0075), and
+it still forms the false shock. **Ablation-Debye resolution is excluded at the workbook's own
+standard**, as RESULTS 2026-11-16 predicted from dz0379 (0.62 λ_D,ab, forms) and the clean
+47 keV runs, which have identical λ_D ratios. The discriminator remains ε_ab, through the
+beam-front ion-acoustic mechanism (FALSE_SHOCK_AUDIT tests A and B).

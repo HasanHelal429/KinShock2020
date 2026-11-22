@@ -40,7 +40,7 @@ Judge them by eye from the phase-space movies (`scripts/make_phase_hist_movie.py
 | `fs_47keV_dz3p0` | done 2026-10-12, 2.5 min | **no false shock** |
 | `fs_470eV_dz0379_t1` | done 2026-10-14 (36 h); movies `media/F_phase/fs_470eV_dz0379_t1/` | **false shock still forms**. Evolution is smooth until the accelerated upstream almost meets the kicked-up upstream ions (user, 2026-10-15) |
 | `fs_470eV_T100_t1` | done 2026-10-17 (10 h 37 m, job 59831119); movies `media/F_phase/fs_470eV_T100_t1/` | **false shock still forms** (user, 2026-11-16): not a cold/collisional upstream |
-| `fs_470eV_dz0202_t1` | running, chain 61436281–84 | — |
+| `fs_470eV_dz0202_t1` | 83.7% (t·ω_ci0 ≈ 0.84) at the 2026-11-22 render; last segment queued | **false shock still forms** at dz = 0.33 λ_D,ab (user, 2026-11-22) |
 | `ft_30keV_t2` | done 2026-11-16 (13 m 35 s, debug job 61437037); movie `media/F_phase/ft_30keV_t2/` | **clean** (user, 2026-11-16): ε_ab 0.24 is on the clean side |
 | `ft_15keV_t2` | done 2026-11-16 (30 m 46 s, shared job 61437039); movie `media/F_phase/ft_15keV_t2/` | **clean** (user, 2026-11-16): ε_ab 0.17 is also clean, so PoC (0.19, forms) is not on this axis |
 
