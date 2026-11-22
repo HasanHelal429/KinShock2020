@@ -126,9 +126,12 @@ def load_frame(path, fields=(), add_applied_field=True) -> Frame:
     yt = _yt()
     ds = yt.load(path)
     dims = ds.domain_dimensions
-    nz = int(dims[0])
-    lo = float(ds.domain_left_edge[0])
-    hi = float(ds.domain_right_edge[0])
+    # Quasi-1D 2D x-z runs (Q_phase): dims = (nx, nz, 1), z is the SECOND axis, and fields are
+    # returned averaged over the periodic transverse x. 1D runs: dims = (nz, 1, 1).
+    zax = 1 if int(dims[1]) > 1 else 0
+    nz = int(dims[zax])
+    lo = float(ds.domain_left_edge[zax])
+    hi = float(ds.domain_right_edge[zax])
     edges = np.linspace(lo, hi, nz + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
     # A covering_grid spanning the full domain can round up to one ULP past
@@ -150,7 +153,10 @@ def load_frame(path, fields=(), add_applied_field=True) -> Frame:
         """
         if not any(f[1] == name for f in ds.field_list):
             return None
-        return np.asarray(cg["boxlib", name]).reshape(nz)
+        a = np.asarray(cg["boxlib", name])
+        if zax == 1:
+            return a.reshape(int(dims[0]), nz).mean(axis=0)
+        return a.reshape(nz)
 
     def comp(name):
         a = comp_opt(name)
